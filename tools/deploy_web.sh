@@ -9,6 +9,8 @@ GODOT="${GODOT:-$(command -v godot || ls /c/Users/*/AppData/Local/Microsoft/WinG
 
 cd "$ROOT"
 mkdir -p build/web
+touch build/.gdignore  # keep the Godot editor from importing the build output
+rm -f build/web/*.import
 "$GODOT" --headless --path "$ROOT" --export-release "Web" build/web/index.html
 
 # Publish build/web as the only content of gh-pages, in a throwaway work tree.
