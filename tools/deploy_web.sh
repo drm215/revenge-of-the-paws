@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds the web export and publishes it to the repo's gh-pages branch (GitHub Pages), served at
+# Builds the web export and publishes it to the repo's gh-pages branch. A Render static site
+# (branch gh-pages, publish directory ".") redeploys on every push and serves it at
 # revengeofthepaws.com. Run from anywhere: tools/deploy_web.sh
 set -euo pipefail
 

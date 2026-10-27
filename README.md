@@ -20,8 +20,11 @@ godot --headless --path . --script res://tests/simulate.gd
 ```
 godot --headless --path . --export-release "Web" build/web/index.html   # needs Godot's web export templates
 python tools/serve_web.py --https                                        # test on a phone on the same Wi-Fi
-tools/deploy_web.sh                                                      # build and publish to GitHub Pages
+tools/deploy_web.sh                                                      # build and publish (gh-pages branch)
 ```
+
+The site is a Render static site that serves the `gh-pages` branch (no build command, publish
+directory `.`) and redeploys on every push.
 
 ## Tools
 
