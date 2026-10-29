@@ -2,9 +2,6 @@ extends Control
 
 ## Root: first-launch setup if there's no saved profile, then the campaign map and its battles.
 
-## Auto mode stops after this many fights in a row so the player gets the map back now and then.
-const AUTO_MAX_FIGHTS := 20
-
 var _profile: Profile
 var _campaign: Campaign
 
@@ -34,9 +31,6 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key():
 		_campaign = Campaign.create(profile)
 	_profile = profile
-	if allow_auto and profile.auto_battle and _campaign.auto_target(profile.leader_level()) >= 0:
-		_run_auto()
-		return
 	var screen := MapScreen.new()
 	screen.campaign = _campaign
 	screen.profile = profile
@@ -54,49 +48,23 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_profile.save()
 		_show_map(_profile))
 	_swap(screen)
+	if allow_auto and profile.auto_battle:
+		_queue_auto(screen)
 
 
-## Auto mode: instantly fights every territory (and counterattack) far enough below the pack
-## leader, with the current lineup, then reports. Stops at the first retreat.
-func _run_auto() -> void:
-	var lines: PackedStringArray = []
-	for n in AUTO_MAX_FIGHTS:
-		var i := _campaign.auto_target(_profile.leader_level())
-		if i < 0:
-			break
-		var level := _campaign.territory_level(i)
-		var defending := i == _campaign.under_attack
-		var result := AutoBattle.play(_profile, _campaign.battle_config(i))
-		var won: bool = result.won
-		var amount: int = result.xp if won else roundi(result.xp * GameData.DEFEAT_XP_SHARE)
-		var fought: Array[String] = []
-		fought.assign(result.fought)
-		var downed: Array[String] = []
-		downed.assign(result.downed)
-		var notes := _profile.after_battle(fought, downed, amount, won)
-		_campaign.resolve_battle(i, won)
-		var line := "%s %s (Lv %d): %s\n%s" % ["Defended" if defending else "Attacked",
-			_campaign.territories[i].full_name(), level, "won" if won else "lost", _campaign.last_event]
-		for note in notes:
-			line += "\n" + note
-		lines.append(line)
-		if not won:
-			lines.append("Auto mode paused after a retreat. Check your pack.")
-			break
-	_profile.save()
-	var screen := AutoReport.new()
-	screen.lines = lines
-	var back := func() -> void:
-		if not _profile.units_with_new_points().is_empty():
-			_show_upgrades()
-		else:
-			_show_map(_profile, false)
-	screen.closed.connect(back)
-	screen.stop_requested.connect(func() -> void:
-		_profile.auto_battle = false
-		_profile.save()
-		back.call())
-	_swap(screen)
+## Auto mode: after a short pause on the map, fights the next territory (or counterattack) far
+## enough below the pack leader, played by the AI on the battle screen. Leaving the map or
+## switching Auto off in the meantime cancels it.
+func _queue_auto(screen: MapScreen) -> void:
+	var target := _campaign.auto_target(_profile.leader_level())
+	if target < 0:
+		return
+	var t := _campaign.territories[target]
+	screen.announce("Auto: %s %s (Lv %d) in a moment. Tap Auto to stop." % [
+		"defending" if target == _campaign.under_attack else "attacking", t.full_name(), _campaign.territory_level(target)])
+	await get_tree().create_timer(GameData.AUTO_DELAY).timeout
+	if is_instance_valid(screen) and screen.is_inside_tree() and not screen.is_queued_for_deletion() and _profile.auto_battle:
+		_start_battle(target, false, _campaign.battle_config(target), true)
 
 
 func _show_account() -> void:
@@ -146,15 +114,19 @@ func _show_battle(territory: int, patrol := false) -> void:
 	_swap(screen)
 
 
-func _start_battle(territory: int, patrol: bool, config: Dictionary) -> void:
+func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := false) -> void:
 	var screen := BattleScreen.new()
 	screen.profile = _profile
 	screen.config = config
+	screen.auto = auto
 	screen.finished.connect(func(won: bool) -> void:
 		if patrol:
 			_campaign.resolve_patrol(territory, won)
 		else:
 			_campaign.resolve_battle(territory, won)
+		if auto and not won:
+			_profile.auto_battle = false
+			_campaign.last_event += "\nAuto mode switched off after the retreat."
 		_profile.save()  # XP and any rescued recruit
 		if not _profile.units_with_new_points().is_empty():
 			_show_upgrades()

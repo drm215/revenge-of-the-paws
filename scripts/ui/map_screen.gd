@@ -104,6 +104,12 @@ func _refresh_status() -> void:
 	_event.visible = event != ""
 
 
+## A line under the latest event, e.g. auto mode saying what it's about to fight.
+func announce(text: String) -> void:
+	_event.text = (_event.text + "\n" + text) if _event.visible else text
+	_event.visible = true
+
+
 func _on_action() -> void:
 	var i: int = _action.get_meta("territory")
 	match _action.get_meta("mode", "attack"):

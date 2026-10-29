@@ -98,8 +98,9 @@ The apocalypse starts **where you actually live**.
   - *Recovery:* **Rest** at home heals all injuries and clears fatigue (costs a map turn);
     **Patrol** a territory you hold for an easier fight (threat -1) that earns XP.
   - *Auto mode* (map footer toggle): territories and counterattacks at least 10 levels below the
-    pack leader (the pet, else the highest-level animal) are fought instantly by the AI with the
-    current lineup, then summarized. Legend lairs are never auto-fought; a retreat pauses it.
+    pack leader (the pet, else the highest-level animal) are fought one at a time after a short
+    pause on the map: the AI plays the pack's turns on the battle screen ("Take control" hands it
+    back) and the fight earns half XP. Legend lairs are never auto-fought; a retreat turns it off.
     Territory level is the pack level that usually takes it on: threat 1-5 = Lv 1, 3, 5, 8, 11.
   - *Fatigue:* -5% stats per battle fought in a row (max -20%); one battle benched resets it. The
     pet leader never tires.

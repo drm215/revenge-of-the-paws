@@ -1112,6 +1112,10 @@ static func territory_level(zombie_strength: float) -> int:
 const TERRITORY_LEVEL_STEP := 0.09
 ## Auto mode fights a territory on its own when the pack leader is at least this many levels above it.
 const AUTO_LEVEL_GAP := 10
+## Auto fights teach less than ones the player plays: their XP (fighters and bench) is halved.
+const AUTO_XP_SHARE := 0.5
+## Seconds the map waits before auto mode starts its next fight, so it can be switched off.
+const AUTO_DELAY := 2.5
 
 
 ## Risk-style reinforcements: every territory held beyond home strengthens the pack (HP/ATK).

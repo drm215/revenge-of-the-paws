@@ -8,6 +8,10 @@ signal finished(won: bool)
 
 const ENEMY_THINK_TIME := 0.6
 const AFTER_ACTION_TIME := 0.45
+## Auto mode plays the pack's turns itself, a bit quicker, and moves on between waves.
+const AUTO_THINK_TIME := 0.35
+const AUTO_AFTER_TIME := 0.3
+const AUTO_WAVE_PAUSE := 1.2
 const ORDER_PREVIEW := 7
 const PARTY_SPRITE := 150.0
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
@@ -15,6 +19,10 @@ const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
 var profile: Profile
 ## From Campaign.battle_config(): waves, zombie_mult, party_mult, place.
 var config: Dictionary
+## The AI picks the pack's moves (auto mode) until the player taps "Take control".
+var auto := false
+## Set at the end when the AI fought at least part of the battle: earns AUTO_XP_SHARE.
+var was_auto := false
 var battle: Battle
 var cards := {}  # Combatant -> UnitCard
 
@@ -60,7 +68,23 @@ func _new_game() -> void:
 
 	for c in battle.party:
 		_add_card(c, _party_col, PARTY_SPRITE)
+	if auto:
+		was_auto = true
+		_show_take_control()
 	_start_wave()
+
+
+## While auto plays, the skill row holds one button that hands the rest of the fight to the player.
+func _show_take_control() -> void:
+	var b := Button.new()
+	b.text = "AUTO · Take control"
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.custom_minimum_size = Vector2(0, 84)
+	b.add_theme_font_size_override("font_size", Retro.px(12))
+	b.pressed.connect(func() -> void:
+		auto = false
+		b.queue_free())
+	_skill_row.add_child(b)
 
 
 func _start_wave() -> void:
@@ -85,13 +109,13 @@ func _run_turns() -> void:
 			_show_outcome()
 			return
 		_set_active(actor)
-		if actor.is_player:
+		if actor.is_player and not auto:
 			_begin_player_turn(actor)
 			return  # resumes from _execute() once the player picks a target
-		await get_tree().create_timer(ENEMY_THINK_TIME).timeout
-		var plan := battle.plan_enemy_action(actor)
+		await get_tree().create_timer(AUTO_THINK_TIME if auto else ENEMY_THINK_TIME).timeout
+		var plan := AutoBattle.pick_action(battle, actor) if actor.is_player else battle.plan_enemy_action(actor)
 		battle.use_skill(actor, plan.skill, plan.target)
-		await get_tree().create_timer(AFTER_ACTION_TIME).timeout
+		await get_tree().create_timer(AUTO_AFTER_TIME if auto else AFTER_ACTION_TIME).timeout
 
 
 func _begin_player_turn(actor: Combatant) -> void:
@@ -154,15 +178,22 @@ func _show_outcome() -> void:
 	match battle.outcome():
 		Battle.Outcome.WAVE_CLEARED:
 			_show_overlay("Wave cleared!", "The pack rests and patches up.\nFallen friends get back on their paws.", "Next wave", _start_wave)
+			if auto:
+				await get_tree().create_timer(AUTO_WAVE_PAUSE).timeout
+				if auto and _overlay.visible:
+					_start_wave()
 		Battle.Outcome.VICTORY:
 			_show_overlay("Liberated!", "%s is free of the dead.\n\n%s" % [battle.place, _award_xp(true)], "Back to map", finished.emit.bind(true))
 		Battle.Outcome.DEFEAT:
 			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s" % _award_xp(false), "Back to map", finished.emit.bind(false))
 
 
-## XP (half on a retreat), bench XP, injuries, fatigue and foraging. The caller saves the profile.
+## XP (half on a retreat, half again in auto mode), bench XP, injuries, fatigue and foraging.
+## The caller saves the profile.
 func _award_xp(won: bool) -> String:
 	var amount := battle.xp_earned if won else roundi(battle.xp_earned * GameData.DEFEAT_XP_SHARE)
+	if was_auto:
+		amount = roundi(amount * GameData.AUTO_XP_SHARE)
 	var fought: Array[String] = []
 	for c in battle.party:
 		fought.append(c.id)
