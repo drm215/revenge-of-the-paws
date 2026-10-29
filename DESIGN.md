@@ -85,7 +85,7 @@ The apocalypse starts **where you actually live**.
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and
-  it joins the pack near the pack's level. The **Pack** screen swaps who fights beside the pet.
+  it joins the pack at Lv 1. The **Pack** screen swaps who fights beside the pet.
 - **Trinkets:** each legend drops its own trinket the first time it's beaten (Moth Wing Charm:
   +25% SPD/-10% DEF; Hollow-Bark Armor: +30% DEF/-15% SPD; Chupacabra Fang: heals 25% of damage
   dealt/-10% DEF; ...). Effects mix stat changes with lifesteal, thorns, regeneration, infection

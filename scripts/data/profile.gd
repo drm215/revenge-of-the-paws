@@ -38,6 +38,7 @@ var just_leveled: Array[String] = []  # units that gained a level since the last
 var injuries := {}  # unit id -> battles left injured
 var fatigue := {}  # unit id -> battles fought in a row
 var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
+var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
 
 
@@ -277,17 +278,15 @@ func pack_level() -> int:
 	return total / ids.size()
 
 
-## Lets animals join the pack; returns the ones that are new. New recruits start just under the
-## pack's level so swapping one in isn't a step backwards.
+## Lets animals join the pack; returns the ones that are new. New recruits start at Lv 1 and
+## train up from the bench or in easy fights.
 func unlock(ids: Array) -> Array[String]:
 	var fresh: Array[String] = []
-	var start := maxi(1, pack_level() - 1)
 	for id: String in ids:
 		if id in unlocked:
 			continue
 		unlocked.append(id)
 		fresh.append(id)
-		xp[id] = maxi(xp.get(id, 0), GameData.xp_to_reach(start))
 	if not fresh.is_empty():
 		auto_fill_duties()
 	return fresh
@@ -343,6 +342,7 @@ func save() -> void:
 	cfg.set_value("profile", "fatigue", fatigue)
 	cfg.set_value("profile", "duties", duties)
 	cfg.set_value("profile", "auto_battle", auto_battle)
+	cfg.set_value("profile", "fixes", Array(fixes))
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -371,6 +371,7 @@ static func load_saved() -> Profile:
 	p.fatigue = cfg.get_value("profile", "fatigue", {})
 	p.duties = cfg.get_value("profile", "duties", {})
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
+	p.fixes.assign(cfg.get_value("profile", "fixes", []))
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
@@ -380,6 +381,14 @@ static func load_saved() -> Profile:
 	p.unlock(GameData.REGIONS[p.region].animals)
 	p.unlock(p.team)
 	p.auto_fill_duties()
+	# One-off: recruits used to join near the pack's level; now they start at Lv 1. Send the
+	# Alligator recruited under the old rule back to Lv 1 too.
+	if "recruit_lv1" not in p.fixes:
+		p.fixes.append("recruit_lv1")
+		if "alligator" in p.unlocked and "alligator" not in GameData.REGIONS[p.region].animals:
+			p.xp["alligator"] = 0
+			p.tree.erase("alligator")
+		p.save()
 	return p
 
 
