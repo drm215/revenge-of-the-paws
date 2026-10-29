@@ -10,6 +10,7 @@ signal rest_requested
 signal setup_requested
 signal pack_requested
 signal account_requested
+signal auto_toggled
 
 var campaign: Campaign
 var profile: Profile
@@ -41,7 +42,7 @@ func _select(i: int) -> void:
 	_action.visible = campaign.is_actionable(i)
 	_action.set_meta("mode", "attack")
 	if i == campaign.under_attack:
-		_info_body.text = "Under attack! Threat %d. Lose this fight and the territory falls." % t.threat
+		_info_body.text = "Under attack! Lv %d · threat %d. Lose this fight and the territory falls." % [campaign.territory_level(i), t.threat]
 		_action.text = "Defend!"
 	elif i == campaign.home:
 		_info_body.text = "Home. Where %s began.\nRest here to heal injuries and clear fatigue (takes a turn)." % _pack_name()
@@ -56,8 +57,8 @@ func _select(i: int) -> void:
 	else:
 		var cfg := campaign.battle_config(i)
 		var tougher := roundi((GameData.zombie_mult(t.threat) - 1.0) * 100)
-		_info_body.text = "Threat %d · %d wave%s%s" % [
-			t.threat, cfg.waves.size(), "" if cfg.waves.size() == 1 else "s",
+		_info_body.text = "Lv %d · threat %d · %d wave%s%s" % [
+			campaign.territory_level(i), t.threat, cfg.waves.size(), "" if cfg.waves.size() == 1 else "s",
 			(" · zombies +%d%%" % tougher) if tougher > 0 else ""]
 		if t.failed_attacks > 0:
 			_info_body.text += " · horde thinned to %d%%" % roundi(t.horde_strength() * 100)
@@ -81,6 +82,8 @@ func _select(i: int) -> void:
 			_info_body.text += "\nScouted: " + GameData.waves_text(cfg.waves)
 		else:
 			_info_body.text += "\nWaves unknown: put a benched animal on scout duty."
+		if profile.auto_battle and t.boss == "":
+			_info_body.text += "\nAuto mode takes this one once your leader is Lv %d." % (campaign.territory_level(i) + GameData.AUTO_LEVEL_GAP)
 		if campaign.has_frontier(i):
 			_info_body.text += "\nOn the frontier: liberate it to reveal what lies beyond."
 		var survivor := campaign.pending_recruit(i)
@@ -341,6 +344,11 @@ func _build_ui() -> void:
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))
 	cloud_button.pressed.connect(account_requested.emit)
 	footer.add_child(cloud_button)
+	var auto := Button.new()
+	auto.text = "Auto: " + ("On" if profile.auto_battle else "Off")
+	auto.add_theme_font_size_override("font_size", Retro.px(10))
+	auto.pressed.connect(auto_toggled.emit)
+	footer.add_child(auto)
 	setup.text = "Setup"
 	setup.add_theme_font_size_override("font_size", Retro.px(10))
 	setup.pressed.connect(setup_requested.emit)

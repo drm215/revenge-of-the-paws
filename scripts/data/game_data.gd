@@ -1102,6 +1102,18 @@ static func zombie_mult(threat: int) -> float:
 	return THREAT_ZOMBIE_MULT[MAX_THREAT] + 0.25 * (threat - MAX_THREAT)
 
 
+## A territory's level: roughly the pack level that usually takes it on, so it reads on the same
+## scale as the pack. Each level is worth about +9% (stats plus tech-tree points, trinkets and held
+## territory), giving threat 1-5 levels 1, 3, 5, 8 and 11, and about +3 per threat beyond.
+static func territory_level(zombie_strength: float) -> int:
+	return maxi(1, 1 + roundi((zombie_strength - 1.0) / TERRITORY_LEVEL_STEP))
+
+
+const TERRITORY_LEVEL_STEP := 0.09
+## Auto mode fights a territory on its own when the pack leader is at least this many levels above it.
+const AUTO_LEVEL_GAP := 10
+
+
 ## Risk-style reinforcements: every territory held beyond home strengthens the pack (HP/ATK).
 const HELD_TERRITORY_BONUS := 0.01
 const MAX_HELD_BONUS := 0.15

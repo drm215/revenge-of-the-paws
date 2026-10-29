@@ -135,6 +135,24 @@ func is_actionable(i: int) -> bool:
 	return i == under_attack if under_attack >= 0 else can_attack(i)
 
 
+func territory_level(i: int) -> int:
+	return GameData.territory_level(GameData.zombie_mult(territories[i].threat) * territories[i].horde_strength())
+
+
+## The next fight auto mode takes on its own: a counterattack or neighbor at least AUTO_LEVEL_GAP
+## levels below the leader, easiest first. Legend lairs are always left to the player. -1 if none.
+func auto_target(leader_level: int) -> int:
+	var max_level := leader_level - GameData.AUTO_LEVEL_GAP
+	if under_attack >= 0:
+		return under_attack if territory_level(under_attack) <= max_level else -1
+	var best := -1
+	for i in territories.size():
+		if can_attack(i) and territories[i].boss == "" and territory_level(i) <= max_level:
+			if best < 0 or territory_level(i) < territory_level(best):
+				best = i
+	return best
+
+
 func battle_config(i: int) -> Dictionary:
 	var t := territories[i]
 	var threat := t.threat

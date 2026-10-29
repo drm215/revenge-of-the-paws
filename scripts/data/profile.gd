@@ -38,6 +38,7 @@ var just_leveled: Array[String] = []  # units that gained a level since the last
 var injuries := {}  # unit id -> battles left injured
 var fatigue := {}  # unit id -> battles fought in a row
 var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
+var auto_battle := false  # auto mode: fight territories far below the leader without asking
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -250,6 +251,22 @@ func pack_ids() -> Array[String]:
 	return ids
 
 
+## The pack's leader: the pet if there is one, otherwise the highest-level animal in the pack.
+func leader_id() -> String:
+	if has_pet():
+		return pet_species
+	var best := ""
+	for id in team:
+		if best == "" or level_of(id) > level_of(best):
+			best = id
+	return best
+
+
+func leader_level() -> int:
+	var id := leader_id()
+	return level_of(id) if id != "" else 1
+
+
 func pack_level() -> int:
 	var ids := pack_ids()
 	if ids.is_empty():
@@ -325,6 +342,7 @@ func save() -> void:
 	cfg.set_value("profile", "injuries", injuries)
 	cfg.set_value("profile", "fatigue", fatigue)
 	cfg.set_value("profile", "duties", duties)
+	cfg.set_value("profile", "auto_battle", auto_battle)
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -352,6 +370,7 @@ static func load_saved() -> Profile:
 	p.injuries = cfg.get_value("profile", "injuries", {})
 	p.fatigue = cfg.get_value("profile", "fatigue", {})
 	p.duties = cfg.get_value("profile", "duties", {})
+	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
