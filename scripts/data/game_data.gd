@@ -862,7 +862,7 @@ const MAX_THREAT := 5
 const THREAT_ZOMBIE_MULT := {1: 1.0, 2: 1.15, 3: 1.38, 4: 1.62, 5: 1.9}
 
 ## Leveling: every animal in the pack (pet included) earns XP from each fight it's part of.
-const MAX_LEVEL := 20
+const MAX_LEVEL := 50
 const XP_STEP := 120  # XP to go from level L to L+1 is XP_STEP * L
 const LEVEL_GROWTH := {"hp": 0.06, "atk": 0.045, "def": 0.03}  # per level above 1
 const DEFEAT_XP_SHARE := 0.5  # a retreat still teaches something
@@ -1022,7 +1022,7 @@ const UPGRADE_LABELS := {
 ## Stat nodes in the tech tree (speed is flat: +1 per node). Training: stats bought directly,
 ## any time, up to TRAINING_LIMITS times each.
 const STAT_STEP := {"hp": 0.08, "atk": 0.05, "def": 0.06, "spd": 1, "crit": 0.04}
-const TRAINING_LIMITS := {"hp": 5, "atk": 5, "def": 5, "spd": 4, "crit": 4}
+const TRAINING_LIMITS := {"hp": 15, "atk": 15, "def": 15, "spd": 6, "crit": 8}
 const STAT_LABELS := {
 	"hp": "Max HP +8%", "atk": "Attack +5%", "def": "Defense +6%", "spd": "Speed +1", "crit": "Crit chance +4%",
 }

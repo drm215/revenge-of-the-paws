@@ -72,16 +72,16 @@ The apocalypse starts **where you actually live**.
   territory can wall the campaign forever.
 - **Leveling:** every animal in the pack (pet included) earns XP from each fight: zombies 10–40,
   legends 120, scaled by the territory's threat; half XP on a retreat. Level L→L+1 costs 120×L XP
-  (max Lv 20); each level adds +6% HP, +4.5% ATK, +3% DEF.
+  (max Lv 50); each level adds +6% HP, +4.5% ATK, +3% DEF.
 - **Tech tree:** every animal gets one point per level to spend in its own tree, built from its
   own skills: three branches of 6 nodes, each needing the one above it. *Fang* (first skill's
   power/crit + Attack/Crit), *Hide* (Max HP/Defense + second skill), *Instinct* (third skill +
   Speed/Crit). A signature row: learn the role's signature skill at **Lv 10** (Tank: Last Stand,
   e.g. "Mama Bear"; Striker: Finishing Blow, e.g. "Bobcat Blitz"; Support: Rally, e.g. "Night
   Watch"; Disruptor: Hex Cloud, e.g. "Stink Bomb"; Bruiser: Stampede Charge), two upgrades to it,
-  and **Mastery at Lv 20** (every skill +20% and recharges faster). 22 nodes vs. 19 points by
+  and **Mastery at Lv 20** (every skill +20% and recharges faster). 22 tree nodes vs. 19 points by
   Lv 20, so builds differ. **Training** buys stats directly any time (Max HP +8%, Attack +5%,
-  Defense +6%, Speed +1, Crit +4%; up to 5/5/5/4/4), from the same points. Reset is free. Opens
+  Defense +6%, Speed +1, Crit +4%; up to 15/15/15/6/8), from the same points; past Lv 20 that's where points go. Reset is free. Opens
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and
