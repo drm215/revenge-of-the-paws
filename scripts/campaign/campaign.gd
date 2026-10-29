@@ -27,6 +27,7 @@ var territories: Array[Territory] = []
 var home := 0
 var turn := 0
 var under_attack := -1  # territory index the horde is attacking, or -1
+var last_liberated := -1  # territory index most recently taken from the horde, or -1
 var last_event := ""
 var uses_zip_data := false
 var legends: Array[String] = []  # legend ids with a lair on this map
@@ -218,6 +219,7 @@ func resolve_battle(i: int, won: bool) -> void:
 			last_event = "%s was overrun. Take it back!" % t.full_name()
 	elif won:
 		t.owned = true
+		last_liberated = i
 		last_event = "%s liberated!" % t.full_name()
 		if t.boss != "":
 			last_event = "The %s is defeated! %s is free." % [GameData.LEGENDS[t.boss].name, t.full_name()]
@@ -255,6 +257,7 @@ func save() -> void:
 			fails[t.id] = t.failed_attacks
 	cfg.set_value("campaign", "failed_attacks", fails)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
+	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -274,10 +277,13 @@ func _load() -> void:
 		revealed.append(batch)
 	var owned_ids: Array = cfg.get_value("campaign", "owned", [])
 	var attacked: String = cfg.get_value("campaign", "under_attack", "")
+	var latest: String = cfg.get_value("campaign", "last_liberated", "")
 	for i in territories.size():
 		territories[i].owned = i == home or territories[i].id in owned_ids
 		if territories[i].id == attacked:
 			under_attack = i
+		if territories[i].id == latest and territories[i].owned:
+			last_liberated = i
 	turn = cfg.get_value("campaign", "turn", 0)
 	claimed.assign(cfg.get_value("campaign", "claimed", []))
 	var fails: Dictionary = cfg.get_value("campaign", "failed_attacks", {})
@@ -419,11 +425,16 @@ static func legend_area(legend_id: String) -> int:
 
 
 ## Legends not on the map yet, nearest first: [{id, km, direction}]. Points the pack at them.
+## Where rumor distances are measured from: the last territory liberated (if still held), else home.
+func rumor_origin() -> int:
+	return last_liberated if last_liberated >= 0 and territories[last_liberated].owned else home
+
+
 func rumors(max_count := 3, max_km := 600.0) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if not uses_zip_data:
 		return out
-	var from := territories[home].lonlat
+	var from := territories[rumor_origin()].lonlat
 	for legend_id in GameData.LEGENDS:
 		var legend: Dictionary = GameData.LEGENDS[legend_id]
 		if legend_id in legends or not legend.has("lat"):

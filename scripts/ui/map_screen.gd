@@ -292,7 +292,7 @@ func _build_ui() -> void:
 	for r in campaign.rumors():
 		rumors.append("%s %d mi %s" % [GameData.LEGENDS[r.id].name, roundi(r.km * 0.621371), r.direction])
 	if not rumors.is_empty():
-		lines.append("Rumors: " + ", ".join(rumors))
+		lines.append("Rumors from %s: %s" % [campaign.territories[campaign.rumor_origin()].name, ", ".join(rumors)])
 	if not lines.is_empty():
 		var legends := Label.new()
 		Retro.text(legends, 20, MapView.LAIR)
