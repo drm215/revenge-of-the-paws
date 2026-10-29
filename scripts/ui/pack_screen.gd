@@ -41,7 +41,7 @@ func _ready() -> void:
 	title.text = "Ready the pack" if prep else "Your Pack"
 	col.add_child(title)
 	var intro := Retro.text(Label.new(), 21 if prep else 22)
-	intro.text = _fight_summary() if prep else "Pick %d to fight%s. Rotate: injured and tired animals fight worse, the bench earns half XP, and benched animals can scout, forage or guard." % [
+	intro.text = _fight_summary() if prep else "Pick %d to fight%s. Rotate: injured and tired animals fight worse, the bench earns a quarter of the XP, and benched animals can scout, forage or guard." % [
 		profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else ""]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)

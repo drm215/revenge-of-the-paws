@@ -974,7 +974,7 @@ const INJURY_BATTLES := 2
 const INJURY_PENALTY := 0.25
 const FATIGUE_STEP := 0.05
 const MAX_FATIGUE := 0.2
-const BENCH_XP_SHARE := 0.5
+const BENCH_XP_SHARE := 0.25
 const DUTIES := ["scout", "forage", "guard"]
 const DUTY_INFO := {
 	"scout": "Scout: reveals every territory's zombie waves.",

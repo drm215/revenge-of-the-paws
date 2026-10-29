@@ -8,6 +8,10 @@ var _campaign: Campaign
 
 func _ready() -> void:
 	theme = Retro.make_theme()
+	var cloud := get_node_or_null("/root/Cloud")
+	if cloud:
+		# A newer save arrived from the cloud: start over from it.
+		cloud.downloaded.connect(func() -> void: get_tree().reload_current_scene.call_deferred())
 	var profile := Profile.load_saved()
 	if profile:
 		_show_map(profile)
@@ -19,6 +23,7 @@ func _show_onboarding(existing: Profile) -> void:
 	var screen := Onboarding.new()
 	screen.initial = existing
 	screen.finished.connect(_show_map)
+	screen.account_requested.connect(_show_account)
 	_swap(screen)
 
 
@@ -37,6 +42,18 @@ func _show_map(profile: Profile) -> void:
 		_show_map(_profile))
 	screen.setup_requested.connect(_show_onboarding.bind(profile))
 	screen.pack_requested.connect(_show_pack)
+	screen.account_requested.connect(_show_account)
+	_swap(screen)
+
+
+func _show_account() -> void:
+	var screen := AccountScreen.new()
+	screen.closed.connect(func() -> void:
+		var profile := Profile.load_saved()
+		if profile:
+			_show_map(profile)
+		else:
+			_show_onboarding(null))
 	_swap(screen)
 
 

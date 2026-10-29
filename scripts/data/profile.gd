@@ -326,6 +326,8 @@ func save() -> void:
 	cfg.set_value("profile", "fatigue", fatigue)
 	cfg.set_value("profile", "duties", duties)
 	cfg.save(save_path)
+	if save_path == SAVE_PATH:
+		SaveHooks.saved()
 
 
 ## The saved profile, or null if there isn't a valid one yet.

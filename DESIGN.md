@@ -108,7 +108,7 @@ The apocalypse starts **where you actually live**.
     vs night animals; giants: forest vs city; stalkers: canines vs felines; lurkers: water vs desert).
   - *Bonds* (+8% ATK/DEF): Pack Hunters, Big Cats, Sky Watch, Night Shift, Trash Pact, Odd
     Couple (canine + feline), Neighbors (all wild members from one region).
-  - *Bench:* benched animals get 50% XP and take duties (auto-filled from the bench: fastest
+  - *Bench:* benched animals get 25% XP and take duties (auto-filled from the bench: fastest
     scouts, toughest guards; a duty passes on when its holder joins the lineup; Duty button to
     change): Scout (reveals waves), Forage (25%
     XP stash / 5% trinket per battle), Guard (counterattacks every 5 turns instead of 3).

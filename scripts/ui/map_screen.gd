@@ -9,6 +9,7 @@ signal patrol_requested(index: int)
 signal rest_requested
 signal setup_requested
 signal pack_requested
+signal account_requested
 
 var campaign: Campaign
 var profile: Profile
@@ -335,6 +336,11 @@ func _build_ui() -> void:
 	pack.add_theme_font_size_override("font_size", Retro.px(10))
 	pack.pressed.connect(pack_requested.emit)
 	footer.add_child(pack)
+	var cloud_button := Button.new()
+	cloud_button.text = "Cloud"
+	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))
+	cloud_button.pressed.connect(account_requested.emit)
+	footer.add_child(cloud_button)
 	setup.text = "Setup"
 	setup.add_theme_font_size_override("font_size", Retro.px(10))
 	setup.pressed.connect(setup_requested.emit)

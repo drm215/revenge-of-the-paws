@@ -5,6 +5,7 @@ extends Control
 ## Emits the finished Profile.
 
 signal finished(profile: Profile)
+signal account_requested
 
 const GOLD := Retro.GOLD
 
@@ -90,6 +91,7 @@ func _show_zip() -> void:
 	_content.add_child(_link("Not in the US? Choose your region", func() -> void:
 		_use_zip = false
 		_show_home()))
+	_content.add_child(_link("Playing on another device? Log in to your cloud save", account_requested.emit))
 	_next_button = _nav(Callable(), "Next", _show_pet)
 	_on_zip_changed(_profile.zip)
 	if _profile.zip == "":

@@ -237,6 +237,8 @@ func save() -> void:
 	cfg.set_value("campaign", "failed_attacks", fails)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.save(save_path)
+	if save_path == SAVE_PATH:
+		SaveHooks.saved()
 
 
 static func clear_saved() -> void:
