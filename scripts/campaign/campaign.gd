@@ -227,7 +227,8 @@ func resolve_battle(i: int, won: bool) -> void:
 			claimed.append(t.id)
 			last_event += "\nFound the %s! Equip it from Pack." % GameData.TRINKETS[loot].name
 		if t.recruit != "" and not profile.unlock([t.recruit]).is_empty():
-			last_event += "\n%s joined the pack! Swap it in from Pack." % GameData.ANIMALS[t.recruit].name
+			last_event += "\nRescued: %s joined the pack at Lv %d! Swap it in from Pack." % [
+				GameData.ANIMALS[t.recruit].name, profile.level_of(t.recruit)]
 		last_event += _reveal_beyond(i)
 	else:
 		t.failed_attacks += 1
