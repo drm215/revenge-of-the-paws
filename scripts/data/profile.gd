@@ -278,6 +278,25 @@ func pack_level() -> int:
 	return total / ids.size()
 
 
+## Average level of the strongest pack this player could field (the pet plus the highest-level
+## animals), whoever is in the lineup right now. Zombies scale to this, so benching doesn't fool them.
+func strongest_pack_level() -> int:
+	var levels: Array[int] = []
+	for id in unlocked:
+		levels.append(level_of(id))
+	levels.sort()
+	levels.reverse()
+	levels = levels.slice(0, locals_needed())
+	if has_pet():
+		levels.append(level_of(pet_species))
+	if levels.is_empty():
+		return 1
+	var total := 0
+	for level in levels:
+		total += level
+	return total / levels.size()
+
+
 ## Lets animals join the pack; returns the ones that are new. New recruits start at Lv 1 and
 ## train up from the bench or in easy fights.
 func unlock(ids: Array) -> Array[String]:

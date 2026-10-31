@@ -27,6 +27,7 @@ var round_number := 0
 var current: Combatant
 var place := ""
 var xp_earned := 0  # from every zombie and legend the pack has defeated so far
+var xp_mult := 1.0  # XP per kill scales with the territory's own strength, not with pack-scaled zombies
 var downed: Array[String] = []  # pack members knocked out at any point (they'll be injured)
 var condition := ""
 var _perk_log: PackedStringArray = []  # lineup effects, announced as the first wave starts
@@ -46,6 +47,7 @@ func _init(profile: Profile, waves: Array = GameData.WAVES, zombie_mult := 1.0, 
 		rng.randomize()
 	_waves = waves
 	_zombie_mult = zombie_mult
+	xp_mult = zombie_mult
 	place = place_name if place_name != "" else profile.town
 	for unit_id in profile.pack_ids():
 		var c := profile.build_unit(unit_id)
@@ -365,7 +367,7 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 	if dst.is_player and dst.id not in downed:
 		downed.append(dst.id)
 	if not dst.is_player:
-		xp_earned += roundi(dst.xp_value * _zombie_mult)
+		xp_earned += roundi(dst.xp_value * xp_mult)
 	if dst.is_leader and outcome() == Outcome.ONGOING:
 		log_message.emit("[color=#ff8080]Without %s, the pack falters![/color]" % dst.display_name)
 	var blast: int = dst.traits.get("explode_on_death", 0)

@@ -136,20 +136,34 @@ func is_actionable(i: int) -> bool:
 	return i == under_attack if under_attack >= 0 else can_attack(i)
 
 
+## The level the zombies here fight at: the territory's own, or the pack's if it has outgrown it.
 func territory_level(i: int) -> int:
+	return GameData.territory_level(zombie_strength(territories[i].threat) * territories[i].horde_strength())
+
+
+## The territory's own level, from threat and attrition alone (what auto mode measures).
+func base_level(i: int) -> int:
 	return GameData.territory_level(GameData.zombie_mult(territories[i].threat) * territories[i].horde_strength())
 
 
-## The next fight auto mode takes on its own: a counterattack or neighbor at least AUTO_LEVEL_GAP
-## levels below the leader, easiest first. Legend lairs are always left to the player. -1 if none.
+## Zombie stat multiplier at `threat`: the threat's own, or caught up with the pack's strongest
+## lineup (PACK_LEVEL_GAP levels below it at threat 1, one level closer per threat), whichever is higher.
+func zombie_strength(threat: int) -> float:
+	var caught_up := profile.strongest_pack_level() - GameData.PACK_LEVEL_GAP + threat - 1
+	return maxf(GameData.zombie_mult(threat), GameData.level_strength(caught_up))
+
+
+## The next fight auto mode takes on its own: a counterattack or neighbor whose own level is at
+## least AUTO_LEVEL_GAP below the leader, easiest first. Legend lairs are always left to the
+## player. -1 if none.
 func auto_target(leader_level: int) -> int:
 	var max_level := leader_level - GameData.AUTO_LEVEL_GAP
 	if under_attack >= 0:
-		return under_attack if territory_level(under_attack) <= max_level else -1
+		return under_attack if base_level(under_attack) <= max_level else -1
 	var best := -1
 	for i in territories.size():
-		if can_attack(i) and territories[i].boss == "" and territory_level(i) <= max_level:
-			if best < 0 or territory_level(i) < territory_level(best):
+		if can_attack(i) and territories[i].boss == "" and base_level(i) <= max_level:
+			if best < 0 or base_level(i) < base_level(best):
 				best = i
 	return best
 
@@ -161,7 +175,8 @@ func battle_config(i: int) -> Dictionary:
 	rng.seed = hash(t.id)  # same zombies every visit, so a retry is a fair rematch
 	return {
 		"waves": GameData.generate_waves(threat, rng, t.boss),
-		"zombie_mult": GameData.zombie_mult(threat) * t.horde_strength(),
+		"zombie_mult": zombie_strength(threat) * t.horde_strength(),
+		"xp_mult": GameData.zombie_mult(threat) * t.horde_strength(),
 		"party_mult": 1.0 + held_bonus(),
 		"place": territories[i].full_name(),
 		"condition": t.condition,
@@ -178,7 +193,8 @@ func patrol_config(i: int) -> Dictionary:
 	rng.seed = hash(t.id + ":patrol:%d" % turn)
 	return {
 		"waves": GameData.generate_waves(threat, rng),
-		"zombie_mult": GameData.zombie_mult(threat),
+		"zombie_mult": zombie_strength(threat),
+		"xp_mult": GameData.zombie_mult(threat),
 		"party_mult": 1.0 + held_bonus(),
 		"place": "Patrol: " + t.full_name(),
 		"condition": t.condition,

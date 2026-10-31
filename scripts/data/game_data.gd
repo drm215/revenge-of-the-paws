@@ -1102,14 +1102,38 @@ static func zombie_mult(threat: int) -> float:
 	return THREAT_ZOMBIE_MULT[MAX_THREAT] + 0.25 * (threat - MAX_THREAT)
 
 
-## A territory's level: roughly the pack level that usually takes it on, so it reads on the same
-## scale as the pack. Each level is worth about +9% (stats plus tech-tree points, trinkets and held
-## territory), giving threat 1-5 levels 1, 3, 5, 8 and 11, and about +3 per threat beyond.
+## [pack level, zombie strength a pack of that level beats ~85% of the time]: measured with the
+## simulator's decent-player AI on 3-wave threat-3 fights, before trinkets and reinforcements. The
+## big steps at Lv 10 and 20 are the signature skill and Mastery. Levels in between are geometric.
+const LEVEL_STRENGTH := [[1, 1.0], [3, 1.12], [5, 1.37], [8, 1.64], [11, 2.5], [15, 2.87],
+	[20, 4.25], [25, 5.16], [30, 6.0], [40, 9.8], [50, 13.07]]
+
+
+## Zombie strength for a territory level. Past the table it keeps the last step's growth.
+static func level_strength(level: int) -> float:
+	level = maxi(1, level)
+	for k in range(1, LEVEL_STRENGTH.size()):
+		var a: Array = LEVEL_STRENGTH[k - 1]
+		var b: Array = LEVEL_STRENGTH[k]
+		if level <= b[0] or k == LEVEL_STRENGTH.size() - 1:
+			return a[1] * pow(b[1] / a[1], float(level - a[0]) / (b[0] - a[0]))
+	return LEVEL_STRENGTH[0][1]
+
+
+## A territory's level: the pack level that usually takes it on (the nearest on LEVEL_STRENGTH), so
+## it reads on the same scale as the pack. Threat 1-5 come out Lv 1, 3, 5, 8 and 9.
 static func territory_level(zombie_strength: float) -> int:
-	return maxi(1, 1 + roundi((zombie_strength - 1.0) / TERRITORY_LEVEL_STEP))
+	var level := 1
+	while level_strength(level + 1) <= zombie_strength:
+		level += 1
+	if zombie_strength / level_strength(level) > level_strength(level + 1) / zombie_strength:
+		level += 1
+	return level
 
 
-const TERRITORY_LEVEL_STEP := 0.09
+## Zombies keep up with a pack that outgrows them: at threat 1 they stay this many levels below
+## the pack's strongest lineup, one level closer per threat above (level with it at threat 3).
+const PACK_LEVEL_GAP := 2
 ## Auto mode fights a territory on its own when the pack leader is at least this many levels above it.
 const AUTO_LEVEL_GAP := 10
 ## Auto fights teach less than ones the player plays: their XP (fighters and bench) is halved.

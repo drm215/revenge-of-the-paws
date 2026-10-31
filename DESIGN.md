@@ -52,6 +52,12 @@ The apocalypse starts **where you actually live**.
 - **You start holding your home ZIP.** You can only attack territories bordering ones you hold.
 - **Threat 1–5** rises with distance from home: 1 = one wave, 2 = two waves, 3+ = full three-wave
   fight with a Brute; zombies get +8% / +18% / +30% / +42% stats at threat 2–5.
+- **The horde keeps up:** once the pack outgrows a territory, its zombies scale to the pack's
+  strongest possible lineup (pet plus highest-level animals, whoever is fielded, so benching
+  doesn't fool them): 2 levels below it at threat 1, one level closer per threat (even at threat 3,
+  2 above at threat 5). XP still comes from the territory's own strength. Levels convert to zombie
+  strength with `GameData.LEVEL_STRENGTH`, measured with the simulator (the zombie strength a pack
+  of each level beats ~85% of the time); the map notes when a horde has grown to match the pack.
 - **Reinforcements:** every territory held beyond home gives the pack +2.5% HP/ATK (max +40%).
 - **Counterattacks:** every 3 map turns the horde attacks one of your border territories. You
   must defend it before attacking elsewhere; lose and it falls back to the dead.
@@ -101,7 +107,9 @@ The apocalypse starts **where you actually live**.
     pack leader (the pet, else the highest-level animal) are fought one at a time after a short
     pause on the map: the AI plays the pack's turns on the battle screen ("Take control" hands it
     back) and the fight earns half XP. Legend lairs are never auto-fought; a retreat turns it off.
-    Territory level is the pack level that usually takes it on: threat 1-5 = Lv 1, 3, 5, 8, 11.
+    Territory level is the pack level that usually takes it on: threat 1-5 = Lv 1, 3, 5, 8, 9.
+    Auto mode measures a territory by its own level, not the pack-scaled one, but fights the
+    scaled horde.
   - *Fatigue:* -5% stats per battle fought in a row (max -20%); one battle benched resets it. The
     pet leader never tires.
   - *Territory conditions:* Streets (small city ZIPs), Forest, Riverside, Mountains, Badlands (by
@@ -127,7 +135,7 @@ The apocalypse starts **where you actually live**.
 - Progress saves to `user://campaign.cfg`, keyed to your home ZIP/region.
 
 Balance (from `tests/simulate.gd`, decent-player AI): single 3-wave fights ~76–95% without a pet,
-~91–99% with one; random play ~8–35%. With leveling, skill upgrades and trinkets, 40-territory campaigns finish in ~57–68 turns with 0–7 setbacks, the pack ending around Lv 10–16 with 6–8 recruits and 3–4 trinkets.
+~91–99% with one; random play ~8–35%. With leveling, skill upgrades and trinkets, 40-territory campaigns finish in ~49–72 turns with 1–16 setbacks (0–6 before the horde scaled with the pack), the pack ending around Lv 10–16 with 6–8 recruits and 3–4 trinkets.
 
 ## Pillars
 1. **Short, tactical turns.** A battle fits in a 3–5 minute session. Every turn should have a

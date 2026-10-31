@@ -59,6 +59,7 @@ func _new_game() -> void:
 
 	battle = Battle.new(profile, config.waves, config.zombie_mult, config.party_mult, config.place, -1,
 		config.get("condition", ""), config.get("region", ""))
+	battle.xp_mult = config.get("xp_mult", config.zombie_mult)
 	battle.log_message.connect(_on_log)
 	battle.acting.connect(func(c: Combatant) -> void: _card(c).lunge())
 	battle.damaged.connect(_on_damaged)

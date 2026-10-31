@@ -9,6 +9,7 @@ extends RefCounted
 static func play(profile: Profile, cfg: Dictionary, seed_value := -1) -> Dictionary:
 	var battle := Battle.new(profile, cfg.waves, cfg.zombie_mult, cfg.party_mult, cfg.place, seed_value,
 		cfg.get("condition", ""), cfg.get("region", ""))
+	battle.xp_mult = cfg.get("xp_mult", cfg.zombie_mult)
 	battle.start_next_wave()
 	var turns := 0
 	while turns < 5000:
