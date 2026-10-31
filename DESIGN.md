@@ -121,7 +121,9 @@ The apocalypse starts **where you actually live**.
     the region's terrain mix) or Night raid (15%). Animals suited to it get +15% ATK/DEF.
   - *Home turf:* animals native to the territory's region get +10% ATK/DEF.
   - *Counter zombies:* Riot Zombie (halves single-target damage: bring area attacks), Plague
-    Carrier (infection spray: bring cleansers), Screamer (fast, stuns everyone).
+    Carrier (infection spray: bring cleansers), Screamer (fast, stuns everyone, frenzies the
+    other zombies), Medic (threat 3+; raises a destroyed zombie at 40% HP, once per zombie, no
+    XP the second time: kill it first).
   - *Legend weak spots:* +50% damage from one kind of animal, -40% from another (flyers: birds
     vs night animals; giants: forest vs city; stalkers: canines vs felines; lurkers: water vs desert).
   - *Bonds* (+8% ATK/DEF): Pack Hunters, Big Cats, Sky Watch, Night Shift, Trash Pact, Odd
@@ -139,11 +141,13 @@ The apocalypse starts **where you actually live**.
 - **Losing an attack** costs a turn but nothing else. Liberate all 40 to free your neighborhood.
 - Progress saves to `user://campaign.cfg`, keyed to your home ZIP/region.
 
-Balance (from `tests/simulate.gd`, decent-player AI): single 3-wave fights ~35–89% without a pet,
-~78–91% with one; random play ~1–27%. With leveling, skill upgrades and trinkets, 40-territory
-campaigns finish in ~54–87 turns, with 4–20 setbacks with a pet and 16–30 without, the pack ending
-around Lv 12–15 with 6–8 recruits and 3–10 trinkets. (Before the horde scaled with the pack, rest
-was halved and zombies focused fire: fights 76–99%, campaigns 48–60 turns with 0–6 setbacks.)
+Balance (from `tests/simulate.gd`, decent-player AI that stuns or braces against wind-ups and
+kills Medics and Screamers first): single 3-wave fights ~33–78% without a pet, ~67–88% with one;
+random play ~1–25%. With leveling, skill upgrades and trinkets, 40-territory campaigns finish in
+~55–79 turns with 6–25 setbacks with a pet (~63–102 turns, 10–30 setbacks without), the pack
+ending around Lv 10–17 with 6–8 recruits and 3–10 trinkets. (Before the horde scaled with the
+pack, rest was halved and zombies focused fire: fights 76–99%, campaigns 48–60 turns with 0–6
+setbacks.)
 
 ## Pillars
 1. **Short, tactical turns.** A battle fits in a 3–5 minute session. Every turn should have a
@@ -175,12 +179,19 @@ Map ──► attack a bordering territory ──► 1–3 waves ──► terri
   | Infected | Takes 6% max HP at the start of each turn; cured by healing |
   | Stunned  | Skips its next turn                                         |
   | Weakened | ATK ×0.7                                                    |
-- **Between waves:** the party rests (+15% HP), fallen animals get back up at 25% HP,
-  cooldowns and statuses reset.
+  | Frenzied | ATK ×1.25 (zombies, from a Screamer)                        |
+- **Between waves:** the party rests (+15% HP) and statuses clear. An animal knocked out sits the
+  next wave out and gets back up at 25% HP the wave after. Cooldowns keep running: the rest
+  counts as one turn.
+- **Telegraphed attacks:** big area attacks (Brute's Rampage, Plague Spit, the legends' area
+  skills) take a wind-up turn, shown on the zombie's card and in the log, then land on its next
+  turn at ×1.75 power. Stunning the zombie in between cancels it (the cooldown still runs);
+  animals with Guard up take half; Taunt pulls single-target hits.
+- **Enrage:** past round 8 of a wave, zombies gain +10% ATK every round.
 - **Zombie AI:** uses its strongest ready skill; obeys Taunt. Single-target hits focus fire: 80% of
   the time on an animal they can knock out, otherwise 50% on an animal that heals its allies; some
-  types hunt the weakest target.
-  Big zombies start with their big skill on cooldown, so it's telegraphed.
+  types hunt the weakest target. Shamblers hit 15% harder for each other Shambler standing.
+  Big zombies start with their big skill on cooldown.
 
 ## Starting roster
 
@@ -194,13 +205,17 @@ Pacific Islands); unique mechanics per animal (Raccoon steals, Crow marks target
 ### Zombies
 | Zombie | Threat | Notes |
 |---|---|---|
-| Shambler | Basic | Infectious Bite spreads Infected |
+| Shambler | Basic | Infectious Bite spreads Infected; stronger in groups |
 | Runner | Fast, fragile | Hunts the weakest animal |
 | Bloater | Slow, tanky | Explodes on death, damaging the whole party |
 | Brute | Boss | Smash, plus a telegraphed Rampage that hits everyone |
+| Riot | Armored | Halves single-target damage |
+| Plague Carrier | Support | Telegraphed infection spray |
+| Screamer | Fast | Scream may stun everyone and frenzies the other zombies |
+| Medic | Support | Raises a destroyed zombie at 40% HP |
 
-Future: Screamer (buffs other zombies), Crawler (hides in back row), Hazmat (immune to Infected),
-Zombie animals (corrupted versions of your recruits; a story beat).
+Future: Crawler (hides in back row), Hazmat (immune to Infected), Zombie animals (corrupted
+versions of your recruits; a story beat).
 
 ## Progression (post-prototype)
 - **Levels & gear:** animals level up; gear is scavenged junk (bottle-cap armor, tin-can helmets).

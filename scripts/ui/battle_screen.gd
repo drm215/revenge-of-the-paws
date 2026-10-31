@@ -178,7 +178,7 @@ func _show_outcome() -> void:
 	_set_active(null)
 	match battle.outcome():
 		Battle.Outcome.WAVE_CLEARED:
-			_show_overlay("Wave cleared!", "The pack rests and patches up.\nFallen friends get back on their paws.", "Next wave", _start_wave)
+			_show_overlay("Wave cleared!", "The pack rests and patches up.\nAnyone knocked out sits the next wave out, then gets back up.", "Next wave", _start_wave)
 			if auto:
 				await get_tree().create_timer(AUTO_WAVE_PAUSE).timeout
 				if auto and _overlay.visible:

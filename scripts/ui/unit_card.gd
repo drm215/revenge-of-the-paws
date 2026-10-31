@@ -159,9 +159,12 @@ func refresh() -> void:
 			perks += 1
 	if perks > 0:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
+	if unit.winding != "":
+		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
 	for status in unit.statuses:
 		parts.append("%s %d" % [GameData.STATUSES[status].name, unit.statuses[status]])
 	_status_label.text = " · ".join(parts)
+	_status_label.add_theme_color_override("font_color", Retro.ORANGE if unit.winding != "" else Retro.YELLOW)
 	_status_label.visible = not parts.is_empty()
 	modulate = _rest_modulate()
 

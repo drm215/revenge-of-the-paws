@@ -735,6 +735,7 @@ SPRITES = {
     "riot": lambda: humanoid("#63c74d", clothes="#3a4466", pants="#262b44", build="muscle", lean=4, hair="#181425"),
     "plague": lambda: humanoid("#3e8948", clothes="#68386c", build="bloated", lean=2),
     "screamer": lambda: humanoid("#c0cbdc", clothes="#5a6988", build="thin", lean=14, pose="run", eyes="red"),
+    "medic": lambda: humanoid("#9ccf50", clothes="#ead4aa", pants="#5a6988", lean=6, hair="#c0cbdc"),
     # legends
     "mothman": lambda: humanoid("#3a2a2e", pants="#2a2024", build="thin", head="moth", wings="moth", lean=0, pose="stand"),
     "woodbooger": lambda: humanoid("#4a3a28", pants="#4a3a28", build="ape", head="ape", eyes="yellow", scale=1.1, lean=4),

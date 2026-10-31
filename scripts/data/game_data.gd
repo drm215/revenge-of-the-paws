@@ -23,6 +23,8 @@ const RECRUIT_LEVEL_SHARE := 0.5
 const PET_STAT_MULT := 1.15
 const LEADER_AURA := 0.10
 const WEAKENED_ATK_MULT := 0.7
+const FRENZIED_ATK_MULT := 1.25  # a Screamer's rally
+const HORDE_ATK_STEP := 0.15  # Shamblers: +15% ATK for each other Shambler still standing
 
 const SKILLS := {
 	# --- Basic attacks ---
@@ -175,15 +177,20 @@ const SKILLS := {
 	"lunge": {"name": "Lunge", "desc": "", "target": "enemy", "power": 0.9, "crit_bonus": 0.15},
 	"slam": {"name": "Slam", "desc": "", "target": "enemy", "power": 1.1},
 	"smash": {"name": "Smash", "desc": "", "target": "enemy", "power": 1.4},
-	"rampage": {"name": "Rampage", "desc": "", "target": "all_enemies", "power": 0.8, "cooldown": 3},
+	# `windup`: telegraphed. The zombie spends a turn winding up (shown on its card) and releases it
+	# on its next turn; a stun in between cancels it, and Guard halves it.
+	"rampage": {"name": "Rampage", "desc": "", "target": "all_enemies", "power": 0.8, "cooldown": 3, "windup": true},
 	"plague_spit": {
-		"name": "Plague Spit", "desc": "", "target": "all_enemies", "power": 0.4, "cooldown": 2,
+		"name": "Plague Spit", "desc": "", "target": "all_enemies", "power": 0.4, "cooldown": 2, "windup": true,
 		"apply": [{"status": "infected", "turns": 3, "chance": 0.7}],
 	},
+	# `rally`: a status for every other zombie in the wave.
 	"scream": {
 		"name": "Scream", "desc": "", "target": "all_enemies", "power": 0.3, "cooldown": 2,
-		"apply": [{"status": "stunned", "turns": 1, "chance": 0.4}],
+		"apply": [{"status": "stunned", "turns": 1, "chance": 0.4}], "rally": {"status": "frenzied", "turns": 2},
 	},
+	# `revive`: raises a destroyed zombie (never a legend, never twice) at this share of its HP.
+	"reanimate": {"name": "Reanimate", "desc": "", "target": "dead_ally", "revive": 0.4, "cooldown": 3},
 
 	# --- Legends (bosses). The first skill in each kit must have no cooldown. ---
 	"rend": {"base": "smash", "name": "Rend", "desc": "A brutal strike on one animal."},
@@ -199,18 +206,18 @@ const SKILLS := {
 	"tail_lash": {"base": "rampage", "name": "Tail Lash", "desc": "Sweeps its tail across your whole pack."},
 	"avalanche": {"base": "rampage", "name": "Avalanche", "desc": "Buries your whole pack in rock."},
 	"omen": {
-		"name": "Omen", "desc": "Dread falls on your pack: hits all, may weaken (ATK down).", "target": "all_enemies", "power": 0.4, "cooldown": 3,
+		"name": "Omen", "desc": "Dread falls on your pack: hits all, may weaken (ATK down).", "target": "all_enemies", "power": 0.4, "cooldown": 3, "windup": true,
 		"apply": [{"status": "weakened", "turns": 2, "chance": 0.7}],
 	},
 	"howl": {"base": "omen", "name": "Bone-chilling Howl", "desc": "A chilling howl: hits all, may weaken (ATK down)."},
 	"stench": {"base": "omen", "name": "Stench", "desc": "A choking stink: hits all, may weaken (ATK down)."},
 	"red_gaze": {
-		"name": "Red Gaze", "desc": "Glowing eyes freeze your pack: hits all, may stun.", "target": "all_enemies", "power": 0.5, "cooldown": 4,
+		"name": "Red Gaze", "desc": "Glowing eyes freeze your pack: hits all, may stun.", "target": "all_enemies", "power": 0.5, "cooldown": 4, "windup": true,
 		"apply": [{"status": "stunned", "turns": 1, "chance": 0.5}],
 	},
 	"hellish_shriek": {"base": "red_gaze", "name": "Hellish Shriek", "desc": "An ear-splitting shriek: hits all, may stun."},
 	"toxic_mist": {
-		"name": "Toxic Mist", "desc": "Poison fog: hits all, may infect.", "target": "all_enemies", "power": 0.4, "cooldown": 3,
+		"name": "Toxic Mist", "desc": "Poison fog: hits all, may infect.", "target": "all_enemies", "power": 0.4, "cooldown": 3, "windup": true,
 		"apply": [{"status": "infected", "turns": 3, "chance": 0.6}],
 	},
 	"shadow_pounce": {"name": "Shadow Pounce", "desc": "A huge leap with a high critical-hit chance.", "target": "enemy", "power": 1.6, "crit_bonus": 0.3, "cooldown": 2},
@@ -223,6 +230,7 @@ const STATUSES := {
 	"infected": {"name": "Infected"},
 	"stunned": {"name": "Stunned"},
 	"weakened": {"name": "Weakened"},
+	"frenzied": {"name": "Frenzied"},
 }
 
 ## Real-life pets the player can bring. They get PET_STAT_MULT and lead with LEADER_AURA.
@@ -637,7 +645,7 @@ const ZOMBIES := {
 	"shambler": {
 		"name": "Shambler", "color": Color("5f7a52"), "xp": 12,
 		"hp": 45, "atk": 10, "def": 4, "spd": 5, "crit": 0.05,
-		"skills": ["claw", "infectious_bite"],
+		"skills": ["claw", "infectious_bite"], "traits": {"horde": true},
 	},
 	"runner": {
 		"name": "Runner", "color": Color("7d8f4e"), "xp": 10,
@@ -669,13 +677,20 @@ const ZOMBIES := {
 		"hp": 32, "atk": 6, "def": 2, "spd": 13, "crit": 0.05,
 		"skills": ["claw", "scream"],
 	},
+	"medic": {
+		"name": "Medic", "color": Color("ead4aa"), "xp": 18,
+		"hp": 48, "atk": 7, "def": 4, "spd": 9, "crit": 0.05,
+		"skills": ["claw", "reanimate"],
+	},
 }
 
 ## What the counter zombies do, for the scout report and briefing.
 const ZOMBIE_NOTES := {
 	"riot": "armored: takes half damage from single-target attacks",
 	"plague": "sprays infection over the whole pack",
-	"screamer": "fast, and its scream can stun everyone",
+	"screamer": "fast; its scream can stun everyone and frenzies the other zombies",
+	"medic": "raises a destroyed zombie at 40% HP",
+	"shambler": "stronger in groups",
 	"bloater": "explodes when killed",
 	"runner": "fast, hunts the weakest",
 }
@@ -1410,13 +1425,15 @@ static func generate_waves(threat: int, rng: RandomNumberGenerator, boss := "") 
 		var grunts := 2 if not wave.is_empty() else 3 + (1 if threat >= 4 and rng.randf() < 0.5 else 0)
 		for g in grunts:
 			var roll := rng.randf()
-			if threat >= 3 and roll < 0.1:
+			if threat >= 3 and roll < 0.08:
 				wave.append("riot")
-			elif threat >= 2 and roll < 0.18:
+			elif threat >= 3 and roll < 0.14:
+				wave.append("medic")
+			elif threat >= 2 and roll < 0.2:
 				wave.append("screamer")
-			elif threat >= 2 and roll < 0.26:
+			elif threat >= 2 and roll < 0.28:
 				wave.append("plague")
-			elif threat >= 2 and roll < 0.38:
+			elif threat >= 2 and roll < 0.4:
 				wave.append("bloater")
 			elif roll < 0.65:
 				wave.append("runner")

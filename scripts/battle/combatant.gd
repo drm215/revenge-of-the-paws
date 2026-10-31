@@ -35,6 +35,9 @@ var skills: Array[String] = []
 var traits: Dictionary = {}
 var statuses: Dictionary = {}  # status id -> turns remaining
 var cooldowns: Dictionary = {}  # skill id -> turns until ready
+var winding := ""  # a zombie's telegraphed skill, released on its next turn unless it's stunned
+var fell_in_wave := -1  # the wave an animal was knocked out in: it sits out the next one
+var revived := false  # a zombie a Medic raised: it can't be raised again and gives no more XP
 
 
 static func from_data(unit_id: String, data: Dictionary, player: bool) -> Combatant:

@@ -21,6 +21,10 @@ const REVIVE_HP := 0.25
 const HUNT_WEAK_CHANCE := 0.7
 const FOCUS_KILL_CHANCE := 0.8  # a single-target hit goes for an animal it can knock out
 const FOCUS_HEALER_CHANCE := 0.5  # otherwise it goes after the pack's healer
+const ENRAGE_ROUND := 8  # past this round of a wave, zombies gain ENRAGE_STEP ATK every round
+const ENRAGE_STEP := 0.1
+const WINDUP_POWER := 1.75  # a telegraphed attack hits this much harder when it lands
+const BRACE_SOAK := 0.5  # an animal with Guard up takes this share of a telegraphed attack
 
 var party: Array[Combatant] = []
 var enemies: Array[Combatant] = []
@@ -38,6 +42,7 @@ var rng := RandomNumberGenerator.new()
 var _waves: Array
 var _zombie_mult: float
 var _turn_queue: Array[Combatant] = []
+var _unleashing := false  # a telegraphed attack is landing right now (Guard soaks it)
 
 
 ## `party_mult` scales party HP/ATK (held-territory reinforcements); `zombie_mult` scales zombies.
@@ -173,6 +178,8 @@ func next_turn() -> Combatant:
 		if _turn_queue.is_empty():
 			round_number += 1
 			_turn_queue = _turn_order()
+			if round_number == ENRAGE_ROUND + 1:
+				log_message.emit("[color=#f77622][b]The horde is enraged![/b] Zombies gain +%d%% ATK every round now.[/color]" % roundi(ENRAGE_STEP * 100))
 		var actor: Combatant = _turn_queue.pop_front()
 		if not actor.is_alive():
 			continue
@@ -187,6 +194,12 @@ func next_turn() -> Combatant:
 				continue
 		if actor.has_status("stunned"):
 			log_message.emit("%s is stunned!" % actor.display_name)
+			if actor.winding != "":
+				var lost := actor.skill_data(actor.winding)
+				log_message.emit("[color=#63c74d]%s's %s is interrupted![/color]" % [actor.display_name, lost.name])
+				actor.put_on_cooldown(actor.winding, lost.get("cooldown", 0))
+				actor.winding = ""
+				status_changed.emit(actor)
 			_end_turn(actor)
 			continue
 		return actor
@@ -214,6 +227,12 @@ func valid_targets(actor: Combatant, skill_id: String) -> Array[Combatant]:
 			return living(_opponents(actor))
 		"ally", "all_allies":
 			return living(_allies(actor))
+		"dead_ally":
+			var fallen: Array[Combatant] = []
+			for c in _allies(actor):
+				if not c.is_alive() and not c.is_boss and not c.revived:
+					fallen.append(c)
+			return fallen
 		_:
 			return [actor]
 
@@ -221,7 +240,24 @@ func valid_targets(actor: Combatant, skill_id: String) -> Array[Combatant]:
 func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 	var skill := actor.skill_data(skill_id)
 	acting.emit(actor)
+	if skill.get("windup", false) and actor.winding != skill_id:
+		# Telegraphed: this turn only winds up. It lands on the zombie's next turn unless stunned.
+		actor.winding = skill_id
+		log_message.emit("[color=#f77622][b]%s winds up %s![/b] Stun it to cancel; Guard halves it.[/color]" % [actor.display_name, skill.name])
+		status_changed.emit(actor)
+		_end_turn(actor)
+		return
+	_unleashing = actor.winding == skill_id
+	actor.winding = ""
 	actor.put_on_cooldown(skill_id, skill.get("cooldown", 0))
+	if skill.get("revive", 0.0) > 0.0:
+		target.hp = maxi(1, roundi(target.max_hp * skill.revive))
+		target.revived = true
+		log_message.emit("[color=#a0e080]%s drags %s back up![/color]" % [actor.display_name, target.display_name])
+		healed.emit(target, target.hp)
+		status_changed.emit(target)
+		_end_turn(actor)
+		return
 	var targets: Array[Combatant]
 	match skill.target:
 		"all_enemies":
@@ -237,7 +273,7 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 			targets = [target]
 			log_message.emit("%s uses %s on %s." % [actor.display_name, skill.name, target.display_name])
 
-	var power: float = skill.get("power", 0.0)
+	var power: float = skill.get("power", 0.0) * (WINDUP_POWER if _unleashing else 1.0)
 	var heal: float = skill.get("heal", 0.0)
 	for t in targets:
 		if not t.is_alive():
@@ -259,6 +295,18 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 					if t != actor:
 						log_message.emit("%s is %s." % [t.display_name, GameData.STATUSES[effect.status].name.to_lower()])
 					status_changed.emit(t)
+	var rally: Dictionary = skill.get("rally", {})
+	if not rally.is_empty():
+		var rallied := false
+		for ally in living(_allies(actor)):
+			if ally != actor:
+				ally.add_status(rally.status, rally.turns)
+				status_changed.emit(ally)
+				rallied = true
+		if rallied:
+			log_message.emit("The other zombies are %s (+%d%% ATK)!" % [GameData.STATUSES[rally.status].name.to_lower(),
+				roundi((GameData.FRENZIED_ATK_MULT - 1.0) * 100)])
+	_unleashing = false
 	_end_turn(actor)
 
 
@@ -267,8 +315,10 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 func plan_enemy_action(actor: Combatant) -> Dictionary:
 	var skill_id := actor.skills[0]
 	for id in actor.skills:
-		if actor.can_use(id):
+		if actor.can_use(id) and not valid_targets(actor, id).is_empty():
 			skill_id = id
+	if actor.winding != "":
+		skill_id = actor.winding  # a wound-up attack always comes next
 	var pool := valid_targets(actor, skill_id)
 	var taunting: Array[Combatant] = []
 	for c in pool:
@@ -358,6 +408,16 @@ func _base_damage(src: Combatant, dst: Combatant, power: float) -> float:
 	var atk := src.atk * _aura_mult(src)
 	if src.has_status("weakened"):
 		atk *= GameData.WEAKENED_ATK_MULT
+	if src.has_status("frenzied"):
+		atk *= GameData.FRENZIED_ATK_MULT
+	if src.traits.get("horde", false):
+		var pack_mates := 0
+		for c in living(_allies(src)):
+			if c != src and c.id == src.id:
+				pack_mates += 1
+		atk *= 1.0 + GameData.HORDE_ATK_STEP * pack_mates
+	if not src.is_player and round_number > ENRAGE_ROUND:
+		atk *= 1.0 + ENRAGE_STEP * (round_number - ENRAGE_ROUND)
 	return atk * power * DEF_SCALE / (DEF_SCALE + dst.effective_def() * _aura_mult(dst))
 
 
@@ -369,6 +429,8 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 		dmg *= CRIT_MULT
 	if single and dst.traits.get("armored", false):
 		dmg *= 0.5
+	if _unleashing and dst.has_status("guard"):
+		dmg *= BRACE_SOAK
 	if dst.is_boss and src.is_player:
 		var weak: Dictionary = GameData.LEGEND_WEAKNESS[GameData.LEGENDS[dst.id].build]
 		if weak.weak in src.tags:
@@ -395,9 +457,11 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 		"is down" if dst.is_player else "is destroyed",
 	])
 	died.emit(dst)
-	if dst.is_player and dst.id not in downed:
-		downed.append(dst.id)
-	if not dst.is_player:
+	if dst.is_player:
+		dst.fell_in_wave = wave_index
+		if dst.id not in downed:
+			downed.append(dst.id)
+	if not dst.is_player and not dst.revived:
 		xp_earned += roundi(dst.xp_value * xp_mult)
 	if dst.is_leader and outcome() == Outcome.ONGOING:
 		log_message.emit("[color=#ff8080]Without %s, the pack falters![/color]" % dst.display_name)
@@ -414,12 +478,17 @@ func _heal(target: Combatant, amount: int) -> void:
 	healed.emit(target, actual)
 
 
+## Between waves: the living heal a little; an animal knocked out last wave sits this one out and
+## gets back up at REVIVE_HP the wave after. Cooldowns keep running (the rest counts as one turn).
 func _rest_party() -> void:
+	log_message.emit("The pack catches its breath. (+%d%% HP)" % roundi(REST_HEAL * 100))
 	for c in party:
 		if c.is_alive():
 			c.hp = mini(c.max_hp, c.hp + roundi(c.max_hp * REST_HEAL))
-		else:
+		elif wave_index - c.fell_in_wave >= 2:
 			c.hp = roundi(c.max_hp * REVIVE_HP)
+			log_message.emit("%s is back on its paws." % c.display_name)
+		else:
+			log_message.emit("[color=#ff8080]%s is still down and sits this wave out.[/color]" % c.display_name)
 		c.statuses.clear()
-		c.cooldowns.clear()
-	log_message.emit("The pack catches its breath. (+%d%% HP)" % roundi(REST_HEAL * 100))
+		c.tick_cooldowns()
