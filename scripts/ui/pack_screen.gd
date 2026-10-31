@@ -314,7 +314,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 
 	var card := PanelContainer.new()
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var border := Retro.GOLD if selected else (Retro.STEEL if stabled else Retro.SLATE)
+	var border := Retro.GOLD if selected else Retro.NIGHT  # only fighters (and perks) get a colored frame
 	var width := Retro.BORDER
 	if perks.strong:
 		border = Retro.CYAN  # a perk for this fight: cyan border; gold fill still means "fighting"
