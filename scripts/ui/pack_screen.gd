@@ -345,6 +345,10 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	head.add_theme_constant_override("separation", 2)
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(head)
+	# Tapping the picture or name opens the full details.
+	top.mouse_filter = Control.MOUSE_FILTER_STOP
+	top.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	Retro.on_tap(top, _show_details.bind(id))
 	var name_label := Retro.title(Label.new(), 9, Retro.GOLD if selected else Retro.WHITE)
 	name_label.text = unit.display_name
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -405,6 +409,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 		if selected:
 			pick.add_theme_color_override("font_color", Retro.YELLOW)
 		col.add_child(pick)
+	col.add_child(_tile_button("Details", _show_details.bind(id)))
 	var points := profile.points_left(id)
 	var upgrade := _tile_button(("Tech tree (%d)" % points) if points > 0 else "Tech tree", _show_upgrades.bind(id))
 	if points > 0:
@@ -430,6 +435,137 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	if worn != "":
 		col.add_child(_tile_text(GameData.trinket_effects(worn), 15, Retro.YELLOW))
 	return card
+
+
+## Everything about one animal: where it is, stats, every skill with what it does and its numbers
+## (upgrades and Mastery included), trinket, tags, and bonds in the current pack.
+func _show_details(unit_id: String) -> void:
+	var is_pet := profile.has_pet() and unit_id == profile.pet_species
+	var data: Dictionary = GameData.PETS[unit_id] if is_pet else GameData.ANIMALS[unit_id]
+	var unit := profile.build_unit(unit_id)
+	var level := profile.level_of(unit_id)
+
+	var overlay := ColorRect.new()
+	overlay.color = Retro.INK
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	margin.add_theme_constant_override("margin_top", 40)
+	overlay.add_child(margin)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	margin.add_child(outer)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	Retro.touch_scroll(scroll)
+	outer.add_child(scroll)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 8)
+	scroll.add_child(col)
+	var heading := func(text: String) -> void:
+		var label := Retro.title(Label.new(), 12, Retro.GOLD)
+		label.text = text
+		col.add_child(label)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 12)
+	col.add_child(top)
+	var sprite := TextureRect.new()
+	sprite.custom_minimum_size = Vector2(128, 128)
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var path := "res://art/pixel/%s.png" % unit_id
+	if ResourceLoader.exists(path):
+		sprite.texture = load(path)
+	top.add_child(sprite)
+	var head := VBoxContainer.new()
+	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_child(head)
+	var name_label := Retro.title(Label.new(), 16)
+	name_label.text = unit.display_name
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.add_child(name_label)
+	head.add_child(_tile_text(("Lv %d · %s · %s" % [level, data.name, data.role]) if is_pet else ("Lv %d · %s" % [level, data.role]), 20, Retro.YELLOW))
+	head.add_child(_tile_text("XP %d / %d to Lv %d" % [profile.xp.get(unit_id, 0), GameData.xp_to_reach(level + 1), level + 1]
+		if level < GameData.MAX_LEVEL else "Max level", 18, Retro.FOG))
+	col.add_child(_tile_text("\"%s\"" % data.desc, 20, Retro.FOG))
+
+	var where := "Leads the pack: allies get +%d%% ATK/DEF while it stands." % roundi(GameData.LEADER_AURA * 100) if is_pet \
+		else "In the Stable: no fighting, no XP." if unit_id in profile.stable \
+		else "Fighting." if unit_id in profile.team \
+		else "Reserve: half XP" + ((", on %s duty." % profile.duty_of(unit_id)) if profile.duty_of(unit_id) != "" else ".")
+	col.add_child(_tile_text(where, 20, Retro.CYAN))
+	var hurt: PackedStringArray = []
+	if profile.injuries.has(unit_id):
+		hurt.append("Injured for %d battle%s: -%d%% HP/ATK." % [profile.injuries[unit_id], "" if profile.injuries[unit_id] == 1 else "s", roundi(GameData.INJURY_PENALTY * 100)])
+	if profile.fatigue_penalty(unit_id) > 0.0:
+		hurt.append("Tired: -%d%% stats until it sits out a battle." % roundi(profile.fatigue_penalty(unit_id) * 100))
+	if not hurt.is_empty():
+		col.add_child(_tile_text("\n".join(hurt), 20, Retro.ORANGE))
+
+	heading.call("Stats")
+	var stat_lines: PackedStringArray = ["HP %d   ATK %d   DEF %d   SPD %d   Crit %d%%" % [unit.max_hp, unit.atk, unit.def, unit.spd, roundi(unit.crit * 100)]]
+	if unit.lifesteal > 0.0:
+		stat_lines.append("Heals %d%% of damage dealt" % roundi(unit.lifesteal * 100))
+	if unit.thorns > 0.0:
+		stat_lines.append("Reflects %d%% of damage taken" % roundi(unit.thorns * 100))
+	if unit.regen > 0.0:
+		stat_lines.append("Regenerates %d%% HP each turn" % roundi(unit.regen * 100))
+	if not unit.immune.is_empty():
+		stat_lines.append("Immune to " + ", ".join(unit.immune.map(func(s: String) -> String: return GameData.STATUSES[s].name)))
+	col.add_child(_tile_text("\n".join(stat_lines), 20, Retro.MIST))
+
+	heading.call("Skills")
+	for skill_id in unit.skills:
+		var s := unit.skill_data(skill_id)
+		var n := unit.upgrade_count(skill_id)
+		var box := PanelContainer.new()
+		box.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.SLATE, Retro.BORDER, 2, 10))
+		var lines := VBoxContainer.new()
+		lines.add_theme_constant_override("separation", 2)
+		box.add_child(lines)
+		var skill_name := Retro.title(Label.new(), 11, Retro.WHITE)
+		skill_name.text = s.name + ((" +%d" % n) if n > 0 else "") + ("  (always ready)" if s.get("cooldown", 0) == 0 else "")
+		skill_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		lines.add_child(skill_name)
+		lines.add_child(_tile_text(s.desc, 19, Retro.FOG))
+		lines.add_child(_tile_text(GameData.skill_stats(s) + (" · Cures infection" if s.get("cleanse", false) else ""), 19, Retro.CYAN))
+		col.add_child(box)
+	if unit.mastered:
+		col.add_child(_tile_text("Mastery: every skill hits harder and recharges faster.", 19, Retro.YELLOW))
+	if profile.points_left(unit_id) > 0:
+		col.add_child(_tile_text("%d tech-tree point%s to spend." % [profile.points_left(unit_id), "" if profile.points_left(unit_id) == 1 else "s"], 19, Retro.YELLOW))
+
+	heading.call("Trinket")
+	var worn: String = profile.equipped.get(unit_id, "")
+	col.add_child(_tile_text(("%s: %s" % [GameData.TRINKETS[worn].name, GameData.trinket_effects(worn)]) if worn != "" else "None", 19,
+		Retro.YELLOW if worn != "" else Retro.FOG))
+
+	heading.call("Tags")
+	var tags: PackedStringArray = []
+	for t in GameData.tags_of(unit_id):
+		tags.append(GameData.CONDITIONS[t].name if GameData.CONDITIONS.has(t) else t.capitalize())
+	col.add_child(_tile_text(", ".join(tags) + "\nTags decide terrain bonuses, bonds and legend weak spots.", 19, Retro.FOG))
+	if unit_id in profile.pack_ids():
+		var bonds: PackedStringArray = []
+		for bond in GameData.active_bonds(profile.pack_ids()):
+			if unit_id in bond.members:
+				bonds.append("%s (%s)" % [bond.name, bond.desc])
+		if not bonds.is_empty():
+			col.add_child(_tile_text("Bonds: " + ", ".join(bonds), 19, Retro.GOLD))
+
+	var close := Button.new()
+	close.text = "Close"
+	close.custom_minimum_size = Vector2(0, 84)
+	close.pressed.connect(overlay.queue_free)
+	outer.add_child(close)
 
 
 ## Pick which trinket a unit wears. Trinkets worn by someone else move over.
