@@ -48,7 +48,7 @@ func _ready() -> void:
 	col.add_child(title)
 	var intro := Retro.text(Label.new(), 21 if prep else 22)
 	if stable_view:
-		intro.text = "Animals here don't fight or earn XP. Sending a reserve is free; bringing one back takes a map turn and a free slot in the pack of %d." % GameData.PACK_LIMIT
+		intro.text = "Animals here don't fight or earn XP. Sending a reserve here is free; sending one to the pack takes a map turn and a free slot in the pack of %d." % GameData.PACK_LIMIT
 	elif prep:
 		intro.text = _fight_summary()
 	else:
@@ -395,7 +395,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 		lead.disabled = true
 		col.add_child(lead)
 	elif stabled:
-		var back := _tile_button("Bring back (1 turn)", bring_back.emit.bind(id))
+		var back := _tile_button("Send to Pack (1 turn)", bring_back.emit.bind(id))
 		back.disabled = not profile.can_leave_stable(id)
 		if back.disabled:
 			back.text = "Pack full"
