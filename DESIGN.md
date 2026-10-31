@@ -134,8 +134,11 @@ The apocalypse starts **where you actually live**.
 - **Losing an attack** costs a turn but nothing else. Liberate all 40 to free your neighborhood.
 - Progress saves to `user://campaign.cfg`, keyed to your home ZIP/region.
 
-Balance (from `tests/simulate.gd`, decent-player AI): single 3-wave fights ~76–95% without a pet,
-~91–99% with one; random play ~8–35%. With leveling, skill upgrades and trinkets, 40-territory campaigns finish in ~49–72 turns with 1–16 setbacks (0–6 before the horde scaled with the pack), the pack ending around Lv 10–16 with 6–8 recruits and 3–4 trinkets.
+Balance (from `tests/simulate.gd`, decent-player AI): single 3-wave fights ~35–89% without a pet,
+~78–91% with one; random play ~1–27%. With leveling, skill upgrades and trinkets, 40-territory
+campaigns finish in ~54–87 turns, with 4–20 setbacks with a pet and 16–30 without, the pack ending
+around Lv 12–15 with 6–8 recruits and 3–10 trinkets. (Before the horde scaled with the pack, rest
+was halved and zombies focused fire: fights 76–99%, campaigns 48–60 turns with 0–6 setbacks.)
 
 ## Pillars
 1. **Short, tactical turns.** A battle fits in a 3–5 minute session. Every turn should have a
@@ -167,9 +170,11 @@ Map ──► attack a bordering territory ──► 1–3 waves ──► terri
   | Infected | Takes 6% max HP at the start of each turn; cured by healing |
   | Stunned  | Skips its next turn                                         |
   | Weakened | ATK ×0.7                                                    |
-- **Between waves:** the party rests (+30% HP), fallen animals get back up at 25% HP,
+- **Between waves:** the party rests (+15% HP), fallen animals get back up at 25% HP,
   cooldowns and statuses reset.
-- **Zombie AI:** uses its strongest ready skill; obeys Taunt; some types hunt the weakest target.
+- **Zombie AI:** uses its strongest ready skill; obeys Taunt. Single-target hits focus fire: 80% of
+  the time on an animal they can knock out, otherwise 50% on an animal that heals its allies; some
+  types hunt the weakest target.
   Big zombies start with their big skill on cooldown, so it's telegraphed.
 
 ## Starting roster

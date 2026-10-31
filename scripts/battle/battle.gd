@@ -16,9 +16,11 @@ enum Outcome { ONGOING, WAVE_CLEARED, VICTORY, DEFEAT }
 const DEF_SCALE := 50.0
 const CRIT_MULT := 1.5
 const INFECTION_DAMAGE := 0.06
-const REST_HEAL := 0.3
+const REST_HEAL := 0.15
 const REVIVE_HP := 0.25
 const HUNT_WEAK_CHANCE := 0.7
+const FOCUS_KILL_CHANCE := 0.8  # a single-target hit goes for an animal it can knock out
+const FOCUS_HEALER_CHANCE := 0.5  # otherwise it goes after the pack's healer
 
 var party: Array[Combatant] = []
 var enemies: Array[Combatant] = []
@@ -260,7 +262,8 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 	_end_turn(actor)
 
 
-## Zombie AI: strongest ready skill, respects Taunt, some types prey on the weakest animal.
+## Zombie AI: strongest ready skill, respects Taunt. Single-target hits focus fire: usually on an
+## animal they can knock out, else often on the pack's healer; some types prey on the weakest animal.
 func plan_enemy_action(actor: Combatant) -> Dictionary:
 	var skill_id := actor.skills[0]
 	for id in actor.skills:
@@ -274,11 +277,34 @@ func plan_enemy_action(actor: Combatant) -> Dictionary:
 	if not taunting.is_empty():
 		pool = taunting
 	var target: Combatant = pool[rng.randi_range(0, pool.size() - 1)]
-	if actor.traits.get("hunts_weak", false) and taunting.is_empty() and rng.randf() < HUNT_WEAK_CHANCE:
+	if not taunting.is_empty() or GameData.skill(skill_id).target != "enemy":
+		return {"skill": skill_id, "target": target}
+	var power: float = GameData.skill(skill_id).get("power", 0.0)
+	var kills: Array[Combatant] = []
+	var healers: Array[Combatant] = []
+	for c in pool:
+		if power > 0.0 and _base_damage(actor, c, power) >= c.hp:
+			kills.append(c)
+		if _is_healer(c):
+			healers.append(c)
+	if not kills.is_empty() and rng.randf() < FOCUS_KILL_CHANCE:
+		target = kills[rng.randi_range(0, kills.size() - 1)]
+	elif not healers.is_empty() and rng.randf() < FOCUS_HEALER_CHANCE:
+		target = healers[rng.randi_range(0, healers.size() - 1)]
+	elif actor.traits.get("hunts_weak", false) and rng.randf() < HUNT_WEAK_CHANCE:
 		for c in pool:
 			if c.hp < target.hp:
 				target = c
 	return {"skill": skill_id, "target": target}
+
+
+## True if `c` can heal its allies (not just itself).
+func _is_healer(c: Combatant) -> bool:
+	for id in c.skills:
+		var s := c.skill_data(id)
+		if s.get("heal", 0.0) > 0.0 and s.target in ["ally", "all_allies"]:
+			return true
+	return false
 
 
 static func living(units: Array[Combatant]) -> Array[Combatant]:
@@ -327,11 +353,16 @@ func _aura_mult(c: Combatant) -> float:
 	return 1.0 + GameData.LEADER_AURA if leader and leader != c else 1.0
 
 
-func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: float, single := true) -> void:
+## Damage before the roll, crits, armor and legend weak spots.
+func _base_damage(src: Combatant, dst: Combatant, power: float) -> float:
 	var atk := src.atk * _aura_mult(src)
 	if src.has_status("weakened"):
 		atk *= GameData.WEAKENED_ATK_MULT
-	var dmg := atk * power * DEF_SCALE / (DEF_SCALE + dst.effective_def() * _aura_mult(dst))
+	return atk * power * DEF_SCALE / (DEF_SCALE + dst.effective_def() * _aura_mult(dst))
+
+
+func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: float, single := true) -> void:
+	var dmg := _base_damage(src, dst, power)
 	dmg *= rng.randf_range(0.9, 1.1)
 	var crit := rng.randf() < src.crit + crit_bonus
 	if crit:
