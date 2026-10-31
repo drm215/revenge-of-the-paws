@@ -2,19 +2,22 @@ class_name PackScreen
 extends Control
 
 ## Swap animals in and out of the team and choose their trinkets. Shows the pack (up to
-## PACK_LIMIT animals) with levels and battle-ready stats, then the Stable: reserves can be sent
-## there for free, and bringing one back costs a map turn. The pet always leads; it can only be
-## changed from Setup.
+## PACK_LIMIT animals) as tiles, two per row, with levels and battle-ready stats. The pet always
+## leads; it can only be changed from Setup. With `stable_view` it shows the Stable instead:
+## reserves can be sent there for free, and bringing one back costs a map turn.
 ## With `battle_config` set it's the pre-battle screen: it shows the fight ahead, flags who suits
 ## it, and ends with Fight! (or Back to the map).
 
 signal closed
 signal fight
-signal stable_requested(id: String)  # bring this animal back from the Stable (costs a map turn)
+signal bring_back(id: String)  # bring this animal back from the Stable (costs a map turn)
+signal open_stable  # switch to the Stable view
 
 var profile: Profile
 ## Campaign.battle_config() / patrol_config() for the fight about to start; empty outside battle prep.
 var battle_config := {}
+## The Stable view (map's Stable button): only the Stable and the reserves that could go there.
+var stable_view := false
 
 var _list := VBoxContainer.new()
 var _count := Label.new()
@@ -41,18 +44,24 @@ func _ready() -> void:
 
 	var prep := not battle_config.is_empty()
 	var title := Retro.title(Label.new(), 20 if prep else 22)
-	title.text = "Ready the pack" if prep else "Your Pack"
+	title.text = "Ready the pack" if prep else ("Stable" if stable_view else "Your Pack")
 	col.add_child(title)
 	var intro := Retro.text(Label.new(), 21 if prep else 22)
-	intro.text = _fight_summary() if prep else "Pick %d to fight%s. The pack holds %d%s; reserves earn half the XP and can scout, forage or guard. Others wait in the Stable without leveling." % [
-		profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "",
-		GameData.PACK_LIMIT, (" with " + profile.pet_name) if profile.has_pet() else ""]
+	if stable_view:
+		intro.text = "Animals here don't fight or earn XP. Sending a reserve is free; bringing one back takes a map turn and a free slot in the pack of %d." % GameData.PACK_LIMIT
+	elif prep:
+		intro.text = _fight_summary()
+	else:
+		intro.text = "Pick %d to fight%s. The pack holds %d; reserves earn half the XP and can scout, forage or guard." % [
+			profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "", GameData.PACK_LIMIT]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
 	_roster.add_theme_constant_override("separation", 8)
+	_roster.visible = not stable_view
 	col.add_child(_roster)
 	Retro.text(_bonds, 20, Retro.GOLD)
 	_bonds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bonds.visible = not stable_view
 	col.add_child(_bonds)
 
 	var scroll := ScrollContainer.new()
@@ -135,43 +144,92 @@ func _fight_summary() -> String:
 func _refresh() -> void:
 	for child in _list.get_children():
 		child.queue_free()
-	if profile.has_pet():
-		_list.add_child(_card(profile.pet_species, GameData.PETS[profile.pet_species], true, true, Callable()))
-	var order: Array[String] = profile.active()
+	if stable_view:
+		_section("In the Stable (%d)" % profile.stable.size(),
+			"Nobody yet. Rescued animals wait here when the pack is full." if profile.stable.is_empty() else "")
+		var stabled := _grid()
+		for id in profile.stable:
+			stabled.add_child(_card(id, GameData.ANIMALS[id], false, false, Callable(), true))
+		var reserves: Array[String] = []
+		for id in profile.active():
+			if id not in profile.team:
+				reserves.append(id)
+		_section("Reserves", "Send one to the Stable to make room. To stable a fighter, take it out of the lineup on Pack first."
+			if not reserves.is_empty() else "No reserves: everyone in the pack is fighting.")
+		var reserve_grid := _grid()
+		for id in reserves:
+			reserve_grid.add_child(_card(id, GameData.ANIMALS[id], false, false, Callable()))
+		_count.text = "Pack: %d / %d  ·  Stable: %d" % [_pack_count(), GameData.PACK_LIMIT, profile.stable.size()]
+		_count.add_theme_color_override("font_color", Retro.GOLD)
+		return
+
+	# Fighters first, then reserves; before a fight, animals with a perk here lead the list.
+	var order: Array[String] = []
+	for id in profile.active():
+		if id in profile.team:
+			order.append(id)
+	for id in profile.active():
+		if id not in profile.team:
+			order.append(id)
 	if not battle_config.is_empty():
-		# Before a fight, animals with a perk here come first (stable otherwise).
-		var has_perk := func(id: String) -> int: return 0 if _perks_here(id).strong else 1
 		var by_perk: Array[String] = []
 		for pass_index in 2:
 			for id in order:
-				if has_perk.call(id) == pass_index:
+				if (0 if _perks_here(id).strong else 1) == pass_index:
 					by_perk.append(id)
 		order = by_perk
+	var grid := _grid()
+	if profile.has_pet():
+		grid.add_child(_card(profile.pet_species, GameData.PETS[profile.pet_species], true, true, Callable()))
 	for id in order:
-		_list.add_child(_card(id, GameData.ANIMALS[id], id in profile.team, false, _toggle.bind(id)))
-	if battle_config.is_empty() and not profile.stable.is_empty():
-		var head := Retro.title(Label.new(), 14, Retro.GOLD)
-		head.text = "Stable (%d)" % profile.stable.size()
-		_list.add_child(head)
-		var note := Retro.text(Label.new(), 19, Retro.FOG)
-		note.text = "No fighting, no XP. Bringing one back takes a map turn and needs a free slot in the pack."
-		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_list.add_child(note)
-		for id in profile.stable:
-			_list.add_child(_card(id, GameData.ANIMALS[id], false, false, Callable(), true))
+		grid.add_child(_card(id, GameData.ANIMALS[id], id in profile.team, false, _toggle.bind(id)))
+	if battle_config.is_empty():
+		var open := Button.new()
+		open.text = "Stable (%d)  >" % profile.stable.size()
+		open.custom_minimum_size = Vector2(0, 72)
+		open.add_theme_font_size_override("font_size", Retro.px(11))
+		open.pressed.connect(open_stable.emit)
+		_list.add_child(open)
 	var names: PackedStringArray = []
 	for bond in GameData.active_bonds(profile.pack_ids()):
 		names.append("%s (%s)" % [bond.name, bond.desc])
 	_bonds.text = ("Bonds: " + ", ".join(names) + " +%d%% ATK/DEF" % roundi(GameData.BOND_BONUS * 100)) if not names.is_empty() \
 		else "No bonds. Try 2 canines, 2 birds, 2 night animals, a dog + a cat, or neighbors from one region."
 	_count.text = "Fighting: %d / %d  ·  Pack: %d / %d" % [profile.team.size(), profile.locals_needed(),
-		profile.active().size() + (1 if profile.has_pet() else 0), GameData.PACK_LIMIT]
+		_pack_count(), GameData.PACK_LIMIT]
 	_count.add_theme_color_override("font_color", Retro.GOLD)
 	_done.disabled = profile.team.size() != profile.locals_needed()
 	_build_roster()
 
 
-## Checkbox tap. A full pack never silently drops someone: it says to uncheck one first.
+func _pack_count() -> int:
+	return profile.active().size() + (1 if profile.has_pet() else 0)
+
+
+## A heading (and optional note) in the list.
+func _section(heading: String, note: String) -> void:
+	var head := Retro.title(Label.new(), 13, Retro.GOLD)
+	head.text = heading
+	_list.add_child(head)
+	if note != "":
+		var line := Retro.text(Label.new(), 19, Retro.FOG)
+		line.text = note
+		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_list.add_child(line)
+
+
+## Two tiles per row.
+func _grid() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	_list.add_child(grid)
+	return grid
+
+
+## Fight button tap. A full lineup never silently drops someone: it says to take one out first.
 func _toggle(id: String) -> void:
 	if id in profile.team:
 		profile.team.erase(id)
@@ -179,7 +237,7 @@ func _toggle(id: String) -> void:
 		_refresh()
 		return
 	elif profile.team.size() >= profile.locals_needed():
-		_count.text = "Pack full (%d/%d): uncheck someone first" % [profile.team.size(), profile.locals_needed()]
+		_count.text = "Lineup full (%d/%d): take someone out first" % [profile.team.size(), profile.locals_needed()]
 		_count.add_theme_color_override("font_color", Retro.ORANGE)
 		var tween := _count.create_tween()
 		tween.tween_property(_count, "modulate", Color(1.6, 1.6, 1.6), 0.08)
@@ -224,68 +282,55 @@ func _build_roster() -> void:
 		_roster.add_child(empty)
 
 
-## The big pick box at the left of each card: checked = in the pack. The pet's is locked on.
-func _pick_box(checked: bool, locked: bool, on_press: Callable) -> Control:
-	var column := VBoxContainer.new()
-	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.custom_minimum_size = Vector2(92, 0)
-	column.add_theme_constant_override("separation", 4)
-	var box := Control.new()
-	box.custom_minimum_size = Vector2(68, 68)
-	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.draw.connect(func() -> void:
-		var r := Rect2(Vector2.ZERO, box.size)
-		box.draw_rect(r, Retro.DIRT if checked else Retro.INK)
-		box.draw_rect(r.grow(-3), Retro.GOLD if checked else Retro.FOG, false, 6.0)
-		if checked:
-			# A chunky pixel tick.
-			var s := box.size
-			box.draw_polyline(PackedVector2Array([s * Vector2(0.2, 0.52), s * Vector2(0.42, 0.74), s * Vector2(0.8, 0.28)]),
-				Retro.YELLOW if not locked else Retro.FOG, 10.0))
-	column.add_child(box)
-	var caption := Retro.title(Label.new(), 9, Retro.GOLD if checked else Retro.FOG)
-	caption.text = "LEADER" if locked else ("IN PACK" if checked else "TAP TO ADD")
-	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(caption)
-	if not locked:
-		column.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		Retro.on_tap(column, on_press)
-	return column
+## A compact button for a tile, tall enough to tap.
+func _tile_button(label: String, on_press: Callable) -> Button:
+	var b := Button.new()
+	b.text = label
+	b.clip_text = true
+	b.custom_minimum_size = Vector2(0, 52)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", Retro.px(9))
+	if on_press.is_valid():
+		b.pressed.connect(on_press)
+	return b
 
 
+func _tile_text(text: String, font_size: int, color: Color) -> Label:
+	var label := Retro.text(Label.new(), font_size, color)
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+## One animal as a tile (two per row): sprite, name and level, battle-ready stats, then its
+## buttons. Gold frame = fighting (or the leader); cyan frame = a perk in the coming fight.
 func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press: Callable, stabled := false) -> PanelContainer:
 	var level := profile.level_of(id)
 	# Build the unit as it would enter battle so the stats shown are the real ones.
 	var unit := profile.build_unit(id)
 	var worn: String = profile.equipped.get(id, "")
+	var perks := _perks_here(id)
 
 	var card := PanelContainer.new()
-	var perks := _perks_here(id)
-	var border := Retro.GOLD if selected else Retro.SLATE
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var border := Retro.GOLD if selected else (Retro.STEEL if stabled else Retro.SLATE)
 	var width := Retro.BORDER
 	if perks.strong:
-		border = Retro.CYAN  # a perk for this fight: cyan border; gold fill still means "in the pack"
+		border = Retro.CYAN  # a perk for this fight: cyan border; gold fill still means "fighting"
 		width = Retro.BORDER + 3
-	var normal := Retro.box(Retro.DIRT if selected else Retro.NIGHT, border, width, 2, 10)
-	card.add_theme_stylebox_override("panel", normal)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(row)
-	if stabled:
-		var resting := Retro.title(Label.new(), 9, Retro.FOG)
-		resting.text = "STABLE"
-		resting.custom_minimum_size = Vector2(92, 0)
-		resting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		resting.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		row.add_child(resting)
-	else:
-		row.add_child(_pick_box(selected, is_pet, on_press))
+	card.add_theme_stylebox_override("panel", Retro.box(Retro.DIRT if selected else Retro.NIGHT, border, width, 2, 8))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(col)
 
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(top)
 	var sprite := TextureRect.new()
-	sprite.custom_minimum_size = Vector2(88, 88)
+	sprite.custom_minimum_size = Vector2(64, 64)
 	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -293,138 +338,97 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	var path := "res://art/pixel/%s.png" % id
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-	row.add_child(sprite)
+	top.add_child(sprite)
+	var head := VBoxContainer.new()
+	head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	head.add_theme_constant_override("separation", 2)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(head)
+	var name_label := Retro.title(Label.new(), 9, Retro.GOLD if selected else Retro.WHITE)
+	name_label.text = unit.display_name
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.add_child(name_label)
+	var lv := Retro.title(Label.new(), 9, Retro.YELLOW)
+	lv.text = "Lv %d" % level
+	head.add_child(lv)
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 10)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_theme_stylebox_override("fill", Retro.box(Retro.SKY, Retro.SKY, 0, 0, 0))
+	var floor_xp := GameData.xp_to_reach(level)
+	bar.max_value = maxi(1, GameData.xp_to_reach(level + 1) - floor_xp)
+	bar.value = profile.xp.get(id, 0) - floor_xp
+	head.add_child(bar)
 
-	var info := VBoxContainer.new()
-	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	info.alignment = BoxContainer.ALIGNMENT_CENTER
-	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(info)
-	var title_label := Retro.title(Label.new(), 13, Retro.GOLD if selected else Retro.WHITE)
-	title_label.text = unit.display_name
-	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.add_child(title_label)
-	var tag := Retro.text(Label.new(), 19, Retro.FOG)
-	tag.text = ("Leader · %s" % data.name) if is_pet else data.role
+	var tag: String = ("Leader · %s" % data.name) if is_pet else data.role
 	var best: PackedStringArray = []
 	for t in GameData.ANIMAL_TAGS.get(id, []):
 		if GameData.CONDITIONS.has(t):
 			best.append(GameData.CONDITIONS[t].name)
 	if not best.is_empty():
-		tag.text += " · Best in: " + ", ".join(best)
-	tag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.add_child(tag)
+		tag += " · " + ", ".join(best)
+	col.add_child(_tile_text(tag, 16, Retro.FOG))
 	if not perks.good.is_empty():
-		var bonus := Retro.text(Label.new(), 18, Retro.CYAN)
-		bonus.text = "PERK: " + ", ".join(perks.good)
-		bonus.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(bonus)
+		col.add_child(_tile_text("PERK: " + ", ".join(perks.good), 16, Retro.CYAN))
 	if not perks.bad.is_empty():
-		var warn := Retro.text(Label.new(), 18, Retro.ORANGE)
-		warn.text = "Careful: " + ", ".join(perks.bad)
-		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(warn)
-	var condition_notes: PackedStringArray = []
+		col.add_child(_tile_text("Careful: " + ", ".join(perks.bad), 16, Retro.ORANGE))
+	var hurt: PackedStringArray = []
 	if profile.injuries.has(id):
-		condition_notes.append("Injured for %d battle%s (-%d%% HP/ATK)" % [profile.injuries[id], "" if profile.injuries[id] == 1 else "s", roundi(GameData.INJURY_PENALTY * 100)])
+		hurt.append("Injured %d (-%d%%)" % [profile.injuries[id], roundi(GameData.INJURY_PENALTY * 100)])
 	var tired := profile.fatigue_penalty(id)
 	if tired > 0.0:
-		condition_notes.append("Tired -%d%% (rest a battle to recover)" % roundi(tired * 100))
-	if not condition_notes.is_empty():
-		var hurt := Retro.text(Label.new(), 18, Retro.ORANGE)
-		hurt.text = "\n".join(condition_notes)
-		hurt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(hurt)
-
-	var lv_row := HBoxContainer.new()
-	lv_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	info.add_child(lv_row)
-	var lv := Retro.title(Label.new(), 11, Retro.YELLOW)
-	lv.text = "Lv %d" % level
-	lv.custom_minimum_size = Vector2(80, 0)
-	lv_row.add_child(lv)
-	var bar := ProgressBar.new()
-	bar.show_percentage = false
-	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.custom_minimum_size = Vector2(0, 14)
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var fill := Retro.box(Retro.SKY, Retro.SKY, 0, 0, 0)
-	bar.add_theme_stylebox_override("fill", fill)
-	var floor_xp := GameData.xp_to_reach(level)
-	var next_xp := GameData.xp_to_reach(level + 1)
-	bar.max_value = maxi(1, next_xp - floor_xp)
-	bar.value = profile.xp.get(id, 0) - floor_xp
-	lv_row.add_child(bar)
-
-	var stats := Retro.text(Label.new(), 19, Retro.MIST)
-	stats.text = "HP %d  ATK %d  DEF %d  SPD %d" % [unit.max_hp, unit.atk, unit.def, unit.spd]
-	info.add_child(stats)
-
+		hurt.append("Tired -%d%%" % roundi(tired * 100))
+	if not hurt.is_empty():
+		col.add_child(_tile_text(" · ".join(hurt), 16, Retro.ORANGE))
+	col.add_child(_tile_text("HP %d  ATK %d\nDEF %d  SPD %d" % [unit.max_hp, unit.atk, unit.def, unit.spd], 17, Retro.MIST))
 	var skill_names: PackedStringArray = []
 	for skill_id in unit.skills:
 		var n := unit.upgrade_count(skill_id)
 		skill_names.append(unit.skill_data(skill_id).name + ((" +%d" % n) if n > 0 else ""))
-	var skills_label := Retro.text(Label.new(), 18, Retro.FOG)
-	skills_label.text = ", ".join(skill_names)
-	skills_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info.add_child(skills_label)
+	col.add_child(_tile_text(", ".join(skill_names), 16, Retro.FOG))
+
+	# Buttons: the lineup (or Stable) action first, then tech tree, duty and trinket.
+	if is_pet:
+		var lead := _tile_button("LEADER", Callable())
+		lead.disabled = true
+		col.add_child(lead)
+	elif stabled:
+		var back := _tile_button("Bring back (1 turn)", bring_back.emit.bind(id))
+		back.disabled = not profile.can_leave_stable(id)
+		if back.disabled:
+			back.text = "Pack full"
+		col.add_child(back)
+	elif not stable_view:
+		var pick := _tile_button("FIGHTING" if selected else "+ Fight", on_press)
+		if selected:
+			pick.add_theme_color_override("font_color", Retro.YELLOW)
+		col.add_child(pick)
 	var points := profile.points_left(id)
-	var upgrade := Button.new()
-	upgrade.text = ("Tech tree (%d point%s)" % [points, "" if points == 1 else "s"]) if points > 0 else "Tech tree"
-	upgrade.add_theme_font_size_override("font_size", Retro.px(10))
+	var upgrade := _tile_button(("Tech tree (%d)" % points) if points > 0 else "Tech tree", _show_upgrades.bind(id))
 	if points > 0:
 		upgrade.add_theme_color_override("font_color", Retro.YELLOW)
-	upgrade.pressed.connect(_show_upgrades.bind(id))
-	info.add_child(upgrade)
-
-	if stabled:
-		var back := Button.new()
-		back.add_theme_font_size_override("font_size", Retro.px(10))
-		back.disabled = not profile.can_leave_stable(id)
-		back.text = "Bring back (takes a turn)" if not back.disabled else "Pack full: stable a reserve first"
-		back.pressed.connect(stable_requested.emit.bind(id))
-		info.add_child(back)
-	elif not is_pet and not selected:
+	col.add_child(upgrade)
+	if not is_pet and not selected and not stabled:
 		var duty := profile.duty_of(id)
-		var duty_button := Button.new()
-		duty_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		duty_button.add_theme_font_size_override("font_size", Retro.px(10))
-		duty_button.text = ("Duty: " + duty.capitalize()) if duty != "" else "Duty: none (tap to assign)"
-		duty_button.tooltip_text = GameData.DUTY_INFO.get(duty, "")
-		duty_button.pressed.connect(func() -> void:
+		var duty_button := _tile_button(("Duty: " + duty.capitalize()) if duty != "" else "Duty: none", func() -> void:
 			profile.cycle_duty(id)
 			_refresh())
-		info.add_child(duty_button)
+		duty_button.tooltip_text = GameData.DUTY_INFO.get(duty, "")
 		if duty != "":
-			var what := Retro.text(Label.new(), 18, Retro.CYAN)
-			what.text = GameData.DUTY_INFO[duty]
-			what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			info.add_child(what)
+			duty_button.add_theme_color_override("font_color", Retro.CYAN)
+		col.add_child(duty_button)
 		if battle_config.is_empty():
-			var to_stable := Button.new()
-			to_stable.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			to_stable.add_theme_font_size_override("font_size", Retro.px(10))
-			to_stable.text = "Send to Stable"
-			to_stable.pressed.connect(func() -> void:
+			col.add_child(_tile_button("To Stable", func() -> void:
 				profile.send_to_stable(id)
-				_refresh())
-			info.add_child(to_stable)
-
-	# Trinket slot: its own button, so tapping it doesn't also toggle the card.
-	var slot := Button.new()
-	slot.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	slot.clip_text = true
-	slot.add_theme_font_size_override("font_size", Retro.px(10))
-	slot.text = ("Trinket: " + GameData.TRINKETS[worn].name) if worn != "" else ("+ Trinket" if not profile.trinkets.is_empty() else "No trinkets yet")
+				_refresh()))
+	var slot := _tile_button(GameData.TRINKETS[worn].name if worn != "" else ("+ Trinket" if not profile.trinkets.is_empty() else "No trinkets"),
+		_show_picker.bind(id, unit.display_name))
 	slot.disabled = profile.trinkets.is_empty()
-	slot.pressed.connect(_show_picker.bind(id, unit.display_name))
-	info.add_child(slot)
+	col.add_child(slot)
 	if worn != "":
-		var effects := Retro.text(Label.new(), 18, Retro.YELLOW)
-		effects.text = GameData.trinket_effects(worn)
-		effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		info.add_child(effects)
-
+		col.add_child(_tile_text(GameData.trinket_effects(worn), 15, Retro.YELLOW))
 	return card
 
 

@@ -9,6 +9,7 @@ signal patrol_requested(index: int)
 signal rest_requested
 signal setup_requested
 signal pack_requested
+signal stable_requested
 signal account_requested
 signal auto_toggled
 
@@ -347,6 +348,11 @@ func _build_ui() -> void:
 	pack.add_theme_font_size_override("font_size", Retro.px(10))
 	pack.pressed.connect(pack_requested.emit)
 	footer.add_child(pack)
+	var stable_button := Button.new()
+	stable_button.text = "Stable"
+	stable_button.add_theme_font_size_override("font_size", Retro.px(10))
+	stable_button.pressed.connect(stable_requested.emit)
+	footer.add_child(stable_button)
 	var cloud_button := Button.new()
 	cloud_button.text = "Cloud"
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))

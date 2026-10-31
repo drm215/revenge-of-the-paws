@@ -42,6 +42,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_show_map(_profile))
 	screen.setup_requested.connect(_show_onboarding.bind(profile))
 	screen.pack_requested.connect(_show_pack)
+	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
 	screen.auto_toggled.connect(func() -> void:
 		_profile.auto_battle = not _profile.auto_battle
@@ -78,16 +79,18 @@ func _show_account() -> void:
 	_swap(screen)
 
 
-func _show_pack() -> void:
+func _show_pack(stable_view := false) -> void:
 	var screen := PackScreen.new()
 	screen.profile = _profile
+	screen.stable_view = stable_view
 	screen.closed.connect(func() -> void:
 		_profile.save()
 		_show_map(_profile))
-	screen.stable_requested.connect(func(id: String) -> void:
+	screen.open_stable.connect(_show_pack.bind(true))
+	screen.bring_back.connect(func(id: String) -> void:
 		_campaign.bring_from_stable(id)
 		_profile.save()
-		_show_pack())
+		_show_pack(true))
 	_swap(screen)
 
 
