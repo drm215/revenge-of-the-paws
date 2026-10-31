@@ -208,6 +208,16 @@ func resolve_patrol(i: int, won: bool) -> void:
 	_end_turn()
 
 
+## Brings an animal back from the Stable into a free pack slot; it takes the map turn.
+func bring_from_stable(id: String) -> void:
+	if not profile.can_leave_stable(id):
+		return
+	turn += 1
+	profile.leave_stable(id)
+	last_event = "%s rejoins the pack from the Stable." % profile.unit_name(id)
+	_end_turn()
+
+
 ## Rest at home: injuries heal and fatigue clears, but the map turn passes.
 func rest() -> void:
 	turn += 1
@@ -245,8 +255,9 @@ func resolve_battle(i: int, won: bool) -> void:
 			claimed.append(t.id)
 			last_event += "\nFound the %s! Equip it from Pack." % GameData.TRINKETS[loot].name
 		if t.recruit != "" and not profile.unlock([t.recruit]).is_empty():
-			last_event += "\nRescued: %s joined the pack at Lv %d! Swap it in from Pack." % [
-				GameData.ANIMALS[t.recruit].name, profile.level_of(t.recruit)]
+			var where := "waits in the Stable (the pack is full)" if t.recruit in profile.stable else "joined the pack"
+			last_event += "\nRescued: %s %s at Lv %d! Swap it in from Pack." % [
+				GameData.ANIMALS[t.recruit].name, where, profile.level_of(t.recruit)]
 		last_event += _reveal_beyond(i)
 	else:
 		t.failed_attacks += 1

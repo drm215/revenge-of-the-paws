@@ -13,6 +13,11 @@ extends RefCounted
 ##   apply     statuses put on each target: [{status, turns, chance}]
 
 const PARTY_SIZE := 3
+## Animals the pack holds, pet included: PARTY_SIZE fight, the rest are reserves (duties, XP share).
+## More wait in the Stable, where they don't level; bringing one back costs a map turn.
+const PACK_LIMIT := 6
+## Rescued animals join at this share of the strongest pack's level.
+const RECRUIT_LEVEL_SHARE := 0.5
 
 ## Pets lead the pack: their stats are multiplied, and every other living ally gets the aura bonus.
 const PET_STAT_MULT := 1.15
@@ -974,7 +979,7 @@ const INJURY_BATTLES := 2
 const INJURY_PENALTY := 0.25
 const FATIGUE_STEP := 0.05
 const MAX_FATIGUE := 0.2
-const BENCH_XP_SHARE := 0.25
+const BENCH_XP_SHARE := 0.5
 const DUTIES := ["scout", "forage", "guard"]
 const DUTY_INFO := {
 	"scout": "Scout: reveals every territory's zombie waves.",

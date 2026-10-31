@@ -84,6 +84,10 @@ func _show_pack() -> void:
 	screen.closed.connect(func() -> void:
 		_profile.save()
 		_show_map(_profile))
+	screen.stable_requested.connect(func(id: String) -> void:
+		_campaign.bring_from_stable(id)
+		_profile.save()
+		_show_pack())
 	_swap(screen)
 
 

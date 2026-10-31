@@ -142,7 +142,7 @@ func play_campaign(profile: Profile, seed_value: int) -> Dictionary:
 ## A sensible player's lineup: skip injured animals, rest tired ones, keep the strongest.
 func _pick_lineup(profile: Profile) -> void:
 	var pool: Array[String] = []
-	pool.assign(profile.unlocked)
+	pool.assign(profile.active())
 	pool.sort_custom(func(a: String, b: String) -> bool:
 		var sa := profile.level_of(a) * 10 - (30 if profile.injuries.has(a) else 0) - roundi(profile.fatigue_penalty(a) * 100)
 		var sb := profile.level_of(b) * 10 - (30 if profile.injuries.has(b) else 0) - roundi(profile.fatigue_penalty(b) * 100)

@@ -32,6 +32,7 @@ func _ready() -> void:
 		_profile.team = initial.team.duplicate()
 		_profile.xp = initial.xp.duplicate()
 		_profile.unlocked = initial.unlocked.duplicate()
+		_profile.stable = initial.stable.duplicate()
 		_profile.trinkets = initial.trinkets.duplicate()
 		_profile.equipped = initial.equipped.duplicate()
 		_profile.tree = initial.tree.duplicate(true)
@@ -198,6 +199,7 @@ func _pet_ready() -> bool:
 
 func _finish() -> void:
 	_profile.unlock(GameData.REGIONS[_profile.region].animals)
+	_profile.normalize_roster()
 	_profile.save()
 	finished.emit(_profile)
 

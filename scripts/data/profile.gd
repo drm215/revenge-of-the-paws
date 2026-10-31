@@ -31,6 +31,7 @@ var pet_name := ""
 var team: Array[String] = []  # wild animals fighting beside the pet (or alone)
 var xp := {}  # unit id (pet species or wild animal id) -> total XP
 var unlocked: Array[String] = []  # wild animals that can join the pack
+var stable: Array[String] = []  # unlocked animals waiting in the Stable: they don't fight or earn XP
 var trinkets: Array[String] = []  # owned trinkets (duplicates allowed)
 var equipped := {}  # unit id -> trinket id it wears
 var tree := {}  # unit id -> tech-tree node ids bought (one point per level above 1)
@@ -181,7 +182,7 @@ func clear_duty(unit_id: String) -> void:
 ## duty that's already held.
 func auto_fill_duties() -> void:
 	var free: Array[String] = []
-	for id in unlocked:
+	for id in active():
 		if id not in team and duty_of(id) == "":
 			free.append(id)
 	var stat_of := func(id: String, stat: String) -> int: return GameData.ANIMALS[id][stat]
@@ -198,7 +199,7 @@ func auto_fill_duties() -> void:
 		free.erase(best)
 
 
-## After-battle bookkeeping shared by the game and the simulator: XP for fighters and the bench,
+## After-battle bookkeeping shared by the game and the simulator: XP for fighters and reserves,
 ## injuries, fatigue and foraging. Returns lines for the results screen. Only a won battle injures
 ## the animals knocked out in it; on a retreat the pack carries its wounded home.
 func after_battle(fought: Array[String], downed: Array[String], amount: int, won := true) -> PackedStringArray:
@@ -208,7 +209,7 @@ func after_battle(fought: Array[String], downed: Array[String], amount: int, won
 			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
 	var bench_amount := roundi(amount * GameData.BENCH_XP_SHARE)
 	var benched := 0
-	for id in unlocked:
+	for id in active():
 		if id in fought:
 			continue
 		benched += 1
@@ -297,18 +298,76 @@ func strongest_pack_level() -> int:
 	return total / levels.size()
 
 
-## Lets animals join the pack; returns the ones that are new. New recruits start at Lv 1 and
-## train up from the bench or in easy fights.
+## Lets animals join the pack; returns the ones that are new. A recruit starts at
+## RECRUIT_LEVEL_SHARE of the strongest pack's level and waits in the Stable if the pack is full.
 func unlock(ids: Array) -> Array[String]:
 	var fresh: Array[String] = []
+	var start_level := maxi(1, roundi(strongest_pack_level() * GameData.RECRUIT_LEVEL_SHARE))
 	for id: String in ids:
 		if id in unlocked:
 			continue
 		unlocked.append(id)
 		fresh.append(id)
+		xp[id] = maxi(xp.get(id, 0), GameData.xp_to_reach(start_level))
+		if active().size() > active_slots():
+			stable.append(id)
 	if not fresh.is_empty():
 		auto_fill_duties()
 	return fresh
+
+
+## --- The Stable ---
+
+## Wild animals in the pack (fighters and reserves), as opposed to the Stable.
+func active() -> Array[String]:
+	var out: Array[String] = []
+	for id in unlocked:
+		if id not in stable:
+			out.append(id)
+	return out
+
+
+## Wild animals the pack holds besides the pet: PACK_LIMIT counts the pet too.
+func active_slots() -> int:
+	return GameData.PACK_LIMIT - (1 if has_pet() else 0)
+
+
+## Sends a reserve to the Stable (free). Fighters have to be benched first.
+func send_to_stable(id: String) -> void:
+	if id in unlocked and id not in team and id not in stable:
+		stable.append(id)
+		clear_duty(id)
+		auto_fill_duties()
+
+
+## Brings an animal back from the Stable into a free slot. The campaign charges the map turn.
+func can_leave_stable(id: String) -> bool:
+	return id in stable and active().size() < active_slots()
+
+
+func leave_stable(id: String) -> void:
+	if can_leave_stable(id):
+		stable.erase(id)
+		auto_fill_duties()
+
+
+## Keeps the roster legal: fighters are never stabled, and a pack over PACK_LIMIT (older saves, or a
+## pet added in Setup) sends its lowest-level reserves to the Stable.
+func normalize_roster() -> void:
+	for id in stable.duplicate():
+		if id in team or id not in unlocked:
+			stable.erase(id)
+	var reserves: Array[String] = []
+	for id in active():
+		if id not in team:
+			reserves.append(id)
+	reserves.sort_custom(func(a: String, b: String) -> bool: return level_of(a) < level_of(b))
+	while active().size() > active_slots() and not reserves.is_empty():
+		stable.append(reserves.pop_front())
+	for duty in duties.keys():
+		if duties[duty] in stable:
+			duties.erase(duty)
+	auto_fill_duties()
 
 
 ## How many copies of a trinket nobody is wearing.
@@ -354,6 +413,7 @@ func save() -> void:
 	cfg.set_value("profile", "team", Array(team))
 	cfg.set_value("profile", "xp", xp)
 	cfg.set_value("profile", "unlocked", Array(unlocked))
+	cfg.set_value("profile", "stable", Array(stable))
 	cfg.set_value("profile", "trinkets", Array(trinkets))
 	cfg.set_value("profile", "equipped", equipped)
 	cfg.set_value("profile", "tree", tree)
@@ -381,6 +441,7 @@ static func load_saved() -> Profile:
 	p.team.assign(cfg.get_value("profile", "team", []))
 	p.xp = cfg.get_value("profile", "xp", {})
 	p.unlocked.assign(cfg.get_value("profile", "unlocked", []))
+	p.stable.assign(cfg.get_value("profile", "stable", []))
 	p.trinkets.assign(cfg.get_value("profile", "trinkets", []))
 	p.equipped = cfg.get_value("profile", "equipped", {})
 	# Older saves' level-up picks aren't carried over: every level's point comes back to spend in
@@ -399,7 +460,7 @@ static func load_saved() -> Profile:
 	# Saves from before recruiting existed: the home animals and current team are unlocked.
 	p.unlock(GameData.REGIONS[p.region].animals)
 	p.unlock(p.team)
-	p.auto_fill_duties()
+	p.normalize_roster()
 	# One-off: recruits used to join near the pack's level; now they start at Lv 1. Send the
 	# Alligator recruited under the old rule back to Lv 1 too.
 	if "recruit_lv1" not in p.fixes:

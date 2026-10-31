@@ -1,13 +1,16 @@
 class_name PackScreen
 extends Control
 
-## Swap animals in and out of the team and choose their trinkets. Shows every unlocked animal
-## with its level and battle-ready stats. The pet always leads; it can only be changed from Setup.
+## Swap animals in and out of the team and choose their trinkets. Shows the pack (up to
+## PACK_LIMIT animals) with levels and battle-ready stats, then the Stable: reserves can be sent
+## there for free, and bringing one back costs a map turn. The pet always leads; it can only be
+## changed from Setup.
 ## With `battle_config` set it's the pre-battle screen: it shows the fight ahead, flags who suits
 ## it, and ends with Fight! (or Back to the map).
 
 signal closed
 signal fight
+signal stable_requested(id: String)  # bring this animal back from the Stable (costs a map turn)
 
 var profile: Profile
 ## Campaign.battle_config() / patrol_config() for the fight about to start; empty outside battle prep.
@@ -41,8 +44,9 @@ func _ready() -> void:
 	title.text = "Ready the pack" if prep else "Your Pack"
 	col.add_child(title)
 	var intro := Retro.text(Label.new(), 21 if prep else 22)
-	intro.text = _fight_summary() if prep else "Pick %d to fight%s. Rotate: injured and tired animals fight worse, the bench earns a quarter of the XP, and benched animals can scout, forage or guard." % [
-		profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else ""]
+	intro.text = _fight_summary() if prep else "Pick %d to fight%s. The pack holds %d%s; reserves earn half the XP and can scout, forage or guard. Others wait in the Stable without leveling." % [
+		profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "",
+		GameData.PACK_LIMIT, (" with " + profile.pet_name) if profile.has_pet() else ""]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
 	_roster.add_theme_constant_override("separation", 8)
@@ -133,7 +137,7 @@ func _refresh() -> void:
 		child.queue_free()
 	if profile.has_pet():
 		_list.add_child(_card(profile.pet_species, GameData.PETS[profile.pet_species], true, true, Callable()))
-	var order: Array[String] = profile.unlocked.duplicate()
+	var order: Array[String] = profile.active()
 	if not battle_config.is_empty():
 		# Before a fight, animals with a perk here come first (stable otherwise).
 		var has_perk := func(id: String) -> int: return 0 if _perks_here(id).strong else 1
@@ -145,12 +149,23 @@ func _refresh() -> void:
 		order = by_perk
 	for id in order:
 		_list.add_child(_card(id, GameData.ANIMALS[id], id in profile.team, false, _toggle.bind(id)))
+	if battle_config.is_empty() and not profile.stable.is_empty():
+		var head := Retro.title(Label.new(), 14, Retro.GOLD)
+		head.text = "Stable (%d)" % profile.stable.size()
+		_list.add_child(head)
+		var note := Retro.text(Label.new(), 19, Retro.FOG)
+		note.text = "No fighting, no XP. Bringing one back takes a map turn and needs a free slot in the pack."
+		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_list.add_child(note)
+		for id in profile.stable:
+			_list.add_child(_card(id, GameData.ANIMALS[id], false, false, Callable(), true))
 	var names: PackedStringArray = []
 	for bond in GameData.active_bonds(profile.pack_ids()):
 		names.append("%s (%s)" % [bond.name, bond.desc])
 	_bonds.text = ("Bonds: " + ", ".join(names) + " +%d%% ATK/DEF" % roundi(GameData.BOND_BONUS * 100)) if not names.is_empty() \
 		else "No bonds. Try 2 canines, 2 birds, 2 night animals, a dog + a cat, or neighbors from one region."
-	_count.text = "In the pack: %d / %d" % [profile.team.size(), profile.locals_needed()]
+	_count.text = "Fighting: %d / %d  ·  Pack: %d / %d" % [profile.team.size(), profile.locals_needed(),
+		profile.active().size() + (1 if profile.has_pet() else 0), GameData.PACK_LIMIT]
 	_count.add_theme_color_override("font_color", Retro.GOLD)
 	_done.disabled = profile.team.size() != profile.locals_needed()
 	_build_roster()
@@ -240,7 +255,7 @@ func _pick_box(checked: bool, locked: bool, on_press: Callable) -> Control:
 	return column
 
 
-func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press: Callable) -> PanelContainer:
+func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press: Callable, stabled := false) -> PanelContainer:
 	var level := profile.level_of(id)
 	# Build the unit as it would enter battle so the stats shown are the real ones.
 	var unit := profile.build_unit(id)
@@ -259,7 +274,15 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(row)
-	row.add_child(_pick_box(selected, is_pet, on_press))
+	if stabled:
+		var resting := Retro.title(Label.new(), 9, Retro.FOG)
+		resting.text = "STABLE"
+		resting.custom_minimum_size = Vector2(92, 0)
+		resting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		resting.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(resting)
+	else:
+		row.add_child(_pick_box(selected, is_pet, on_press))
 
 	var sprite := TextureRect.new()
 	sprite.custom_minimum_size = Vector2(88, 88)
@@ -354,7 +377,14 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	upgrade.pressed.connect(_show_upgrades.bind(id))
 	info.add_child(upgrade)
 
-	if not is_pet and not selected:
+	if stabled:
+		var back := Button.new()
+		back.add_theme_font_size_override("font_size", Retro.px(10))
+		back.disabled = not profile.can_leave_stable(id)
+		back.text = "Bring back (takes a turn)" if not back.disabled else "Pack full: stable a reserve first"
+		back.pressed.connect(stable_requested.emit.bind(id))
+		info.add_child(back)
+	elif not is_pet and not selected:
 		var duty := profile.duty_of(id)
 		var duty_button := Button.new()
 		duty_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -370,6 +400,15 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 			what.text = GameData.DUTY_INFO[duty]
 			what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			info.add_child(what)
+		if battle_config.is_empty():
+			var to_stable := Button.new()
+			to_stable.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			to_stable.add_theme_font_size_override("font_size", Retro.px(10))
+			to_stable.text = "Send to Stable"
+			to_stable.pressed.connect(func() -> void:
+				profile.send_to_stable(id)
+				_refresh())
+			info.add_child(to_stable)
 
 	# Trinket slot: its own button, so tapping it doesn't also toggle the card.
 	var slot := Button.new()

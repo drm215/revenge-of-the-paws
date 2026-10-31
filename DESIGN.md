@@ -91,7 +91,12 @@ The apocalypse starts **where you actually live**.
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and
-  it joins the pack at Lv 1. The **Pack** screen swaps who fights beside the pet.
+  it joins at half the strongest pack's level. The **Pack** screen swaps who fights beside the pet.
+- **The pack holds 6** (`PACK_LIMIT`, pet included): 3 fight, the rest are reserves. Everyone
+  else waits in the **Stable**: no fighting, no XP, no duties. A recruit goes to the Stable when the
+  pack is full. Sending a reserve to the Stable is free; bringing one back takes a map turn and needs
+  a free slot, so swapping in a specialist for a push is a real decision. Older saves keep their
+  team and highest-level reserves; the rest are stabled on load.
 - **Trinkets:** each legend drops its own trinket the first time it's beaten (Moth Wing Charm:
   +25% SPD/-10% DEF; Hollow-Bark Armor: +30% DEF/-15% SPD; Chupacabra Fang: heals 25% of damage
   dealt/-10% DEF; ...). Effects mix stat changes with lifesteal, thorns, regeneration, infection
@@ -121,7 +126,7 @@ The apocalypse starts **where you actually live**.
     vs night animals; giants: forest vs city; stalkers: canines vs felines; lurkers: water vs desert).
   - *Bonds* (+8% ATK/DEF): Pack Hunters, Big Cats, Sky Watch, Night Shift, Trash Pact, Odd
     Couple (canine + feline), Neighbors (all wild members from one region).
-  - *Bench:* benched animals get 25% XP and take duties (auto-filled from the bench: fastest
+  - *Bench:* reserves (pack members not fighting) get 50% XP and take duties (auto-filled from the bench: fastest
     scouts, toughest guards; a duty passes on when its holder joins the lineup; Duty button to
     change): Scout (reveals waves), Forage (25%
     XP stash / 5% trinket per battle), Guard (counterattacks every 5 turns instead of 3).
