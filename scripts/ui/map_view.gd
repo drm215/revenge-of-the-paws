@@ -20,6 +20,7 @@ const MIN_ZOOM := 0.3
 const MAX_ZOOM := 4.0
 const TAP_SLOP := 12.0
 const MIN_LABEL_PX := 64.0  # smaller areas only get a label once zoomed in
+const LABEL_GAP := 3.0  # px kept clear around each label; crowded labels wait for a closer zoom
 
 var campaign: Campaign
 var selected := -1
@@ -135,13 +136,11 @@ func _draw() -> void:
 		_outline(selected, SELECTED, 4.0)
 
 	var font_size := Retro.px(clampf(16 * sqrt(_zoom), 16, 26))
-	for i in campaign.territories.size():
+	var placed: Array[Rect2] = []  # labels already drawn; one that would overlap them is skipped
+	for i in _label_order():
 		var t := campaign.territories[i]
 		var c := _to_screen(t.site)
 		var is_lair := t.boss != "" and not t.owned
-		var on_screen := _bboxes[i].size * _fit_scale * _zoom
-		if maxf(on_screen.x, on_screen.y) < MIN_LABEL_PX and i != campaign.home and i != selected and not is_lair:
-			continue
 		var label := t.label if t.label.length() <= 13 else t.label.left(12) + "…"
 		var color := Color.WHITE
 		if i == campaign.home:
@@ -151,7 +150,12 @@ func _draw() -> void:
 		elif is_lair:
 			label = GameData.LEGENDS[t.boss].name
 			color = LAIR
-		_text(font, c + Vector2(0, 4), label, font_size, color)
+		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var label_box := Rect2(c.x - text_w / 2.0, c.y + 4 - font_size, text_w, font_size * 1.3).grow(LABEL_GAP)
+		var must_show := i == campaign.home or i == selected or is_lair
+		if must_show or not placed.any(func(r: Rect2) -> bool: return r.intersects(label_box)):
+			placed.append(label_box)
+			_text(font, c + Vector2(0, 4), label, font_size, color)
 		if t.cache != "" and campaign.loot_at(i) != "":
 			# A little treasure chest marks a trinket cache.
 			var box := Rect2(c + Vector2(26, -30), Vector2(18, 14))
@@ -168,6 +172,33 @@ func _draw() -> void:
 				var pip := c + Vector2((k - (mini(t.threat, GameData.MAX_THREAT) - 1) / 2.0) * 10 - 3, 10)
 				draw_rect(Rect2(pip - Vector2(1, 1), Vector2(8, 8)), BORDER)
 				draw_rect(Rect2(pip, Vector2(6, 6)), THREAT_PIP)
+
+
+## Territories big enough on screen to label, most important first: home and the selection, lairs,
+## what you can attack, other unheld areas, then what you hold; bigger areas first within each.
+func _label_order() -> Array[int]:
+	var rank := {}
+	var area := {}
+	var order: Array[int] = []
+	for i in campaign.territories.size():
+		var t := campaign.territories[i]
+		var is_lair := t.boss != "" and not t.owned
+		var on_screen := _bboxes[i].size * _fit_scale * _zoom
+		if i == campaign.home or i == selected:
+			rank[i] = 0
+		elif is_lair:
+			rank[i] = 1
+		elif maxf(on_screen.x, on_screen.y) < MIN_LABEL_PX:
+			continue
+		elif campaign.is_actionable(i):
+			rank[i] = 2
+		else:
+			rank[i] = 4 if t.owned else 3
+		area[i] = on_screen.x * on_screen.y
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool:
+		return rank[a] < rank[b] if rank[a] != rank[b] else area[a] > area[b])
+	return order
 
 
 func _icon(id: String) -> Texture2D:
