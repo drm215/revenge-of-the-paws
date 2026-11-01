@@ -166,6 +166,8 @@ func start_next_wave() -> void:
 	if leader:
 		log_message.emit("[color=#ffd34d]%s leads the pack: allies +%d%% ATK/DEF.[/color]" % [
 			leader.display_name, roundi(GameData.LEADER_AURA * 100)])
+	_announce_exposed(party)
+	_announce_exposed(enemies)
 
 
 func outcome() -> Outcome:
@@ -379,6 +381,32 @@ func reachable(actor: Combatant) -> Array[Combatant]:
 	return out
 
 
+## True if `c` stands in the back row but too few of its side stand in front to screen it.
+func exposed(c: Combatant) -> bool:
+	return c.row == "back" and c.is_alive() and _front_count(_allies(c)) < GameData.SCREEN_SIZE
+
+
+func _front_count(side: Array[Combatant]) -> int:
+	var n := 0
+	for c in side:
+		if c.is_alive() and c.row == "front":
+			n += 1
+	return n
+
+
+## Says so when the back row loses its screen (or starts without one).
+func _announce_exposed(side: Array[Combatant]) -> void:
+	var open: PackedStringArray = []
+	for c in side:
+		if exposed(c):
+			open.append(c.display_name)
+	if open.is_empty():
+		return
+	var pack := side == party
+	log_message.emit("[color=%s][b]%s back row is exposed![/b] Fewer than %d stand in front, so single-target attacks can reach %s.[/color]" % [
+		"#f77622" if pack else "#63c74d", "Your" if pack else "The zombies'", GameData.SCREEN_SIZE, ", ".join(open)])
+
+
 func _reaches(c: Combatant) -> bool:
 	return c.traits.get("reach", false) or "bird" in c.tags
 
@@ -506,6 +534,8 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 		"is down" if dst.is_player else "is destroyed",
 	])
 	died.emit(dst)
+	if dst.row == "front" and _front_count(_allies(dst)) == GameData.SCREEN_SIZE - 1 and outcome() == Outcome.ONGOING:
+		_announce_exposed(_allies(dst))
 	if dst.is_player:
 		dst.fell_in_wave = wave_index
 		if dst.id not in downed:

@@ -23,6 +23,7 @@ const BORDER_COLORS := {
 const LUNGE := 26.0
 
 var unit: Combatant
+var battle: Battle  # set on the battle screen, to show when a back-row unit is exposed
 
 var _style := StyleBoxFlat.new()
 var _stage := Control.new()  # holds the sprite; draws the ground ring
@@ -160,7 +161,7 @@ func refresh() -> void:
 	if perks > 0:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
 	if unit.row == "back" and unit.is_alive():
-		parts.append("Back row")
+		parts.append("BACK ROW EXPOSED" if battle and battle.exposed(unit) else "Back row")
 	if unit.winding != "":
 		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
 	for status in unit.statuses:

@@ -67,7 +67,7 @@ func _new_game() -> void:
 	battle.damaged.connect(_on_damaged)
 	battle.healed.connect(_on_healed)
 	battle.status_changed.connect(func(c: Combatant) -> void: _card(c).refresh())
-	battle.died.connect(func(c: Combatant) -> void: _card(c).refresh())
+	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
 
 	for c in battle.party:
@@ -271,6 +271,7 @@ func _card(c: Combatant) -> UnitCard:
 ## Front-row cards are nudged toward the middle of the field, back-row ones toward the edge.
 func _add_card(c: Combatant, column: VBoxContainer, sprite_size: float) -> void:
 	var card := UnitCard.new()
+	card.battle = battle
 	card.setup(c, sprite_size)
 	card.pressed.connect(_on_card_pressed)
 	var slot := MarginContainer.new()
