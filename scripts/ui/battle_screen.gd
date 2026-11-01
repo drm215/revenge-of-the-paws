@@ -274,10 +274,11 @@ func _add_card(c: Combatant, column: VBoxContainer, sprite_size: float) -> void:
 	card.setup(c, sprite_size)
 	card.pressed.connect(_on_card_pressed)
 	var slot := MarginContainer.new()
-	var toward_middle := "margin_left" if c.is_player else "margin_right"
-	var toward_edge := "margin_right" if c.is_player else "margin_left"
-	slot.add_theme_constant_override(toward_middle if c.row == "front" else toward_edge, 0)
-	slot.add_theme_constant_override(toward_edge if c.row == "front" else toward_middle, ROW_SHIFT)
+	# Padding on the edge side pushes a card toward the middle; on the middle side, toward the edge.
+	var edge_side := "margin_left" if c.is_player else "margin_right"
+	var middle_side := "margin_right" if c.is_player else "margin_left"
+	slot.add_theme_constant_override(edge_side, ROW_SHIFT if c.row == "front" else 0)
+	slot.add_theme_constant_override(middle_side, 0 if c.row == "front" else ROW_SHIFT)
 	slot.add_child(card)
 	column.add_child(slot)
 	cards[c] = card
