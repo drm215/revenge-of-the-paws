@@ -38,6 +38,7 @@ var cooldowns: Dictionary = {}  # skill id -> turns until ready
 var winding := ""  # a zombie's telegraphed skill, released on its next turn unless it's stunned
 var fell_in_wave := -1  # the wave an animal was knocked out in: it sits out the next one
 var revived := false  # a zombie a Medic raised: it can't be raised again and gives no more XP
+var row := "front"  # "front" or "back"; see GameData.BACK_ROW_DAMAGE
 
 
 static func from_data(unit_id: String, data: Dictionary, player: bool) -> Combatant:
@@ -58,6 +59,10 @@ static func from_data(unit_id: String, data: Dictionary, player: bool) -> Combat
 	c.crit = data.crit
 	c.skills.assign(data.skills)
 	c.traits = data.get("traits", {})
+	c.row = data.get("row", "front")
+	if data.get("build", "") == "flyer":
+		c.traits = c.traits.duplicate()
+		c.traits["reach"] = true  # flying legends strike the back row
 	# Zombies start with big skills on cooldown so they're telegraphed, not opening alpha strikes.
 	if not player:
 		for skill_id in c.skills:
@@ -113,7 +118,7 @@ func apply_stat_mods(steps: Dictionary) -> void:
 
 
 func equip(trinket_id: String) -> void:
-	var t: Dictionary = GameData.TRINKETS[trinket_id]
+	var t: Dictionary = GameData.trinket(trinket_id)
 	trinket = trinket_id
 	scale_stats(1.0 + t.get("hp", 0.0), 1.0 + t.get("atk", 0.0), 1.0 + t.get("def", 0.0))
 	spd = maxi(1, roundi(spd * (1.0 + t.get("spd", 0.0))))

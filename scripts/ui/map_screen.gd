@@ -76,7 +76,7 @@ func _select(i: int) -> void:
 		_action.text = "Attack!"
 		var loot := campaign.loot_at(i)
 		if loot != "":
-			_info_body.text += "\nDrops: %s (%s)" % [GameData.TRINKETS[loot].name, GameData.trinket_effects(loot)]
+			_info_body.text += "\nDrops: %s (%s)" % [GameData.trinket(loot).name, GameData.trinket_effects(loot)]
 		var cond: Dictionary = GameData.CONDITIONS[t.condition]
 		_info_body.text += "\n%s: %s +%d%%." % [cond.name, cond.who, roundi(GameData.CONDITION_BONUS * 100)]
 		if t.region != "" and GameData.REGIONS.has(t.region):
@@ -231,7 +231,7 @@ func _show_briefing(i: int) -> void:
 		drop_head.text = "Drops"
 		add.call(drop_head)
 		var drop := Retro.text(Label.new(), 21, Retro.YELLOW)
-		drop.text = "%s: %s. \"%s\"" % [GameData.TRINKETS[loot].name, GameData.trinket_effects(loot), GameData.TRINKETS[loot].flavor]
+		drop.text = "%s: %s. \"%s\"" % [GameData.trinket(loot).name, GameData.trinket_effects(loot), GameData.trinket(loot).flavor]
 		add.call(drop)
 
 	var tip_head := Retro.title(Label.new(), 13, Retro.GOLD)

@@ -159,6 +159,8 @@ func refresh() -> void:
 			perks += 1
 	if perks > 0:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
+	if unit.row == "back" and unit.is_alive():
+		parts.append("Back row")
 	if unit.winding != "":
 		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
 	for status in unit.statuses:

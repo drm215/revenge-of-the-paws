@@ -253,7 +253,7 @@ func resolve_battle(i: int, won: bool) -> void:
 		if loot != "":
 			profile.trinkets.append(loot)
 			claimed.append(t.id)
-			last_event += "\nFound the %s! Equip it from Pack." % GameData.TRINKETS[loot].name
+			last_event += "\nFound the %s! Equip it from Pack." % GameData.trinket(loot).name
 		if t.recruit != "" and not profile.unlock([t.recruit]).is_empty():
 			var where := "waits in the Stable (the pack is full)" if t.recruit in profile.stable else "joined the pack"
 			last_event += "\nRescued: %s %s at Lv %d! Swap it in from Pack." % [

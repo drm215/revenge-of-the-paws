@@ -39,6 +39,7 @@ var just_leveled: Array[String] = []  # units that gained a level since the last
 var injuries := {}  # unit id -> battles left injured
 var fatigue := {}  # unit id -> battles fought in a row
 var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
+var rows := {}  # unit id -> "front" / "back", where it differs from its role's default
 var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
 
@@ -236,7 +237,7 @@ func after_battle(fought: Array[String], downed: Array[String], amount: int, won
 		if randf() < GameData.FORAGE_TRINKET_CHANCE:
 			var found: String = GameData.CACHE_TRINKETS.pick_random()
 			trinkets.append(found)
-			lines.append("%s foraged a %s!" % [forager, GameData.TRINKETS[found].name])
+			lines.append("%s foraged a %s!" % [forager, GameData.trinket(found).name])
 		elif randf() < GameData.FORAGE_XP_CHANCE:
 			for id in pack_ids():
 				add_xp(id, GameData.FORAGE_XP)
@@ -370,6 +371,46 @@ func normalize_roster() -> void:
 	auto_fill_duties()
 
 
+## --- Rows ---
+
+func row_of(unit_id: String) -> String:
+	var data: Dictionary = GameData.PETS.get(unit_id, GameData.ANIMALS.get(unit_id, {}))
+	return rows.get(unit_id, GameData.default_row(data.get("role", "")))
+
+
+func toggle_row(unit_id: String) -> void:
+	var data: Dictionary = GameData.PETS.get(unit_id, GameData.ANIMALS.get(unit_id, {}))
+	var next := "back" if row_of(unit_id) == "front" else "front"
+	if next == GameData.default_row(data.get("role", "")):
+		rows.erase(unit_id)
+	else:
+		rows[unit_id] = next
+
+
+## Why two owned trinkets can't be fused right now ("" if they can).
+func fuse_block(a: String, b: String) -> String:
+	if a == b and trinkets.count(a) < 2:
+		return "You need two of it to fuse it with itself."
+	return GameData.fuse_block(a, b)
+
+
+## Fuses two trinkets into one with both effects; both are used up (taken off whoever wore them
+## if no spare copy is lying around). Returns the new trinket's id, or "" if they can't be fused.
+func fuse(a: String, b: String) -> String:
+	if fuse_block(a, b) != "":
+		return ""
+	for id in [a, b]:
+		if trinkets_free(id) <= 0:
+			for wearer in equipped.keys():
+				if equipped[wearer] == id:
+					equipped.erase(wearer)
+					break
+		trinkets.erase(id)
+	var fused := GameData.fused_id(a, b)
+	trinkets.append(fused)
+	return fused
+
+
 ## How many copies of a trinket nobody is wearing.
 func trinkets_free(trinket_id: String) -> int:
 	var worn := 0
@@ -420,6 +461,7 @@ func save() -> void:
 	cfg.set_value("profile", "injuries", injuries)
 	cfg.set_value("profile", "fatigue", fatigue)
 	cfg.set_value("profile", "duties", duties)
+	cfg.set_value("profile", "rows", rows)
 	cfg.set_value("profile", "auto_battle", auto_battle)
 	cfg.set_value("profile", "fixes", Array(fixes))
 	cfg.save(save_path)
@@ -450,6 +492,7 @@ static func load_saved() -> Profile:
 	p.injuries = cfg.get_value("profile", "injuries", {})
 	p.fatigue = cfg.get_value("profile", "fatigue", {})
 	p.duties = cfg.get_value("profile", "duties", {})
+	p.rows = cfg.get_value("profile", "rows", {})
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
 	p.fixes.assign(cfg.get_value("profile", "fixes", []))
 	for duty in p.duties.keys():

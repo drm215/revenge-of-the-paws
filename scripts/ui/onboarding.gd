@@ -39,6 +39,7 @@ func _ready() -> void:
 		_profile.injuries = initial.injuries.duplicate()
 		_profile.fatigue = initial.fatigue.duplicate()
 		_profile.duties = initial.duties.duplicate()
+		_profile.rows = initial.rows.duplicate()
 		_pet_decided = true
 		_use_zip = initial.zip != ""
 	else:

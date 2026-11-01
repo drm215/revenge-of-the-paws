@@ -15,6 +15,8 @@ const AUTO_WAVE_PAUSE := 1.2
 const ORDER_PREVIEW := 7
 const PARTY_SPRITE := 150.0
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
+## Front-row cards sit this much closer to the middle of the field than back-row ones.
+const ROW_SHIFT := 44
 
 var profile: Profile
 ## From Campaign.battle_config(): waves, zombie_mult, party_mult, place.
@@ -53,7 +55,7 @@ func _ready() -> void:
 
 func _new_game() -> void:
 	for card in cards.values():
-		card.queue_free()
+		card.get_parent().queue_free()
 	cards.clear()
 	_log.clear()
 
@@ -66,6 +68,7 @@ func _new_game() -> void:
 	battle.healed.connect(_on_healed)
 	battle.status_changed.connect(func(c: Combatant) -> void: _card(c).refresh())
 	battle.died.connect(func(c: Combatant) -> void: _card(c).refresh())
+	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
 
 	for c in battle.party:
 		_add_card(c, _party_col, PARTY_SPRITE)
@@ -90,7 +93,7 @@ func _show_take_control() -> void:
 
 func _start_wave() -> void:
 	for c in battle.enemies:
-		cards[c].queue_free()
+		cards[c].get_parent().queue_free()
 		cards.erase(c)
 	battle.start_next_wave()
 	for c in battle.enemies:
@@ -150,7 +153,8 @@ func _select_skill(skill_id: String) -> void:
 	for b: Button in _skill_row.get_children():
 		b.set_pressed_no_signal(b.get_meta("skill") == skill_id)
 	var s := _actor.skill_data(skill_id)
-	_skill_desc.text = s.desc + "\n" + GameData.skill_stats(s)
+	var combo := GameData.combo_hint(s)
+	_skill_desc.text = s.desc + "\n" + GameData.skill_stats(s) + (("\n" + combo) if combo != "" else "")
 	_targets = battle.valid_targets(_actor, skill_id)
 	_set_active(_actor)
 
@@ -264,11 +268,18 @@ func _card(c: Combatant) -> UnitCard:
 	return cards[c]
 
 
+## Front-row cards are nudged toward the middle of the field, back-row ones toward the edge.
 func _add_card(c: Combatant, column: VBoxContainer, sprite_size: float) -> void:
 	var card := UnitCard.new()
 	card.setup(c, sprite_size)
 	card.pressed.connect(_on_card_pressed)
-	column.add_child(card)
+	var slot := MarginContainer.new()
+	var toward_middle := "margin_left" if c.is_player else "margin_right"
+	var toward_edge := "margin_right" if c.is_player else "margin_left"
+	slot.add_theme_constant_override(toward_middle if c.row == "front" else toward_edge, 0)
+	slot.add_theme_constant_override(toward_edge if c.row == "front" else toward_middle, ROW_SHIFT)
+	slot.add_child(card)
+	column.add_child(slot)
 	cards[c] = card
 
 

@@ -650,7 +650,7 @@ const ZOMBIES := {
 	"runner": {
 		"name": "Runner", "color": Color("7d8f4e"), "xp": 10,
 		"hp": 28, "atk": 8, "def": 2, "spd": 15, "crit": 0.1,
-		"skills": ["lunge"], "traits": {"hunts_weak": true},
+		"skills": ["lunge"], "traits": {"hunts_weak": true, "reach": true},
 	},
 	"bloater": {
 		"name": "Bloater", "color": Color("6b8a6a"), "xp": 15,
@@ -670,17 +670,17 @@ const ZOMBIES := {
 	"plague": {
 		"name": "Plague Carrier", "color": Color("3e8948"), "xp": 18,
 		"hp": 50, "atk": 8, "def": 3, "spd": 6, "crit": 0.05,
-		"skills": ["claw", "plague_spit"],
+		"skills": ["claw", "plague_spit"], "row": "back",
 	},
 	"screamer": {
 		"name": "Screamer", "color": Color("c0cbdc"), "xp": 16,
 		"hp": 32, "atk": 6, "def": 2, "spd": 13, "crit": 0.05,
-		"skills": ["claw", "scream"],
+		"skills": ["claw", "scream"], "row": "back",
 	},
 	"medic": {
 		"name": "Medic", "color": Color("ead4aa"), "xp": 18,
 		"hp": 48, "atk": 7, "def": 4, "spd": 9, "crit": 0.05,
-		"skills": ["claw", "reanimate"],
+		"skills": ["claw", "reanimate"], "row": "back",
 	},
 }
 
@@ -846,8 +846,47 @@ const CACHE_TRINKETS := ["rusty_dog_tag", "lucky_bottle_cap", "duct_tape_armor",
 
 
 ## A trinket's effects in words, e.g. "+25% SPD, -10% DEF".
+## A trinket's data. "fuse:a+b" is two trinkets bound together: every number added up, both
+## immunities, and the one wave-start effect either has (can_fuse() keeps it to one).
+static func trinket(id: String) -> Dictionary:
+	if not id.begins_with(FUSED_PREFIX):
+		return TRINKETS[id]
+	var parts := id.trim_prefix(FUSED_PREFIX).split("+")
+	var a: Dictionary = TRINKETS[parts[0]]
+	var b: Dictionary = TRINKETS[parts[1]]
+	var t := {"name": "%s + %s" % [a.name, b.name], "flavor": "Two trinkets bound together with wire and hope."}
+	for key in ["hp", "atk", "def", "spd", "crit", "lifesteal", "thorns", "regen"]:
+		if a.has(key) or b.has(key):
+			t[key] = a.get(key, 0.0) + b.get(key, 0.0)
+	var immune: Array = a.get("immune", []).duplicate()
+	for status in b.get("immune", []):
+		if status not in immune:
+			immune.append(status)
+	if not immune.is_empty():
+		t["immune"] = immune
+	if a.has("start") or b.has("start"):
+		t["start"] = a.get("start", b.get("start", ""))
+	return t
+
+
+const FUSED_PREFIX := "fuse:"
+
+
+## Why two trinkets can't be fused ("" if they can).
+static func fuse_block(a: String, b: String) -> String:
+	if a.begins_with(FUSED_PREFIX) or b.begins_with(FUSED_PREFIX):
+		return "A fused trinket can't be fused again."
+	if TRINKETS[a].has("start") and TRINKETS[b].has("start"):
+		return "Both act at the start of a wave; only one can."
+	return ""
+
+
+static func fused_id(a: String, b: String) -> String:
+	return FUSED_PREFIX + ("%s+%s" % [a, b] if a <= b else "%s+%s" % [b, a])
+
+
 static func trinket_effects(id: String) -> String:
-	var t: Dictionary = TRINKETS[id]
+	var t: Dictionary = trinket(id)
 	var parts: PackedStringArray = []
 	var pct := func(v: float) -> String: return ("+" if v > 0 else "") + str(roundi(v * 100)) + "%"
 	for stat in ["hp", "atk", "def", "spd"]:
@@ -1379,6 +1418,41 @@ static func upgraded_skill(skill_id: String, steps: Dictionary, mastery := false
 		else:
 			e.turns = e.turns + steps.get("duration", 0)
 	return s
+
+
+## Combos between skills (Battle applies them to the pack's attacks):
+## Opening: a skill with a crit bonus always crits a stunned zombie.
+## Knockdown: a heavy hit (power >= KNOCKDOWN_POWER) stuns a weakened zombie for a turn.
+## Follow-up: hitting the zombie an ally hit last does FOLLOW_UP_BONUS more damage.
+const KNOCKDOWN_POWER := 1.5
+const FOLLOW_UP_BONUS := 0.25
+
+
+## What a skill does in combos, for skill descriptions ("" if nothing).
+static func combo_hint(s: Dictionary) -> String:
+	var hints: PackedStringArray = []
+	if s.get("crit_bonus", 0.0) > 0.0 and s.target == "enemy":
+		hints.append("always crits a stunned zombie")
+	if s.get("power", 0.0) >= KNOCKDOWN_POWER and s.target == "enemy":
+		hints.append("stuns a weakened zombie")
+	for e: Dictionary in s.get("apply", []):
+		if e.status == "stunned" and s.target in ["enemy", "all_enemies"]:
+			hints.append("sets up crit skills (stun)")
+		elif e.status == "weakened" and s.target in ["enemy", "all_enemies"]:
+			hints.append("sets up heavy hits (weaken)")
+	return ("Combo: " + ", ".join(hints)) if not hints.is_empty() else ""
+
+
+## Rows: single-target attacks can't reach the back row while at least SCREEN_SIZE stand in the
+## front row (birds, Runners and flying legends can; a taunting animal can always be hit).
+## Single-target attacks from the back row deal BACK_ROW_DAMAGE unless the attacker can reach.
+const SCREEN_SIZE := 2
+const BACK_ROW_DAMAGE := 0.75
+const BACK_ROLES := ["Support", "Disruptor"]
+
+
+static func default_row(role: String) -> String:
+	return "back" if role in BACK_ROLES else "front"
 
 
 ## A skill's numbers in words, e.g. "One foe · Power 170% · Crit +25% · Cooldown 2".

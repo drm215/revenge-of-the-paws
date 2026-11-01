@@ -32,17 +32,18 @@ static func play(profile: Profile, cfg: Dictionary, seed_value := -1) -> Diction
 static func pick_action(battle: Battle, actor: Combatant) -> Dictionary:
 	var allies := Battle.living(battle.party)
 	var foes := Battle.living(battle.enemies)
+	var targets := battle.reachable(actor)  # what single-target attacks can hit (rows)
 	var weakest_ally := allies[0]
 	for c in allies:
 		if c.hp_ratio() < weakest_ally.hp_ratio():
 			weakest_ally = c
 	# Focus: a zombie winding up, then the ones that help the others (Medic, Screamer), then the weakest.
-	var weakest_foe := foes[0]
+	var focus := targets[0]
 	var rank := func(c: Combatant) -> int:
 		return 0 if c.winding != "" else (1 if c.id in ["medic", "screamer"] else 2)
-	for c in foes:
-		if rank.call(c) < rank.call(weakest_foe) or (rank.call(c) == rank.call(weakest_foe) and c.hp < weakest_foe.hp):
-			weakest_foe = c
+	for c in targets:
+		if rank.call(c) < rank.call(focus) or (rank.call(c) == rank.call(focus) and c.hp < focus.hp):
+			focus = c
 	var hurt := weakest_ally.hp_ratio() < 0.55 or weakest_ally.has_status("infected")
 
 	var ready: Array[String] = []
@@ -50,12 +51,16 @@ static func pick_action(battle: Battle, actor: Combatant) -> Dictionary:
 		if actor.can_use(id):
 			ready.append(id)
 	# Answer a telegraphed attack: stun the zombie winding up, or brace for it.
-	if weakest_foe.winding != "":
+	var winder: Combatant = null
+	for c in foes:
+		if c.winding != "":
+			winder = c
+	if winder:
 		for id in ready:
 			var s := GameData.skill(id)
 			var stuns: bool = s.get("apply", []).any(func(e: Dictionary) -> bool: return e.status == "stunned")
-			if stuns and s.target in ["enemy", "all_enemies"]:
-				return {"skill": id, "target": weakest_foe}
+			if stuns and (s.target == "all_enemies" or (s.target == "enemy" and winder in targets)):
+				return {"skill": id, "target": winder}
 		for id in ready:
 			var s := GameData.skill(id)
 			if s.target in ["self", "all_allies"] and s.get("apply", []).any(func(e: Dictionary) -> bool: return e.status == "guard"):
@@ -71,12 +76,22 @@ static func pick_action(battle: Battle, actor: Combatant) -> Dictionary:
 			return {"skill": id, "target": actor}
 		if taunts and weakest_ally != actor and weakest_ally.hp_ratio() < 0.6:
 			return {"skill": id, "target": actor}
+	# Combos: a crit skill on a stunned zombie (Opening), a heavy hit on a weakened one (Knockdown).
+	for id in ready:
+		var s := GameData.skill(id)
+		if s.target != "enemy":
+			continue
+		for c in targets:
+			if s.get("crit_bonus", 0.0) > 0.0 and c.has_status("stunned"):
+				return {"skill": id, "target": c}
+			if s.get("power", 0.0) >= GameData.KNOCKDOWN_POWER and c.has_status("weakened") and not c.has_status("stunned"):
+				return {"skill": id, "target": c}
 	for id in ready:
 		if GameData.skill(id).target == "all_enemies" and foes.size() >= 2:
-			return {"skill": id, "target": weakest_foe}
+			return {"skill": id, "target": focus}
 	var best := actor.skills[0]
 	for id in ready:
 		var s := GameData.skill(id)
 		if s.target == "enemy" and s.get("power", 0.0) > GameData.skill(best).get("power", 0.0):
 			best = id
-	return {"skill": best, "target": weakest_foe}
+	return {"skill": best, "target": focus}

@@ -102,7 +102,10 @@ The apocalypse starts **where you actually live**.
   dealt/-10% DEF; ...). Effects mix stat changes with lifesteal, thorns, regeneration, infection
   immunity, and wave-start effects (braced, or weaken all zombies); most are trade-offs. Maps with
   few or no legends hide plain trinkets in caches (gold chest on the map). One trinket per animal,
-  equipped from the Pack screen. Data: `GameData.TRINKETS`.
+  equipped from the Pack screen. Data: `GameData.TRINKETS`. **Fusion** (Fuse in the trinket
+  picker): two trinkets become one with every effect added up, both drawbacks included; both are
+  used up. A fused trinket can't be fused again, and two wave-start effects can't share one.
+  Saved as `fuse:a+b`; `GameData.trinket()` builds it.
 - **Why the lineup matters** (data in `GameData`, bookkeeping in `Profile.after_battle`):
   - *Injuries:* animals knocked out in a battle you win fight the next 2 battles at -25% HP/ATK
     (a retreat carries its wounded home, so losses don't snowball).
@@ -141,11 +144,11 @@ The apocalypse starts **where you actually live**.
 - **Losing an attack** costs a turn but nothing else. Liberate all 40 to free your neighborhood.
 - Progress saves to `user://campaign.cfg`, keyed to your home ZIP/region.
 
-Balance (from `tests/simulate.gd`, decent-player AI that stuns or braces against wind-ups and
-kills Medics and Screamers first): single 3-wave fights ~33–78% without a pet, ~67–88% with one;
-random play ~1–25%. With leveling, skill upgrades and trinkets, 40-territory campaigns finish in
-~55–79 turns with 6–25 setbacks with a pet (~63–102 turns, 10–30 setbacks without), the pack
-ending around Lv 10–17 with 6–8 recruits and 3–10 trinkets. (Before the horde scaled with the
+Balance (from `tests/simulate.gd`, decent-player AI that stuns or braces against wind-ups,
+kills Medics and Screamers first, plays combos and respects rows): single 3-wave fights ~56–97%
+without a pet, ~76–97% with one; random play ~6–44%. With leveling, skill upgrades and trinkets,
+40-territory campaigns finish in ~53–84 turns with 2–19 setbacks with a pet (~55–80 turns, 4–15
+setbacks without), the pack ending around Lv 12–16 with 6–8 recruits and 3–10 trinkets. (Before the horde scaled with the
 pack, rest was halved and zombies focused fire: fights 76–99%, campaigns 48–60 turns with 0–6
 setbacks.)
 
@@ -188,6 +191,17 @@ Map ──► attack a bordering territory ──► 1–3 waves ──► terri
   turn at ×1.75 power. Stunning the zombie in between cancels it (the cooldown still runs);
   animals with Guard up take half; Taunt pulls single-target hits.
 - **Enrage:** past round 8 of a wave, zombies gain +10% ATK every round.
+- **Rows:** each side has a front and back row. Single-target attacks can't reach the back row
+  while at least 2 stand in front; area attacks hit everyone. Birds, Runners and flying legends
+  reach the back row, and a taunting animal can always be hit. Single-target attacks from the back
+  row deal -25% (birds excepted). Tanks, Strikers and Bruisers default to the front, Supports and
+  Disruptors to the back; the Row button on each Pack tile changes it. Screamers, Plague Carriers
+  and Medics stand at the back. Battle cards sit closer to the middle in front, nearer the edge
+  in back.
+- **Combos** (pack only; the log and a floating COMBO! call them out, skill descriptions name them):
+  *Opening*: a skill with a crit bonus always crits a stunned zombie. *Knockdown*: a heavy hit
+  (power 150%+) stuns a weakened zombie (a second way to cancel a wind-up). *Follow-up*: +25% on
+  the zombie an ally hit on the turn just before (any zombie turn in between breaks it).
 - **Zombie AI:** uses its strongest ready skill; obeys Taunt. Single-target hits focus fire: 80% of
   the time on an animal they can knock out, otherwise 50% on an animal that heals its allies; some
   types hunt the weakest target. Shamblers hit 15% harder for each other Shambler standing.

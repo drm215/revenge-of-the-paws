@@ -10,6 +10,7 @@ signal damaged(target: Combatant, amount: int, crit: bool)
 signal healed(target: Combatant, amount: int)
 signal status_changed(target: Combatant)
 signal died(target: Combatant)
+signal combo(target: Combatant, name: String)
 
 enum Outcome { ONGOING, WAVE_CLEARED, VICTORY, DEFEAT }
 
@@ -43,6 +44,8 @@ var _waves: Array
 var _zombie_mult: float
 var _turn_queue: Array[Combatant] = []
 var _unleashing := false  # a telegraphed attack is landing right now (Guard soaks it)
+var _last_hit: Combatant  # the zombie the pack's last single-target attack hit (for Follow-up)
+var _last_hitter: Combatant
 
 
 ## `party_mult` scales party HP/ATK (held-territory reinforcements); `zombie_mult` scales zombies.
@@ -59,6 +62,7 @@ func _init(profile: Profile, waves: Array = GameData.WAVES, zombie_mult := 1.0, 
 	for unit_id in profile.pack_ids():
 		var c := profile.build_unit(unit_id)
 		c.scale_stats(party_mult, party_mult, 1.0)
+		c.row = profile.row_of(unit_id)
 		party.append(c)
 	condition = territory_condition
 	_apply_lineup(profile, territory_region)
@@ -139,6 +143,7 @@ func start_next_wave() -> void:
 	round_number = 0
 	_turn_queue.clear()
 	current = null
+	_last_hit = null
 	log_message.emit("[b]Wave %d/%d[/b]: the dead shamble through %s..." % [
 		wave_index + 1, wave_count(), place if place != "" else "town"])
 	if wave_index == 0:
@@ -150,7 +155,7 @@ func start_next_wave() -> void:
 				c.add_status("guard", 2)
 				status_changed.emit(c)
 			"weaken_foes":
-				log_message.emit("%s's %s fouls the air!" % [c.display_name, GameData.TRINKETS[c.trinket].name])
+				log_message.emit("%s's %s fouls the air!" % [c.display_name, GameData.trinket(c.trinket).name])
 				for z in enemies:
 					z.add_status("weakened", 2)
 					status_changed.emit(z)
@@ -223,7 +228,9 @@ func upcoming(count: int) -> Array[Combatant]:
 
 func valid_targets(actor: Combatant, skill_id: String) -> Array[Combatant]:
 	match GameData.skill(skill_id).target:
-		"enemy", "all_enemies":
+		"enemy":
+			return reachable(actor)
+		"all_enemies":
 			return living(_opponents(actor))
 		"ally", "all_allies":
 			return living(_allies(actor))
@@ -249,6 +256,8 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 		return
 	_unleashing = actor.winding == skill_id
 	actor.winding = ""
+	if not actor.is_player:
+		_last_hit = null  # Follow-up needs back-to-back hits: any zombie turn breaks the chain
 	actor.put_on_cooldown(skill_id, skill.get("cooldown", 0))
 	if skill.get("revive", 0.0) > 0.0:
 		target.hp = maxi(1, roundi(target.max_hp * skill.revive))
@@ -357,6 +366,23 @@ func _is_healer(c: Combatant) -> bool:
 	return false
 
 
+## Opponents a single-target attack can hit: the back row only while fewer than SCREEN_SIZE stand in
+## front, unless the attacker reaches (birds, Runners, flying legends). A taunting unit can always be hit.
+func reachable(actor: Combatant) -> Array[Combatant]:
+	var foes := living(_opponents(actor))
+	if _reaches(actor) or foes.filter(func(c: Combatant) -> bool: return c.row == "front").size() < GameData.SCREEN_SIZE:
+		return foes
+	var out: Array[Combatant] = []
+	for c in foes:
+		if c.row == "front" or c.has_status("taunt"):
+			out.append(c)
+	return out
+
+
+func _reaches(c: Combatant) -> bool:
+	return c.traits.get("reach", false) or "bird" in c.tags
+
+
 static func living(units: Array[Combatant]) -> Array[Combatant]:
 	var out: Array[Combatant] = []
 	for c in units:
@@ -425,10 +451,22 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 	var dmg := _base_damage(src, dst, power)
 	dmg *= rng.randf_range(0.9, 1.1)
 	var crit := rng.randf() < src.crit + crit_bonus
+	var combos: PackedStringArray = []
+	if src.is_player and single:
+		if crit_bonus > 0.0 and dst.has_status("stunned"):
+			crit = true
+			combos.append("Opening")
+		if _last_hit == dst and _last_hitter != src:
+			dmg *= 1.0 + GameData.FOLLOW_UP_BONUS
+			combos.append("Follow-up")
+		_last_hit = dst
+		_last_hitter = src
 	if crit:
 		dmg *= CRIT_MULT
 	if single and dst.traits.get("armored", false):
 		dmg *= 0.5
+	if single and src.row == "back" and not _reaches(src):
+		dmg *= GameData.BACK_ROW_DAMAGE
 	if _unleashing and dst.has_status("guard"):
 		dmg *= BRACE_SOAK
 	if dst.is_boss and src.is_player:
@@ -439,6 +477,17 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 			dmg *= GameData.LEGEND_RESIST_MULT
 	var amount := maxi(1, roundi(dmg))
 	_apply_damage(dst, amount, crit)
+	var knockdown := src.is_player and single and power >= GameData.KNOCKDOWN_POWER
+	if knockdown and dst.is_alive() and dst.has_status("weakened") and "stunned" not in dst.immune:
+		dst.add_status("stunned", 1)
+		status_changed.emit(dst)
+		combos.append("Knockdown")
+	for name in combos:
+		log_message.emit("[color=#2ce8f5][b]COMBO: %s![/b][/color] %s" % [name, {
+			"Opening": "a sure crit on a stunned zombie.",
+			"Follow-up": "+%d%% on the zombie an ally just hit." % roundi(GameData.FOLLOW_UP_BONUS * 100),
+			"Knockdown": "the weakened %s is stunned." % dst.display_name}[name]])
+		combo.emit(dst, name)
 	if src.lifesteal > 0.0 and src.is_alive() and src.hp < src.max_hp:
 		_heal(src, maxi(1, roundi(amount * src.lifesteal)))
 	if dst.thorns > 0.0 and src.is_alive():

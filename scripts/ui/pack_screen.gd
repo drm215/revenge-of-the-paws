@@ -409,6 +409,12 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 		if selected:
 			pick.add_theme_color_override("font_color", Retro.YELLOW)
 		col.add_child(pick)
+	if not stabled and not stable_view:
+		var row := _tile_button("Row: " + profile.row_of(id).capitalize(), func() -> void:
+			profile.toggle_row(id)
+			_refresh())
+		row.tooltip_text = "Back row: safe from single-target hits while the front row stands, but hits 25% softer (birds excepted)."
+		col.add_child(row)
 	col.add_child(_tile_button("Details", _show_details.bind(id)))
 	var points := profile.points_left(id)
 	var upgrade := _tile_button(("Tech tree (%d)" % points) if points > 0 else "Tech tree", _show_upgrades.bind(id))
@@ -428,7 +434,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 			col.add_child(_tile_button("To Stable", func() -> void:
 				profile.send_to_stable(id)
 				_refresh()))
-	var slot := _tile_button(GameData.TRINKETS[worn].name if worn != "" else ("+ Trinket" if not profile.trinkets.is_empty() else "No trinkets"),
+	var slot := _tile_button(GameData.trinket(worn).name if worn != "" else ("+ Trinket" if not profile.trinkets.is_empty() else "No trinkets"),
 		_show_picker.bind(id, unit.display_name))
 	slot.disabled = profile.trinkets.is_empty()
 	col.add_child(slot)
@@ -497,11 +503,12 @@ func _show_details(unit_id: String) -> void:
 		if level < GameData.MAX_LEVEL else "Max level", 18, Retro.FOG))
 	col.add_child(_tile_text("\"%s\"" % data.desc, 20, Retro.FOG))
 
+	var where_row := "" if unit_id in profile.stable else " %s row." % profile.row_of(unit_id).capitalize()
 	var where := "Leads the pack: allies get +%d%% ATK/DEF while it stands." % roundi(GameData.LEADER_AURA * 100) if is_pet \
 		else "In the Stable: no fighting, no XP." if unit_id in profile.stable \
 		else "Fighting." if unit_id in profile.team \
 		else "Reserve: half XP" + ((", on %s duty." % profile.duty_of(unit_id)) if profile.duty_of(unit_id) != "" else ".")
-	col.add_child(_tile_text(where, 20, Retro.CYAN))
+	col.add_child(_tile_text(where + where_row, 20, Retro.CYAN))
 	var hurt: PackedStringArray = []
 	if profile.injuries.has(unit_id):
 		hurt.append("Injured for %d battle%s: -%d%% HP/ATK." % [profile.injuries[unit_id], "" if profile.injuries[unit_id] == 1 else "s", roundi(GameData.INJURY_PENALTY * 100)])
@@ -537,6 +544,9 @@ func _show_details(unit_id: String) -> void:
 		lines.add_child(skill_name)
 		lines.add_child(_tile_text(s.desc, 19, Retro.FOG))
 		lines.add_child(_tile_text(GameData.skill_stats(s) + (" · Cures infection" if s.get("cleanse", false) else ""), 19, Retro.CYAN))
+		var combo := GameData.combo_hint(s)
+		if combo != "":
+			lines.add_child(_tile_text(combo, 19, Retro.GREEN))
 		col.add_child(box)
 	if unit.mastered:
 		col.add_child(_tile_text("Mastery: every skill hits harder and recharges faster.", 19, Retro.YELLOW))
@@ -545,7 +555,7 @@ func _show_details(unit_id: String) -> void:
 
 	heading.call("Trinket")
 	var worn: String = profile.equipped.get(unit_id, "")
-	col.add_child(_tile_text(("%s: %s" % [GameData.TRINKETS[worn].name, GameData.trinket_effects(worn)]) if worn != "" else "None", 19,
+	col.add_child(_tile_text(("%s: %s" % [GameData.trinket(worn).name, GameData.trinket_effects(worn)]) if worn != "" else "None", 19,
 		Retro.YELLOW if worn != "" else Retro.FOG))
 
 	heading.call("Tags")
@@ -607,7 +617,7 @@ func _show_picker(unit_id: String, unit_name: String) -> void:
 		if seen.has(trinket_id):
 			continue
 		seen[trinket_id] = true
-		var t: Dictionary = GameData.TRINKETS[trinket_id]
+		var t: Dictionary = GameData.trinket(trinket_id)
 		var wearing: bool = profile.equipped.get(unit_id, "") == trinket_id
 		var card := PanelContainer.new()
 		card.add_theme_stylebox_override("panel", Retro.box(Retro.DIRT if wearing else Retro.NIGHT, Retro.GOLD if wearing else Retro.SLATE, Retro.BORDER, 2, 10))
@@ -649,12 +659,144 @@ func _show_picker(unit_id: String, unit_name: String) -> void:
 	remove.disabled = not profile.equipped.has(unit_id)
 	remove.pressed.connect(choose.bind(""))
 	row.add_child(remove)
+	var fuse := Button.new()
+	fuse.text = "Fuse"
+	fuse.custom_minimum_size = Vector2(0, 84)
+	fuse.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fuse.disabled = profile.trinkets.size() < 2
+	fuse.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_fusion())
+	row.add_child(fuse)
 	var cancel := Button.new()
 	cancel.text = "Cancel"
 	cancel.custom_minimum_size = Vector2(0, 84)
 	cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cancel.pressed.connect(overlay.queue_free)
 	row.add_child(cancel)
+
+
+## Fuse two trinkets into one with both effects (and both drawbacks). Tap two, check the result,
+## then Fuse; both are used up.
+func _show_fusion(first := "") -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Retro.INK
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	margin.add_theme_constant_override("margin_top", 40)
+	overlay.add_child(margin)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	margin.add_child(col)
+	var title := Retro.title(Label.new(), 18)
+	title.text = "Fuse trinkets"
+	col.add_child(title)
+	col.add_child(_tile_text("Pick two. The fused trinket has both effects and both drawbacks; the two are used up. A fused trinket can't be fused again." if first == ""
+		else "Now pick the second one.", 20, Retro.MIST))
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	Retro.touch_scroll(scroll)
+	col.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	var seen := {}
+	for trinket_id in profile.trinkets:
+		if seen.has(trinket_id):
+			continue
+		seen[trinket_id] = true
+		var picked := trinket_id == first
+		var block := ""
+		if first == "" and trinket_id.begins_with(GameData.FUSED_PREFIX):
+			block = "Already fused."
+		elif first != "":
+			block = profile.fuse_block(first, trinket_id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", Retro.box(Retro.DIRT if picked else Retro.NIGHT, Retro.GOLD if picked else Retro.NIGHT, Retro.BORDER, 2, 10))
+		var box := VBoxContainer.new()
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(box)
+		var copies := profile.trinkets.count(trinket_id)
+		var name_label := Retro.title(Label.new(), 13, Retro.GOLD if picked else (Retro.FOG if block != "" else Retro.WHITE))
+		name_label.text = GameData.trinket(trinket_id).name + ((" x%d" % copies) if copies > 1 else "")
+		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(name_label)
+		box.add_child(_tile_text(GameData.trinket_effects(trinket_id), 19, Retro.YELLOW if block == "" else Retro.FOG))
+		if picked:
+			box.add_child(_tile_text("Picked." + (" Tap again to fuse it with its twin: " + GameData.trinket_effects(GameData.fused_id(first, first)) if block == "" else ""), 18, Retro.CYAN))
+		elif block != "":
+			box.add_child(_tile_text(block, 18, Retro.ORANGE))
+		elif first != "":
+			box.add_child(_tile_text("Fused: " + GameData.trinket_effects(GameData.fused_id(first, trinket_id)), 18, Retro.CYAN))
+		if block == "":
+			Retro.on_tap(card, func() -> void:
+				overlay.queue_free()
+				if first == "":
+					_show_fusion(trinket_id)
+				else:
+					_confirm_fusion(first, trinket_id))
+		list.add_child(card)
+
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.custom_minimum_size = Vector2(0, 84)
+	cancel.pressed.connect(overlay.queue_free)
+	col.add_child(cancel)
+
+
+func _confirm_fusion(a: String, b: String) -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Retro.INK
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var col := VBoxContainer.new()
+	col.custom_minimum_size = Vector2(560, 0)
+	col.add_theme_constant_override("separation", 14)
+	center.add_child(col)
+	var fused := GameData.fused_id(a, b)
+	var title := Retro.title(Label.new(), 15)
+	title.text = GameData.trinket(fused).name
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(title)
+	col.add_child(_tile_text(GameData.trinket_effects(fused), 21, Retro.YELLOW))
+	var worn: PackedStringArray = []
+	for id in [a, b]:
+		if profile.trinkets_free(id) <= 0:
+			for wearer in profile.equipped:
+				if profile.equipped[wearer] == id:
+					worn.append(profile.unit_name(wearer))
+					break
+	col.add_child(_tile_text("Uses up both trinkets." + ((" Taken off: " + ", ".join(worn) + ".") if not worn.is_empty() else ""), 19, Retro.FOG))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	col.add_child(row)
+	var go := Button.new()
+	go.text = "Fuse"
+	go.custom_minimum_size = Vector2(0, 84)
+	go.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	go.pressed.connect(func() -> void:
+		profile.fuse(a, b)
+		overlay.queue_free()
+		_refresh())
+	row.add_child(go)
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(0, 84)
+	back.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	back.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_fusion())
+	row.add_child(back)
 
 
 
