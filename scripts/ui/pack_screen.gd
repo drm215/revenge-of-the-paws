@@ -56,6 +56,11 @@ func _ready() -> void:
 			profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "", GameData.PACK_LIMIT]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
+	if not stable_view:
+		var rows := Retro.text(Label.new(), 19, Retro.FOG)
+		rows.text = GameData.row_hint()
+		rows.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(rows)
 	_roster.add_theme_constant_override("separation", 8)
 	_roster.visible = not stable_view
 	col.add_child(_roster)
@@ -413,7 +418,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 		var row := _tile_button("Row: " + profile.row_of(id).capitalize(), func() -> void:
 			profile.toggle_row(id)
 			_refresh())
-		row.tooltip_text = "Back row: safe from single-target hits while the front row stands, but hits 25% softer (birds excepted)."
+		row.tooltip_text = GameData.row_hint("back")
 		col.add_child(row)
 	col.add_child(_tile_button("Details", _show_details.bind(id)))
 	var points := profile.points_left(id)
@@ -503,12 +508,13 @@ func _show_details(unit_id: String) -> void:
 		if level < GameData.MAX_LEVEL else "Max level", 18, Retro.FOG))
 	col.add_child(_tile_text("\"%s\"" % data.desc, 20, Retro.FOG))
 
-	var where_row := "" if unit_id in profile.stable else " %s row." % profile.row_of(unit_id).capitalize()
 	var where := "Leads the pack: allies get +%d%% ATK/DEF while it stands." % roundi(GameData.LEADER_AURA * 100) if is_pet \
 		else "In the Stable: no fighting, no XP." if unit_id in profile.stable \
 		else "Fighting." if unit_id in profile.team \
 		else "Reserve: half XP" + ((", on %s duty." % profile.duty_of(unit_id)) if profile.duty_of(unit_id) != "" else ".")
-	col.add_child(_tile_text(where + where_row, 20, Retro.CYAN))
+	col.add_child(_tile_text(where, 20, Retro.CYAN))
+	if unit_id not in profile.stable:
+		col.add_child(_tile_text(GameData.row_hint(profile.row_of(unit_id), "bird" in profile.build_unit(unit_id).tags), 19, Retro.FOG))
 	var hurt: PackedStringArray = []
 	if profile.injuries.has(unit_id):
 		hurt.append("Injured for %d battle%s: -%d%% HP/ATK." % [profile.injuries[unit_id], "" if profile.injuries[unit_id] == 1 else "s", roundi(GameData.INJURY_PENALTY * 100)])

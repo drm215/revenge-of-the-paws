@@ -1455,6 +1455,19 @@ static func default_row(role: String) -> String:
 	return "back" if role in BACK_ROLES else "front"
 
 
+## What a row means, for the Pack screen ("" for the one-line summary of both). Birds hit at full
+## strength from the back.
+static func row_hint(row := "", bird := false) -> String:
+	var softer := roundi((1.0 - BACK_ROW_DAMAGE) * 100)
+	match row:
+		"front":
+			return "Front row: takes the hits. While %d or more stand in front, single-target attacks can't reach the back row." % SCREEN_SIZE
+		"back":
+			return "Back row: safe from single-target attacks while %d or more allies stand in front. %s Area attacks and Runners still reach it." % [SCREEN_SIZE,
+				"As a bird, it still hits at full strength." if bird else "Its own single-target hits are %d%% softer." % softer]
+	return "Rows: while %d or more stand in front, the back row can't be hit by single-target attacks, but hits %d%% softer. Tap Row to switch." % [SCREEN_SIZE, softer]
+
+
 ## A skill's numbers in words, e.g. "One foe · Power 170% · Crit +25% · Cooldown 2".
 static func skill_stats(s: Dictionary) -> String:
 	var who := {"enemy": "One foe", "all_enemies": "All foes", "ally": "One ally", "all_allies": "All allies", "self": "Self"}
