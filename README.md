@@ -26,6 +26,20 @@ tools/deploy_web.sh                                                      # build
 The site is a Render static site that serves the `gh-pages` branch (no build command, publish
 directory `.`) and redeploys on every push.
 
+## Cloud saves
+
+Accounts and saves live in a Supabase project (`scripts/net/cloud.gd`). Cloud saves are off while
+`scripts/net/cloud_config.gd` has an empty `URL`. To turn them on:
+
+1. Create a free project at https://supabase.com and run `server/supabase.sql` in its SQL Editor.
+2. Authentication → URL Configuration: set **Site URL** to `https://revengeofthepaws.com` and add
+   it under **Redirect URLs**, so confirm and reset emails open the game.
+3. Optionally turn **Confirm email** off (Authentication → Sign In / Providers → Email).
+4. Copy the Project URL and the anon public key (Project Settings → API) into `cloud_config.gd`.
+   The anon key is public by design; row-level security keeps each player to their own save.
+
+Free projects pause after about a week without activity; un-pause them from the dashboard.
+
 ## Tools
 
 - `tools/build_zcta.py` builds `data/us_zcta.bin` (ZIP area boundaries) from the Census shapefile.

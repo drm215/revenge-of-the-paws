@@ -58,6 +58,14 @@ func _build() -> void:
 		off.text = "Cloud saves aren't set up in this build yet."
 		off.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_content.add_child(off)
+	elif cloud.signed_in() and cloud.reset_pending:
+		var who := Retro.text(Label.new(), 22, Retro.WHITE)
+		who.text = "New password for %s" % cloud.email
+		who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_content.add_child(who)
+		_add_password_field("New password (6+ characters)")
+		_content.add_child(_status)
+		_content.add_child(_button("Save password", _save_password))
 	elif cloud.signed_in():
 		var who := Retro.text(Label.new(), 22, Retro.WHITE)
 		who.text = "Signed in as %s" % cloud.email
@@ -81,15 +89,11 @@ func _build() -> void:
 		_email.custom_minimum_size = Vector2(0, 64)
 		_email.add_theme_font_size_override("font_size", Retro.px(14))
 		_content.add_child(_email)
-		_password.placeholder_text = "Password (6+ characters)"
-		_password.secret = true
-		_password.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD
-		_password.custom_minimum_size = Vector2(0, 64)
-		_password.add_theme_font_size_override("font_size", Retro.px(14))
-		_content.add_child(_password)
+		_add_password_field("Password (6+ characters)")
 		_content.add_child(_status)
 		_content.add_child(_button("Log in", _submit.bind(false)))
 		_content.add_child(_button("Create account", _submit.bind(true)))
+		_content.add_child(_button("Forgot password?", _forgot))
 
 	_content.add_child(Control.new())
 	_content.add_child(_button("Back", closed.emit))
@@ -114,6 +118,38 @@ func _submit(create: bool) -> void:
 	else:
 		_password.text = ""
 		_build()
+
+
+func _add_password_field(hint: String) -> void:
+	_password.placeholder_text = hint
+	_password.secret = true
+	_password.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD
+	_password.custom_minimum_size = Vector2(0, 64)
+	_password.add_theme_font_size_override("font_size", Retro.px(14))
+	_content.add_child(_password)
+
+
+func _forgot() -> void:
+	var user_email := _email.text.strip_edges()
+	if user_email == "":
+		_status.text = "Enter your email above, then tap Forgot password? again."
+		return
+	_status.text = "Sending..."
+	var result: String = await _cloud().send_reset(user_email)
+	_status.text = result if result != "" else "If %s has an account, a reset link is on its way. Open it on this device." % user_email
+
+
+func _save_password() -> void:
+	if _password.text.length() < 6:
+		_status.text = "Use at least 6 characters."
+		return
+	_status.text = "Saving..."
+	var result: String = await _cloud().set_password(_password.text)
+	if result != "":
+		_status.text = result
+		return
+	_password.text = ""
+	_build()
 
 
 func _button(text: String, action: Callable) -> Button:

@@ -8,6 +8,8 @@ extends Node
 signal status_changed(text: String)
 ## A cloud save was written to disk; the game should reload it.
 signal downloaded
+## The player opened a link from a Supabase email: show the account screen (new password, or why it failed).
+signal reset_requested
 
 const UPLOAD_DELAY := 3.0
 const RETRY_DELAY := 30.0
@@ -21,6 +23,7 @@ var email := ""
 var status := ""
 var last_synced_at := ""  # server updated_at of the cloud save this device last matched
 var last_synced_unix := 0.0
+var reset_pending := false  # signed in from a reset link; waiting on a new password
 
 var _access := ""
 var _refresh := ""
@@ -39,6 +42,8 @@ func _ready() -> void:
 	add_child(_timer)
 	_load_state()
 	SaveHooks.on_saved = mark_dirty
+	if enabled() and await _take_link_session():
+		return
 	if signed_in():
 		sync()
 
@@ -90,8 +95,77 @@ func log_out() -> void:
 	_user_id = ""
 	email = ""
 	last_synced_at = ""
+	reset_pending = false
 	_store_state()
 	_set_status("Signed out. Your game is still saved on this device.")
+
+
+## Emails a link that opens the game ready to choose a new password. "" on success, else an error.
+func send_reset(user_email: String) -> String:
+	var r := await _request(HTTPClient.METHOD_POST, "/auth/v1/recover?redirect_to=" + _site_url().uri_encode(),
+		{"email": user_email}, false)
+	return "" if r.ok else _error_text(r)
+
+
+## Sets a new password for the signed-in player. "" on success, else an error.
+func set_password(password: String) -> String:
+	if not await _ensure_token():
+		return "Can't reach the cloud. Check your connection."
+	var r := await _request(HTTPClient.METHOD_PUT, "/auth/v1/user", {"password": password})
+	if not r.ok:
+		return _error_text(r)
+	reset_pending = false
+	_set_status("Password changed.")
+	return ""
+
+
+## Links in Supabase emails (confirm account, reset password) open the game with a session in the
+## URL fragment: sign in with it and tidy the address bar. True if there was one.
+func _take_link_session() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	var fragment := str(JavaScriptBridge.eval("window.location.hash", true)).trim_prefix("#")
+	if not ("access_token=" in fragment or "error=" in fragment):
+		return false
+	JavaScriptBridge.eval("history.replaceState(null, '', window.location.pathname + window.location.search)", true)
+	await take_fragment(fragment)
+	return true
+
+
+## Signs in from an email link's URL fragment ("access_token=...&type=recovery"). Public for tests.
+func take_fragment(fragment: String) -> void:
+	var args := {}
+	for pair in fragment.split("&", false):
+		var kv := pair.split("=", true, 1)
+		args[kv[0].uri_decode()] = kv[1].replace("+", " ").uri_decode() if kv.size() > 1 else ""
+	if args.has("error") or not args.has("access_token"):
+		_set_status("That email link didn't work (%s). Ask for a new one." % args.get("error_description", args.get("error", "no session")))
+		reset_requested.emit()
+		return
+	_access = args.access_token
+	_expires_at = Time.get_unix_time_from_system() + float(args.get("expires_in", 3600)) - 60.0
+	var r := await _request(HTTPClient.METHOD_GET, "/auth/v1/user")
+	if not r.ok or not r.data is Dictionary:
+		_access = ""
+		_set_status("That email link didn't work. Ask for a new one.")
+		reset_requested.emit()
+		return
+	_take_session({"access_token": args.access_token, "refresh_token": args.get("refresh_token", ""),
+		"expires_in": args.get("expires_in", 3600), "user": r.data})
+	reset_pending = args.get("type", "") == "recovery"
+	await sync()  # may download a newer save and reload the game; reset_pending survives that
+	if reset_pending:
+		_set_status("Choose a new password.")
+		reset_requested.emit()
+	else:
+		_set_status("Email confirmed. You're signed in.")
+
+
+## Where links in emails lead back to: this page on the web, else the public site.
+func _site_url() -> String:
+	if OS.has_feature("web"):
+		return str(JavaScriptBridge.eval("window.location.origin + window.location.pathname", true))
+	return CloudConfig.SITE_URL
 
 
 func _take_session(d: Dictionary) -> void:

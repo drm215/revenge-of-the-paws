@@ -7,3 +7,5 @@ extends RefCounted
 
 const URL := ""
 const ANON_KEY := ""
+## Where email links (confirm account, reset password) lead from non-web builds.
+const SITE_URL := "https://revengeofthepaws.com"

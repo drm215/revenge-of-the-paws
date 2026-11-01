@@ -12,6 +12,10 @@ func _ready() -> void:
 	if cloud:
 		# A newer save arrived from the cloud: start over from it.
 		cloud.downloaded.connect(func() -> void: get_tree().reload_current_scene.call_deferred())
+		cloud.reset_requested.connect(_show_account)
+		if cloud.reset_pending:
+			_show_account()  # a cloud download reloaded the game mid-reset
+			return
 	var profile := Profile.load_saved()
 	if profile:
 		_show_map(profile)
