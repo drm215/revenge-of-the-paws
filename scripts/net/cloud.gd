@@ -33,6 +33,7 @@ var _dirty := false  # local save changed since the last sync
 var _busy := false
 var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
+var _last_error := ""  # why the last request failed, shown after "Offline" so problems can be traced
 var _conflict_ui: CanvasLayer
 
 
@@ -187,6 +188,7 @@ func _ensure_token() -> bool:
 	if r.code == 400 or r.code == 401:
 		log_out()
 		_set_status("Your session expired. Log in again to keep syncing.")
+	_note_error("refresh", r)
 	return false
 
 
@@ -203,13 +205,20 @@ func sync() -> void:
 func _sync_once() -> void:
 	if not await _ensure_token():
 		if signed_in():
-			_set_status("Offline. Will sync when back online.")
+			_set_status("Offline. Will sync when back online." + _last_error)
 			_timer.start(RETRY_DELAY)
 		return
-	var r := await _request(HTTPClient.METHOD_GET, "/rest/v1/saves?user_id=eq.%s&select=profile,campaign,updated_at" % _user_id)
+	var path := "/rest/v1/saves?user_id=eq.%s&select=profile,campaign,updated_at" % _user_id
+	var r := await _request(HTTPClient.METHOD_GET, path)
+	if r.code == 401 or r.code == 403:
+		_access = ""  # the database turned the login down: refresh it and try once more
+		if await _ensure_token():
+			r = await _request(HTTPClient.METHOD_GET, path)
 	if not r.ok:
-		_set_status("Offline. Will sync when back online.")
-		_timer.start(RETRY_DELAY)
+		if signed_in():
+			_note_error("read", r)
+			_set_status("Offline. Will sync when back online." + _last_error)
+			_timer.start(RETRY_DELAY)
 		return
 	var cloud: Dictionary = r.data[0] if r.data is Array and not r.data.is_empty() else {}
 	var has_local := FileAccess.file_exists(Profile.save_path)
@@ -243,7 +252,8 @@ func _upload() -> void:
 		_mark_synced(r.data[0].updated_at)
 		_set_status("Saved to the cloud.")
 	else:
-		_set_status("Cloud save failed. Will retry.")
+		_note_error("upload", r)
+		_set_status("Cloud save failed. Will retry." + _last_error)
 		_timer.start(RETRY_DELAY)
 
 
@@ -371,6 +381,10 @@ func _error_text(r: Dictionary) -> String:
 			if r.data.has(key):
 				return String(r.data[key])
 	return "Something went wrong (%d)." % r.code
+
+
+func _note_error(what: String, r: Dictionary) -> void:
+	_last_error = " (%s: %s)" % [what, "no connection" if r.code == 0 else "%d %s" % [r.code, _error_text(r)]]
 
 
 func _set_status(text: String) -> void:
