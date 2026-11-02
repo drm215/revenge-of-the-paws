@@ -356,6 +356,7 @@ func _resolve_conflict(use_cloud: bool) -> void:
 func _request(method: int, path: String, body: Variant = null, auth := true, extra: PackedStringArray = []) -> Dictionary:
 	var http := HTTPRequest.new()
 	http.timeout = 20.0
+	http.accept_gzip = false  # browsers already unpack compressed replies; Godot unpacking again fails
 	add_child(http)
 	var headers := PackedStringArray(["apikey: " + anon_key, "Content-Type: application/json"])
 	if auth:
