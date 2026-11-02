@@ -16,6 +16,8 @@ const BORDER := Retro.INK
 const SELECTED := Retro.YELLOW
 const THREAT_PIP := Retro.RED
 const LAIR := Color("f6a0e0")
+const CUT_OFF := Color("2a4a33")  # held but cut off from home
+const NEST := Color("b8203a")
 const MIN_ZOOM := 0.3
 const MAX_ZOOM := 4.0
 const TAP_SLOP := 12.0
@@ -165,6 +167,12 @@ func _draw() -> void:
 		var survivor := campaign.pending_recruit(i)
 		if survivor != "":
 			draw_texture_rect(_icon(survivor), Rect2(c + Vector2(-20, -48), Vector2(40, 40)), false)
+		if campaign.is_nest(i):
+			# A pulsing red blot marks a nest the horde spreads from.
+			var at := c + Vector2(-34, -22)
+			draw_circle(at, 11, BORDER)
+			draw_circle(at, 8, NEST.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 4.0)))
+			draw_circle(at, 3, BORDER)
 		if not t.owned:
 			if t.threat > GameData.MAX_THREAT:
 				_text(font, c + Vector2(0, 36), "+%d" % (t.threat - GameData.MAX_THREAT), Retro.px(12), THREAT_PIP)
@@ -233,6 +241,8 @@ func _fill(i: int) -> Color:
 	if i == campaign.under_attack:
 		return OWNED.lerp(UNDER_ATTACK, 0.5 + 0.5 * sin(_time * 5.0))
 	if t.owned:
+		if campaign.is_cut_off(i):
+			return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
 		return HOME if i == campaign.home else OWNED
 	if campaign.can_attack(i):
 		return ATTACKABLE

@@ -106,6 +106,16 @@ The apocalypse starts **where you actually live**.
   picker): two trinkets become one with every effect added up, both drawbacks included; both are
   used up. A fused trinket can't be fused again, and two wave-start effects can't share one.
   Saved as `fuse:a+b`; `GameData.trinket()` builds it.
+- **Supply lines:** a held territory must link back home through held land. Cut off (when a
+  counterattack takes a link), it adds no held bonus, can't launch attacks, is defended at +1
+  threat, and falls to the horde after 3 map turns unless the link is retaken (the map fades it
+  and counts down). Counterattacks go for the chokepoint that would cut off the most land 70% of
+  the time, and say what's at stake. Data: `GameData.CUT_OFF_*`, `Campaign.supplied()`.
+- **Horde migration:** the 2 farthest max-threat areas of the starting map (not lairs) are nests,
+  marked on the map. Every 3 map turns each raises one unheld area next to its infested ground
+  by +1 threat (each area at most +2, never above the nest's threat), most infested first, so
+  the danger creeps toward the pack until around turn 45. Liberating a nest stops it for good.
+  Saved as `spread`; data `GameData.NEST_COUNT`, `MIGRATE_EVERY`, `MAX_SPREAD`.
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the

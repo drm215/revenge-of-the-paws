@@ -51,8 +51,17 @@ func _select(i: int) -> void:
 		_action.text = "Rest"
 		_action.visible = true
 		_action.set_meta("mode", "rest")
+	elif t.owned and campaign.is_cut_off(i):
+		var left := campaign.turns_until_lost(i)
+		_info_body.text = "CUT OFF from home: no held bonus, and you can't attack from here. Falls to the horde in %d turn%s unless you retake the land linking it home." % [left, "" if left == 1 else "s"]
+		_action.text = "Patrol"
+		_action.visible = true
+		_action.set_meta("mode", "patrol")
 	elif t.owned:
 		_info_body.text = "Liberated. Survivors here reinforce your pack.\nPatrol for an easier fight (threat %d) that earns XP." % maxi(1, t.threat - 1)
+		var chain := campaign.cut_by(i)
+		if chain > 0:
+			_info_body.text += "\nChokepoint: lose it and %d territor%s are cut off from home." % [chain, "y" if chain == 1 else "ies"]
 		_action.text = "Patrol"
 		_action.visible = true
 		_action.set_meta("mode", "patrol")
@@ -88,6 +97,10 @@ func _select(i: int) -> void:
 			_info_body.text += "\nWaves unknown: put a benched animal on scout duty."
 		if profile.auto_battle and t.boss == "":
 			_info_body.text += "\nAuto mode takes this one once your leader is Lv %d." % (campaign.base_level(i) + GameData.AUTO_LEVEL_GAP)
+		if campaign.is_nest(i):
+			_info_body.text += "\nHORDE NEST: spreads toward you every %d turns until liberated." % GameData.MIGRATE_EVERY
+		elif campaign.spread.has(t.id):
+			_info_body.text += "\nThe horde has spread here: threat +%d." % campaign.spread[t.id]
 		if campaign.has_frontier(i):
 			_info_body.text += "\nOn the frontier: liberate it to reveal what lies beyond."
 		var survivor := campaign.pending_recruit(i)
@@ -334,15 +347,14 @@ func _build_ui() -> void:
 	_action.pressed.connect(_on_action)
 	info.add_child(_action)
 
+	# Buttons share one row evenly; the data credit gets its own full-width line below them.
 	var footer := HBoxContainer.new()
 	col.add_child(footer)
 	var credit := Label.new()
-	credit.text = (ZipDB.ATTRIBUTION + "\n" + ZctaDB.ATTRIBUTION) if campaign.uses_zip_data else ""
+	credit.text = (ZipDB.ATTRIBUTION + " · " + ZctaDB.ATTRIBUTION) if campaign.uses_zip_data else ""
 	Retro.text(credit, 13, Retro.STEEL)
 	credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	credit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	credit.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	footer.add_child(credit)
+	credit.visible = credit.text != ""
 	var setup := Button.new()
 	var pack := Button.new()
 	pack.text = "Pack"
@@ -373,3 +385,7 @@ func _build_ui() -> void:
 	setup.add_theme_font_size_override("font_size", Retro.px(10))
 	setup.pressed.connect(setup_requested.emit)
 	footer.add_child(setup)
+	for button in footer.get_children():
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.custom_minimum_size = Vector2(0, 56)
+	col.add_child(credit)

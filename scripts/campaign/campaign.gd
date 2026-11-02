@@ -35,6 +35,10 @@ var profile: Profile
 var claimed: Array[String] = []  # territory ids whose trinket was already taken
 var revealed: Array = []  # batches of ZIP codes added beyond the starting map, in order
 var base_count := 0  # territories on the starting map
+var nests: Array[int] = []  # territories the horde spreads from (GameData.NEST_COUNT)
+var cleared_nests: Array[String] = []  # nest ids liberated at least once: they never spread again
+var spread := {}  # territory id -> threat the migrating horde has added there
+var cut_off := {}  # held territory id -> map turns it has been cut off from home
 
 ## Tests point this somewhere else so they never touch the player's real save.
 static var save_path := SAVE_PATH
@@ -46,6 +50,7 @@ var _rng := RandomNumberGenerator.new()
 var _base_far := 1.0  # km from home to the edge of the starting map; threat 5 there
 var _slot := {}  # ZIP area index -> territory index
 var _area_of: Array[int] = []  # territory index -> ZIP area index
+var _linked := {}  # cache of supplied(); cleared whenever ownership changes
 
 
 static func create(profile: Profile) -> Campaign:
@@ -61,6 +66,7 @@ static func create(profile: Profile) -> Campaign:
 		MapBuilder.build(c.territories)
 	c._assign_threat()
 	c._place_lairs(profile)
+	c._place_nests()
 	c._place_recruits(profile)
 	c._place_caches()
 	c.territories[c.home].owned = true
@@ -118,17 +124,62 @@ func has_frontier(i: int) -> bool:
 	return false
 
 
+## Only territories still linked to home count.
 func held_bonus() -> float:
-	return minf(GameData.MAX_HELD_BONUS, (owned_count() - 1) * GameData.HELD_TERRITORY_BONUS)
+	return minf(GameData.MAX_HELD_BONUS, (supplied().size() - 1) * GameData.HELD_TERRITORY_BONUS)
 
 
+## Attacks launch from held land that's still linked to home.
 func can_attack(i: int) -> bool:
 	if territories[i].owned:
 		return false
+	var linked := supplied()
 	for n in territories[i].neighbors:
-		if territories[n].owned:
+		if linked.has(n):
 			return true
 	return false
+
+
+## Held territories joined to home by an unbroken chain of held land (index -> true).
+func supplied() -> Dictionary:
+	if _linked.is_empty():
+		_linked = _reach_from_home(-1)
+	return _linked
+
+
+func is_cut_off(i: int) -> bool:
+	return territories[i].owned and not supplied().has(i)
+
+
+## Turns before cut-off territory `i` falls to the horde.
+func turns_until_lost(i: int) -> int:
+	return GameData.CUT_OFF_FALL - int(cut_off.get(territories[i].id, 0))
+
+
+func is_nest(i: int) -> bool:
+	return i in nests and not territories[i].owned and territories[i].id not in cleared_nests
+
+
+## Held land reachable from home without passing through `skip`.
+func _reach_from_home(skip: int) -> Dictionary:
+	var seen := {home: true}
+	var queue: Array[int] = [home]
+	while not queue.is_empty():
+		var i: int = queue.pop_back()
+		for n in territories[i].neighbors:
+			if n != skip and territories[n].owned and not seen.has(n):
+				seen[n] = true
+				queue.append(n)
+	return seen
+
+
+## How many held territories would lose their link home if `i` fell.
+func cut_by(i: int) -> int:
+	return maxi(0, supplied().size() - 1 - _reach_from_home(i).size()) if supplied().has(i) else 0
+
+
+func _ownership_changed() -> void:
+	_linked = {}
 
 
 ## What the player may start a battle on right now. A counterattack must be answered first.
@@ -170,7 +221,7 @@ func auto_target(leader_level: int) -> int:
 
 func battle_config(i: int) -> Dictionary:
 	var t := territories[i]
-	var threat := t.threat
+	var threat := t.threat + (GameData.CUT_OFF_THREAT if i == under_attack and is_cut_off(i) else 0)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(t.id)  # same zombies every visit, so a retry is a fair rematch
 	return {
@@ -230,9 +281,96 @@ func rest() -> void:
 
 
 func _end_turn() -> void:
+	_update_supply()
+	if turn % GameData.MIGRATE_EVERY == 0:
+		_migrate()
 	if under_attack < 0 and turn % counter_interval() == 0:
 		_start_counterattack()
 	save()
+
+
+## Cut-off territories count down; at GameData.CUT_OFF_FALL turns the horde takes them back.
+func _update_supply() -> void:
+	var newly: PackedStringArray = []
+	var fell: PackedStringArray = []
+	var linked := supplied()
+	for i in territories.size():
+		var t := territories[i]
+		if not t.owned or linked.has(i):
+			cut_off.erase(t.id)
+			continue
+		cut_off[t.id] = int(cut_off.get(t.id, 0)) + 1
+		if cut_off[t.id] == 1:
+			newly.append(t.full_name())
+		if cut_off[t.id] >= GameData.CUT_OFF_FALL:
+			t.owned = false
+			cut_off.erase(t.id)
+			fell.append(t.full_name())
+			if under_attack == i:
+				under_attack = -1
+	if not fell.is_empty():
+		_ownership_changed()
+		last_event += "\nCut off too long, the horde overran %s." % ", ".join(fell)
+	if not newly.is_empty():
+		last_event += "\nCut off from home: %s! Reconnect within %d turns or lose %s." % [
+			", ".join(newly), GameData.CUT_OFF_FALL - 1, "it" if newly.size() == 1 else "them"]
+
+
+## Nests at the far edge of the starting map (no lairs): the farthest max-threat area, then each
+## next one as far from the others as possible. Depends only on the map, so it's stable.
+func _place_nests() -> void:
+	var spots: Array[int] = []
+	for i in territories.size():
+		if i != home and territories[i].boss == "" and territories[i].threat >= GameData.MAX_THREAT:
+			spots.append(i)
+	while nests.size() < GameData.NEST_COUNT and not spots.is_empty():
+		var best := spots[0]
+		var best_d := -1.0
+		for i in spots:
+			var d := territories[i].site.distance_to(territories[home].site) if nests.is_empty() else INF
+			for n in nests:
+				d = minf(d, territories[i].site.distance_to(territories[n].site))
+			if d > best_d:
+				best_d = d
+				best = i
+		nests.append(best)
+		spots.erase(best)
+
+
+## Each standing nest pushes the horde one step: +1 threat to an unheld area next to its infested
+## ground (the nest, the areas the horde has spread to, and unheld areas already at the cap) that
+## is lower than the ground it borders and hasn't been raised yet: the most infested first, nearest
+## home on ties, so the wave creeps outward toward the pack.
+func _migrate() -> void:
+	for nest in nests:
+		if not is_nest(nest):
+			continue
+		var cap := territories[nest].threat
+		var ground := {nest: true}
+		var queue: Array[int] = [nest]
+		while not queue.is_empty():
+			var i: int = queue.pop_back()
+			for n in territories[i].neighbors:
+				var t := territories[n]
+				if not ground.has(n) and not t.owned and (t.threat >= cap or spread.has(t.id)):
+					ground[n] = true
+					queue.append(n)
+		var pick := -1
+		for i: int in ground:
+			for n in territories[i].neighbors:
+				var t := territories[n]
+				if t.owned or t.boss != "" or n in nests or t.threat >= cap or t.threat >= territories[i].threat 						or int(spread.get(t.id, 0)) >= GameData.MAX_SPREAD:
+					continue
+				if pick < 0 or t.threat > territories[pick].threat or (t.threat == territories[pick].threat
+						and t.site.distance_to(territories[home].site) < territories[pick].site.distance_to(territories[home].site)):
+					pick = n
+		if pick < 0:
+			continue
+		var target := territories[pick]
+		target.threat += 1
+		spread[target.id] = int(spread.get(target.id, 0)) + 1
+		last_event += "\nThe horde spreads from %s into %s (threat %d → %d)." % [
+			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
 func resolve_battle(i: int, won: bool) -> void:
@@ -244,11 +382,23 @@ func resolve_battle(i: int, won: bool) -> void:
 			last_event = "%s held! The horde falls back." % t.full_name()
 		else:
 			t.owned = false
+			_ownership_changed()
 			last_event = "%s was overrun. Take it back!" % t.full_name()
 	elif won:
 		t.owned = true
+		_ownership_changed()
 		last_liberated = i
 		last_event = "%s liberated!" % t.full_name()
+		if i in nests and t.id not in cleared_nests:
+			cleared_nests.append(t.id)
+			last_event += "\nThe nest is destroyed: the horde stops spreading from here."
+		var relinked := 0
+		for id in cut_off:
+			for k in territories.size():
+				if territories[k].id == id and supplied().has(k):
+					relinked += 1
+		if relinked > 0:
+			last_event += "\nSupply restored to %d cut-off territor%s." % [relinked, "y" if relinked == 1 else "ies"]
 		if t.boss != "":
 			last_event = "The %s is defeated! %s is free." % [GameData.LEGENDS[t.boss].name, t.full_name()]
 		var loot := loot_at(i)
@@ -264,9 +414,7 @@ func resolve_battle(i: int, won: bool) -> void:
 	else:
 		t.failed_attacks += 1
 		last_event = "The pack retreated from %s, but thinned the horde there." % t.full_name()
-	if under_attack < 0 and turn % counter_interval() == 0:
-		_start_counterattack()
-	save()
+	_end_turn()
 
 
 func save() -> void:
@@ -285,6 +433,9 @@ func save() -> void:
 		if t.failed_attacks > 0:
 			fails[t.id] = t.failed_attacks
 	cfg.set_value("campaign", "failed_attacks", fails)
+	cfg.set_value("campaign", "spread", spread)
+	cfg.set_value("campaign", "cut_off", cut_off)
+	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	cfg.save(save_path)
@@ -318,6 +469,12 @@ func _load() -> void:
 	var fails: Dictionary = cfg.get_value("campaign", "failed_attacks", {})
 	for t in territories:
 		t.failed_attacks = fails.get(t.id, 0)
+	spread = cfg.get_value("campaign", "spread", {})
+	for t in territories:
+		t.threat += int(spread.get(t.id, 0))
+	cut_off = cfg.get_value("campaign", "cut_off", {})
+	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
+	_ownership_changed()
 
 
 ## Legends that belong to a non-US player's world region.
@@ -494,7 +651,16 @@ func _start_counterattack() -> void:
 	if border.is_empty():
 		return
 	under_attack = border[_rng.randi_range(0, border.size() - 1)]
+	# Usually it goes for the chokepoint: the territory whose loss cuts off the most held land.
+	var worst := -1
+	for i in border:
+		if cut_by(i) > 0 and (worst < 0 or cut_by(i) > cut_by(worst)):
+			worst = i
+	if worst >= 0 and _rng.randf() < GameData.CHOKEPOINT_CHANCE:
+		under_attack = worst
 	last_event += "\nThe horde is attacking %s!" % territories[under_attack].full_name()
+	if cut_by(under_attack) > 0:
+		last_event += " Lose it and %d territor%s will be cut off from home." % [cut_by(under_attack), "y" if cut_by(under_attack) == 1 else "ies"]
 
 
 ## Real map: the player's ZIP area plus the nearest connected ZIP areas, with their true outlines.

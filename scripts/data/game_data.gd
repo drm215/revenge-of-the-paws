@@ -1249,6 +1249,19 @@ const ATTRITION_PER_LOSS := 0.08
 const MIN_ATTRITION := 0.7
 ## The horde counterattacks one of your border territories every N map turns.
 const COUNTERATTACK_EVERY := 3
+## Supply lines: a held territory needs a chain of held land back home. Cut off, it adds no held
+## bonus, can't launch attacks, is defended at CUT_OFF_THREAT more threat, and falls to the horde
+## after CUT_OFF_FALL map turns. Counterattacks go for a chokepoint CHOKEPOINT_CHANCE of the time.
+const CUT_OFF_FALL := 3
+const CUT_OFF_THREAT := 1
+const CHOKEPOINT_CHANCE := 0.7
+## Horde migration: NEST_COUNT of the farthest max-threat territories are nests. Every
+## MIGRATE_EVERY map turns each one raises the threat of one unheld area next to its infested
+## ground by 1 (each area at most MAX_SPREAD, never above the nest's own threat), so the wave
+## creeps out toward the pack. Liberating a nest stops it.
+const NEST_COUNT := 2
+const MIGRATE_EVERY := 3
+const MAX_SPREAD := 2
 
 
 ## An animal's tags plus its role (lowercase), e.g. ["canine", "urban", "tank"].
