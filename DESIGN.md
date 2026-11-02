@@ -209,6 +209,12 @@ Map ──► attack a bordering territory ──► 1–3 waves ──► terri
   *Opening*: a skill with a crit bonus always crits a stunned zombie. *Knockdown*: a heavy hit
   (power 150%+) stuns a weakened zombie (a second way to cancel a wind-up). *Follow-up*: +25% on
   the zombie an ally hit on the turn just before (any zombie turn in between breaks it).
+- **Zombie weak points** (`GameData.ZOMBIE_WEAKNESS`): animals with the right tag deal +50% to a
+  zombie type: Shambler/Canine, Runner/Feline, Brute/Mountain, Screamer/Night, Medic/Urban,
+  Bloater/Water (and no death blast when they finish it), Plague Carrier/Scavenger (and immune to
+  its infection). Bruisers ignore a Riot Zombie's armor instead. Zombie cards show "Weak: X", the
+  log explains it on the first hit and WEAK SPOT! floats on each; scouting lists the weak spots of
+  the waves ahead and each critter's Details lists what it counters.
 - **Zombie AI:** uses its strongest ready skill; obeys Taunt. Single-target hits focus fire: 80% of
   the time on an animal they can knock out, otherwise 50% on an animal that heals its allies; some
   types hunt the weakest target. Shamblers hit 15% harder for each other Shambler standing.

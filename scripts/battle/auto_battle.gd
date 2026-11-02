@@ -37,10 +37,16 @@ static func pick_action(battle: Battle, actor: Combatant) -> Dictionary:
 	for c in allies:
 		if c.hp_ratio() < weakest_ally.hp_ratio():
 			weakest_ally = c
-	# Focus: a zombie winding up, then the ones that help the others (Medic, Screamer), then the weakest.
+	# Focus: a zombie winding up, then the ones that help the others (Medic, Screamer), then one this
+	# animal hits at its weak point, then the weakest.
 	var focus := targets[0]
 	var rank := func(c: Combatant) -> int:
-		return 0 if c.winding != "" else (1 if c.id in ["medic", "screamer"] else 2)
+		if c.winding != "":
+			return 0
+		if c.id in ["medic", "screamer"]:
+			return 1
+		var w: Dictionary = GameData.ZOMBIE_WEAKNESS.get(c.id, {})
+		return 2 if not w.is_empty() and w.tag in actor.tags else 3
 	for c in targets:
 		if rank.call(c) < rank.call(focus) or (rank.call(c) == rank.call(focus) and c.hp < focus.hp):
 			focus = c

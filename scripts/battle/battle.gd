@@ -11,6 +11,7 @@ signal healed(target: Combatant, amount: int)
 signal status_changed(target: Combatant)
 signal died(target: Combatant)
 signal combo(target: Combatant, name: String)
+signal weak_hit(target: Combatant)
 
 enum Outcome { ONGOING, WAVE_CLEARED, VICTORY, DEFEAT }
 
@@ -47,6 +48,8 @@ var _turn_queue: Array[Combatant] = []
 var _unleashing := false  # a telegraphed attack is landing right now (Guard soaks it)
 var _last_hit: Combatant  # the zombie the pack's last single-target attack hit (for Follow-up)
 var _last_hitter: Combatant
+var _defusing := false  # a Bloater is being finished by a water animal: no death blast
+var _weak_told: Array[Combatant] = []  # zombies whose weak point the log has already explained
 
 
 ## `party_mult` scales party HP/ATK (held-territory reinforcements); `zombie_mult` scales zombies.
@@ -304,6 +307,8 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 			for effect: Dictionary in skill.get("apply", []):
 				if effect.status in t.immune:
 					continue
+				if effect.status == "infected" and _weak_point(t, actor) == "immune":
+					continue  # scavengers shrug off a Plague Carrier's rot
 				if rng.randf() < effect.get("chance", 1.0):
 					t.add_status(effect.status, effect.turns)
 					if t != actor:
@@ -410,6 +415,17 @@ func _announce_exposed(side: Array[Combatant]) -> void:
 		"#f77622" if pack else "#63c74d", "Your" if pack else "The zombies'", GameData.SCREEN_SIZE, ", ".join(open)])
 
 
+## The trick `src` brings against `dst`'s weak point (GameData.ZOMBIE_WEAKNESS): "damage", "armor",
+## "defuse" or "immune"; "" if it has none there.
+func _weak_point(src: Combatant, dst: Combatant) -> String:
+	if not src.is_player or dst.is_player:
+		return ""
+	var w: Dictionary = GameData.ZOMBIE_WEAKNESS.get(dst.id, {})
+	if w.is_empty() or w.tag not in src.tags:
+		return ""
+	return w.get("effect", "damage")
+
+
 func _reaches(c: Combatant) -> bool:
 	return c.traits.get("reach", false) or "bird" in c.tags
 
@@ -494,7 +510,10 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 		_last_hitter = src
 	if crit:
 		dmg *= CRIT_MULT
-	if single and dst.traits.get("armored", false):
+	var trick := _weak_point(src, dst)  # this zombie type's weak point (legends have their own below)
+	if trick != "" and trick != "armor":
+		dmg *= GameData.ZOMBIE_WEAK_MULT
+	if single and dst.traits.get("armored", false) and trick != "armor":
 		dmg *= 0.5
 	if single and src.row == "back" and not _reaches(src):
 		dmg *= GameData.BACK_ROW_DAMAGE
@@ -507,7 +526,15 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 		elif weak.resist in src.tags:
 			dmg *= GameData.LEGEND_RESIST_MULT
 	var amount := maxi(1, roundi(dmg))
+	if trick != "":
+		weak_hit.emit(dst)
+		if dst not in _weak_told:
+			_weak_told.append(dst)
+			log_message.emit("[color=#2ce8f5][b]Weak spot![/b] %s vs %s: %s[/color]" % [
+				src.display_name, dst.display_name, GameData.ZOMBIE_WEAKNESS[dst.id].why])
+	_defusing = trick == "defuse"
 	_apply_damage(dst, amount, crit)
+	_defusing = false
 	var knockdown := src.is_player and single and power >= GameData.KNOCKDOWN_POWER
 	if knockdown and dst.is_alive() and dst.has_status("weakened") and "stunned" not in dst.immune:
 		dst.add_status("stunned", 1)
@@ -549,7 +576,9 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 	if dst.is_leader and outcome() == Outcome.ONGOING:
 		log_message.emit("[color=#ff8080]Without %s, the pack falters![/color]" % dst.display_name)
 	var blast: int = dst.traits.get("explode_on_death", 0)
-	if blast > 0:
+	if blast > 0 and _defusing:
+		log_message.emit("[color=#63c74d]%s is doused before it can burst.[/color]" % dst.display_name)
+	elif blast > 0:
 		log_message.emit("%s bursts in a cloud of gore!" % dst.display_name)
 		for c in living(_opponents(dst)):
 			_apply_damage(c, blast, false)

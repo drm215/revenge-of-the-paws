@@ -695,6 +695,46 @@ const ZOMBIE_NOTES := {
 	"runner": "fast, hunts the weakest",
 }
 
+## Zombie weak points: animals with the tag (kind, terrain or role) deal ZOMBIE_WEAK_MULT damage to
+## that zombie, and some bring a trick: "armor" ignores its armor instead, "defuse" stops its death
+## blast when they finish it, "immune" shrugs off the infection it spreads.
+const ZOMBIE_WEAK_MULT := 1.5
+const ZOMBIE_WEAKNESS := {
+	"shambler": {"tag": "canine", "why": "Dogs and wolves scatter the horde."},
+	"runner": {"tag": "feline", "why": "Cats are quicker."},
+	"brute": {"tag": "mountain", "why": "Mountain animals are used to big things."},
+	"screamer": {"tag": "night", "why": "Night hunters strike before it can scream."},
+	"medic": {"tag": "urban", "why": "City animals know a hospital's back doors."},
+	"bloater": {"tag": "water", "effect": "defuse", "why": "Water animals douse it: no blast when they finish it."},
+	"riot": {"tag": "bruiser", "effect": "armor", "why": "Tusks, horns and antlers punch through riot gear."},
+	"plague": {"tag": "scavenger", "effect": "immune", "why": "Scavengers shrug off rot: immune to its infection."},
+}
+
+
+## The tag a weak point names, for people: "canine" -> "Canine", "bruiser" -> "Bruiser".
+static func tag_name(tag: String) -> String:
+	return tag.capitalize()
+
+
+## One zombie's weak point in a line: "Canine animals +50%: Dogs and wolves scatter the horde."
+static func weak_text(zombie_id: String) -> String:
+	var w: Dictionary = ZOMBIE_WEAKNESS.get(zombie_id, {})
+	if w.is_empty():
+		return ""
+	var what := "ignore its armor" if w.get("effect", "") == "armor" else "+%d%%" % roundi((ZOMBIE_WEAK_MULT - 1.0) * 100)
+	return "%s animals %s. %s" % [tag_name(w.tag), what, w.why]
+
+
+## Zombie types an animal hits at their weak point, by name.
+static func counters(unit_id: String) -> PackedStringArray:
+	var out: PackedStringArray = []
+	var tags := tags_of(unit_id)
+	for id in ZOMBIE_WEAKNESS:
+		if ZOMBIE_WEAKNESS[id].tag in tags:
+			out.append(ZOMBIES[id].name)
+	return out
+
+
 ## Regional legends: the boss of a lair on the far edge of the map. US legends sit at their real
 ## hometown and appear when the player's ZIP is within `range_km`; others appear by world region.
 ## Kept to folklore cryptids, not figures sacred to living Indigenous traditions.

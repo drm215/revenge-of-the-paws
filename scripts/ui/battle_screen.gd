@@ -69,6 +69,7 @@ func _new_game() -> void:
 	battle.status_changed.connect(func(c: Combatant) -> void: _card(c).refresh())
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
+	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 
 	for c in battle.party:
 		_add_card(c, _party_col, PARTY_SPRITE)

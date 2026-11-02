@@ -162,6 +162,8 @@ func refresh() -> void:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
 	if not unit.is_player and unit.traits.get("reach", false) and unit.is_alive():
 		parts.append("Reaches back row")
+	if GameData.ZOMBIE_WEAKNESS.has(unit.id) and unit.is_alive():
+		parts.append("Weak: " + GameData.tag_name(GameData.ZOMBIE_WEAKNESS[unit.id].tag))
 	if unit.row == "back" and unit.is_alive():
 		parts.append("BACK ROW EXPOSED" if battle and battle.exposed(unit) else "Back row")
 	if unit.winding != "":

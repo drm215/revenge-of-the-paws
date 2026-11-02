@@ -141,6 +141,15 @@ func _fight_summary() -> String:
 		lines.append("Home turf: %s animals +%d%%" % [GameData.REGIONS[region].name, roundi(GameData.HOME_TURF_BONUS * 100)])
 	if profile.duties.has("scout"):
 		lines.append("Scouted: " + GameData.waves_text(battle_config.waves))
+		var weak: PackedStringArray = []
+		for wave: Array in battle_config.waves:
+			for id: String in wave:
+				var w: Dictionary = GameData.ZOMBIE_WEAKNESS.get(id, {})
+				var line := "%s (%s)" % [GameData.ZOMBIES[id].name, GameData.tag_name(w.tag)] if not w.is_empty() else ""
+				if line != "" and line not in weak:
+					weak.append(line)
+		if not weak.is_empty():
+			lines.append("Weak spots: " + ", ".join(weak))
 	else:
 		lines.append("%d wave%s (put a benched animal on scout duty to see them)" % [battle_config.waves.size(), "" if battle_config.waves.size() == 1 else "s"])
 	return "\n".join(lines)
@@ -568,7 +577,14 @@ func _show_details(unit_id: String) -> void:
 	var tags: PackedStringArray = []
 	for t in GameData.tags_of(unit_id):
 		tags.append(GameData.CONDITIONS[t].name if GameData.CONDITIONS.has(t) else t.capitalize())
-	col.add_child(_tile_text(", ".join(tags) + "\nTags decide terrain bonuses, bonds and legend weak spots.", 19, Retro.FOG))
+	col.add_child(_tile_text(", ".join(tags) + "\nTags decide terrain bonuses, bonds and weak spots.", 19, Retro.FOG))
+	var counters := GameData.counters(unit_id)
+	heading.call("Zombie weak spots")
+	if counters.is_empty():
+		col.add_child(_tile_text("None. It hits every zombie type normally.", 19, Retro.FOG))
+	for id in GameData.ZOMBIE_WEAKNESS:
+		if GameData.ZOMBIES[id].name in counters:
+			col.add_child(_tile_text("%s: %s" % [GameData.ZOMBIES[id].name, GameData.weak_text(id)], 20, Retro.CYAN))
 	if unit_id in profile.pack_ids():
 		var bonds: PackedStringArray = []
 		for bond in GameData.active_bonds(profile.pack_ids()):
