@@ -284,6 +284,8 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 		_:
 			targets = [target]
 			log_message.emit("%s uses %s on %s." % [actor.display_name, skill.name, target.display_name])
+			if skill.target == "enemy" and target.row == "back" and not exposed(target) and not target.has_status("taunt"):
+				log_message.emit("[color=%s]%s reaches past the front row![/color]" % ["#63c74d" if actor.is_player else "#f77622", actor.display_name])
 
 	var power: float = skill.get("power", 0.0) * (WINDUP_POWER if _unleashing else 1.0)
 	var heal: float = skill.get("heal", 0.0)

@@ -160,6 +160,8 @@ func refresh() -> void:
 			perks += 1
 	if perks > 0:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
+	if not unit.is_player and unit.traits.get("reach", false) and unit.is_alive():
+		parts.append("Reaches back row")
 	if unit.row == "back" and unit.is_alive():
 		parts.append("BACK ROW EXPOSED" if battle and battle.exposed(unit) else "Back row")
 	if unit.winding != "":
