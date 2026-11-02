@@ -205,7 +205,8 @@ func sync() -> void:
 	_busy = false
 
 
-func _sync_once() -> void:
+## `retried`: this pass follows an upload that lost a race with another device (never loops twice).
+func _sync_once(retried := false) -> void:
 	if not await _ensure_token():
 		if signed_in():
 			_set_status("Offline. Will sync when back online." + _last_error)
@@ -227,12 +228,12 @@ func _sync_once() -> void:
 	var has_local := FileAccess.file_exists(Profile.save_path)
 	if cloud.is_empty():
 		if has_local:
-			await _upload()
+			await _upload("", retried)
 		else:
 			_set_status("Signed in. Nothing saved yet.")
 	elif cloud.updated_at == last_synced_at:
 		if _dirty and has_local:
-			await _upload()
+			await _upload(cloud.updated_at, retried)
 		else:
 			_set_status("Up to date.")
 	elif not has_local or not _dirty:
@@ -242,18 +243,27 @@ func _sync_once() -> void:
 		_show_conflict()
 
 
-func _upload() -> void:
+## Uploads this device's save over cloud version `expected` ("" = the cloud has none yet). The write
+## only lands if the cloud still holds exactly that version, so a save another device uploaded a
+## moment ago is never overwritten: sync looks again instead and offers the conflict prompt.
+func _upload(expected: String, retried := false) -> void:
 	var body := {
-		"user_id": _user_id,
 		"profile": FileAccess.get_file_as_string(Profile.save_path),
 		"campaign": FileAccess.get_file_as_string(Campaign.save_path) if FileAccess.file_exists(Campaign.save_path) else "",
 		"device": OS.get_name(),
 	}
-	var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/saves?on_conflict=user_id", body, true,
-		["Prefer: resolution=merge-duplicates,return=representation"])
+	var r: Dictionary
+	if expected == "":
+		body.user_id = _user_id
+		r = await _request(HTTPClient.METHOD_POST, "/rest/v1/saves", body, true, ["Prefer: return=representation"])
+	else:
+		r = await _request(HTTPClient.METHOD_PATCH, "/rest/v1/saves?user_id=eq.%s&updated_at=eq.%s" % [_user_id, expected.uri_encode()],
+			body, true, ["Prefer: return=representation"])
 	if r.ok and r.data is Array and not r.data.is_empty():
 		_mark_synced(r.data[0].updated_at)
 		_set_status("Saved to the cloud.")
+	elif not retried and (r.code == 409 or (r.ok and r.data is Array)):
+		await _sync_once(true)  # another device saved first (insert clashed, or the update matched nothing)
 	else:
 		_note_error("upload", r)
 		_set_status("Cloud save failed. Will retry." + _last_error)
@@ -348,9 +358,8 @@ func _resolve_conflict(use_cloud: bool) -> void:
 	if use_cloud:
 		_apply(cloud)
 	else:
-		last_synced_at = cloud.updated_at  # overwrite it on purpose
 		_busy = true
-		await _upload()
+		await _upload(cloud.updated_at)  # replace exactly the cloud save the player was shown
 		_busy = false
 
 
