@@ -39,6 +39,13 @@ var nests: Array[int] = []  # territories the horde spreads from (GameData.NEST_
 var cleared_nests: Array[String] = []  # nest ids liberated at least once: they never spread again
 var spread := {}  # territory id -> threat the migrating horde has added there
 var cut_off := {}  # held territory id -> map turns it has been cut off from home
+## Teams (server/teams.sql): every member's home ZIP is on the map. `home` is this player's.
+var homes: Array[int] = []
+var members: Array = []  # [{user_id, name, zip}] in join order; empty when playing solo
+var feed: Array = []  # team: recent moves [{who, text, turn}], newest last
+var me := ""  # this player's name in the team feed
+var replaying := false  # re-applying queued moves to newer team state: no rewards, no recording
+var on_action := Callable()  # team: told about each move so it can be sent to the server
 
 ## Tests point this somewhere else so they never touch the player's real save.
 static var save_path := SAVE_PATH
@@ -47,18 +54,24 @@ var _key := ""
 var _origin := Vector2.ZERO  # home (lon, lat) for real maps
 var _scale := Vector2.ONE  # degrees -> km
 var _rng := RandomNumberGenerator.new()
-var _base_far := 1.0  # km from home to the edge of the starting map; threat 5 there
+var _fars := {}  # home index -> km to the edge of its starting patch; threat 5 there
+var _starter_regions: Array[String] = []  # team: every member's home region
+var _home_names := {}  # team: home index -> its member's short name
 var _slot := {}  # ZIP area index -> territory index
 var _area_of: Array[int] = []  # territory index -> ZIP area index
 var _linked := {}  # cache of supplied(); cleared whenever ownership changes
 
 
-static func create(profile: Profile) -> Campaign:
+## The solo campaign, or with `team` (Team.info: {id, members, state}) the team's shared map.
+static func create(profile: Profile, team := {}) -> Campaign:
 	var c := Campaign.new()
 	c.profile = profile
-	c._key = profile.home_key()
+	c.members.assign(team.get("members", []))
+	c._key = ("team:" + String(team.id)) if not c.members.is_empty() else profile.home_key()
 	c._rng.seed = hash(c._key)
-	if profile.zip != "":
+	if not c.members.is_empty():
+		c._build_team(profile)
+	elif profile.zip != "":
 		c._build_from_zips(profile.zip)
 	if c.territories.is_empty():
 		c._build_generated(profile)
@@ -69,11 +82,74 @@ static func create(profile: Profile) -> Campaign:
 	c._place_nests()
 	c._place_recruits(profile)
 	c._place_caches()
-	c.territories[c.home].owned = true
+	for h in c.homes:
+		c.territories[h].owned = true
 	c.base_count = c.territories.size()
-	c._load()
+	if c.members.is_empty():
+		c._load()
+	else:
+		c._load_text(team.get("state", ""))
 	c._catch_up_frontier()
 	return c
+
+
+func is_team() -> bool:
+	return not members.is_empty()
+
+
+## The horde's clock runs slower on team maps: every member's moves advance it.
+func pace() -> int:
+	return maxi(1, members.size())
+
+
+## The teammate whose home is territory `i` ("" if none, or it's this player's).
+func home_owner(i: int) -> String:
+	return "" if i == home else String(_home_names.get(i, ""))
+
+
+func _nearest_home(site: Vector2) -> int:
+	var best := homes[0]
+	for h in homes:
+		if site.distance_to(territories[h].site) < site.distance_to(territories[best].site):
+			best = h
+	return best
+
+
+## Applies a move queued by Team to (newer) team state, without rewards or recording.
+func apply(action: Dictionary) -> void:
+	var i := -1
+	for k in territories.size():
+		if territories[k].id == String(action.get("t", "")):
+			i = k
+	replaying = true
+	match String(action.get("do", "")):
+		"battle":
+			if i >= 0:
+				resolve_battle(i, bool(action.won))
+		"patrol":
+			if i >= 0:
+				resolve_patrol(i, bool(action.won))
+		"rest":
+			rest()
+		"stable":
+			bring_from_stable(String(action.get("id", "")))
+	replaying = false
+
+
+func _act(action: Dictionary) -> void:
+	if is_team() and not replaying and on_action.is_valid():
+		on_action.call(action)
+
+
+func _feed(text: String) -> void:
+	if not is_team():
+		return
+	feed.append({"who": me, "text": text, "turn": turn})
+	feed = feed.slice(-20)
+
+
+func to_text() -> String:
+	return _to_cfg().encode_to_text()
 
 
 func owned_count() -> int:
@@ -90,7 +166,7 @@ func is_liberated() -> bool:
 
 ## Map turns between zombie counterattacks; a guard on bench duty buys time.
 func counter_interval() -> int:
-	return GameData.COUNTERATTACK_EVERY + (GameData.GUARD_COUNTER_DELAY if profile.duties.has("guard") else 0)
+	return (GameData.COUNTERATTACK_EVERY + (GameData.GUARD_COUNTER_DELAY if profile.duties.has("guard") else 0)) * pace()
 
 
 ## A territory's condition: night raids now and then, city ZIPs are streets, otherwise the
@@ -126,7 +202,7 @@ func has_frontier(i: int) -> bool:
 
 ## Only territories still linked to home count.
 func held_bonus() -> float:
-	return minf(GameData.MAX_HELD_BONUS, (supplied().size() - 1) * GameData.HELD_TERRITORY_BONUS)
+	return minf(GameData.MAX_HELD_BONUS, (supplied().size() - homes.size()) * GameData.HELD_TERRITORY_BONUS)
 
 
 ## Attacks launch from held land that's still linked to home.
@@ -153,17 +229,20 @@ func is_cut_off(i: int) -> bool:
 
 ## Turns before cut-off territory `i` falls to the horde.
 func turns_until_lost(i: int) -> int:
-	return GameData.CUT_OFF_FALL - int(cut_off.get(territories[i].id, 0))
+	return GameData.CUT_OFF_FALL * pace() - int(cut_off.get(territories[i].id, 0))
 
 
 func is_nest(i: int) -> bool:
 	return i in nests and not territories[i].owned and territories[i].id not in cleared_nests
 
 
-## Held land reachable from home without passing through `skip`.
+## Held land reachable from any home without passing through `skip`.
 func _reach_from_home(skip: int) -> Dictionary:
-	var seen := {home: true}
-	var queue: Array[int] = [home]
+	var seen := {}
+	var queue: Array[int] = []
+	for h in homes:
+		seen[h] = true
+		queue.append(h)
 	while not queue.is_empty():
 		var i: int = queue.pop_back()
 		for n in territories[i].neighbors:
@@ -256,6 +335,7 @@ func patrol_config(i: int) -> Dictionary:
 
 
 func resolve_patrol(i: int, won: bool) -> void:
+	_act({"do": "patrol", "t": territories[i].id, "won": won})
 	turn += 1
 	last_event = ("Patrol cleared the stragglers around %s." if won else "The patrol around %s fell back.") % territories[i].full_name()
 	_end_turn()
@@ -263,8 +343,13 @@ func resolve_patrol(i: int, won: bool) -> void:
 
 ## Brings an animal back from the Stable into a free pack slot; it takes the map turn.
 func bring_from_stable(id: String) -> void:
+	if replaying:
+		turn += 1  # the animal already left the Stable on this device; only the turn is shared
+		_end_turn()
+		return
 	if not profile.can_leave_stable(id):
 		return
+	_act({"do": "stable", "id": id})
 	turn += 1
 	profile.leave_stable(id)
 	last_event = "%s rejoins the pack from the Stable." % profile.unit_name(id)
@@ -273,16 +358,18 @@ func bring_from_stable(id: String) -> void:
 
 ## Rest at home: injuries heal and fatigue clears, but the map turn passes.
 func rest() -> void:
+	_act({"do": "rest"})
 	turn += 1
-	profile.injuries.clear()
-	profile.fatigue.clear()
+	if not replaying:
+		profile.injuries.clear()
+		profile.fatigue.clear()
 	last_event = "The pack rests at home. Injuries healed, everyone refreshed."
 	_end_turn()
 
 
 func _end_turn() -> void:
 	_update_supply()
-	if turn % GameData.MIGRATE_EVERY == 0:
+	if turn % (GameData.MIGRATE_EVERY * pace()) == 0:
 		_migrate()
 	if under_attack < 0 and turn % counter_interval() == 0:
 		_start_counterattack()
@@ -302,7 +389,7 @@ func _update_supply() -> void:
 		cut_off[t.id] = int(cut_off.get(t.id, 0)) + 1
 		if cut_off[t.id] == 1:
 			newly.append(t.full_name())
-		if cut_off[t.id] >= GameData.CUT_OFF_FALL:
+		if cut_off[t.id] >= GameData.CUT_OFF_FALL * pace():
 			t.owned = false
 			cut_off.erase(t.id)
 			fell.append(t.full_name())
@@ -313,28 +400,33 @@ func _update_supply() -> void:
 		last_event += "\nCut off too long, the horde overran %s." % ", ".join(fell)
 	if not newly.is_empty():
 		last_event += "\nCut off from home: %s! Reconnect within %d turns or lose %s." % [
-			", ".join(newly), GameData.CUT_OFF_FALL - 1, "it" if newly.size() == 1 else "them"]
+			", ".join(newly), GameData.CUT_OFF_FALL * pace() - 1, "it" if newly.size() == 1 else "them"]
 
 
-## Nests at the far edge of the starting map (no lairs): the farthest max-threat area, then each
-## next one as far from the others as possible. Depends only on the map, so it's stable.
+## Nests at the far edge of each home's starting patch (no lairs): the farthest max-threat area,
+## then each next one as far from the others as possible. Depends only on the map, so it's stable.
 func _place_nests() -> void:
-	var spots: Array[int] = []
-	for i in territories.size():
-		if i != home and territories[i].boss == "" and territories[i].threat >= GameData.MAX_THREAT:
-			spots.append(i)
-	while nests.size() < GameData.NEST_COUNT and not spots.is_empty():
-		var best := spots[0]
-		var best_d := -1.0
-		for i in spots:
-			var d := territories[i].site.distance_to(territories[home].site) if nests.is_empty() else INF
-			for n in nests:
-				d = minf(d, territories[i].site.distance_to(territories[n].site))
-			if d > best_d:
-				best_d = d
-				best = i
-		nests.append(best)
-		spots.erase(best)
+	for h in homes:
+		# This home's own patch: max-threat areas (not lairs) nearer to it than to any other home.
+		var spots: Array[int] = []
+		for i in territories.size():
+			var t := territories[i]
+			if i not in homes and i not in nests and t.boss == "" and t.threat >= GameData.MAX_THREAT 					and _nearest_home(t.site) == h:
+				spots.append(i)
+		var mine: Array[int] = []
+		while mine.size() < GameData.NEST_COUNT and not spots.is_empty():
+			var best := spots[0]
+			var best_d := -1.0
+			for i in spots:
+				var d := territories[i].site.distance_to(territories[h].site) if mine.is_empty() else INF
+				for n in mine:
+					d = minf(d, territories[i].site.distance_to(territories[n].site))
+				if d > best_d:
+					best_d = d
+					best = i
+			mine.append(best)
+			spots.erase(best)
+		nests.append_array(mine)
 
 
 ## Each standing nest pushes the horde one step: +1 threat to an unheld area next to its infested
@@ -362,7 +454,7 @@ func _migrate() -> void:
 				if t.owned or t.boss != "" or n in nests or t.threat >= cap or t.threat >= territories[i].threat 						or int(spread.get(t.id, 0)) >= GameData.MAX_SPREAD:
 					continue
 				if pick < 0 or t.threat > territories[pick].threat or (t.threat == territories[pick].threat
-						and t.site.distance_to(territories[home].site) < territories[pick].site.distance_to(territories[home].site)):
+						and _home_distance(t.site) < _home_distance(territories[pick].site)):
 					pick = n
 		if pick < 0:
 			continue
@@ -374,8 +466,13 @@ func _migrate() -> void:
 
 
 func resolve_battle(i: int, won: bool) -> void:
+	_act({"do": "battle", "t": territories[i].id, "won": won})
 	turn += 1
 	var t := territories[i]
+	if t.owned and i != under_attack:
+		last_event = "%s is already free: a teammate got there first." % t.full_name()
+		_end_turn()
+		return
 	if i == under_attack:
 		under_attack = -1
 		if won:
@@ -403,10 +500,11 @@ func resolve_battle(i: int, won: bool) -> void:
 			last_event = "The %s is defeated! %s is free." % [GameData.LEGENDS[t.boss].name, t.full_name()]
 		var loot := loot_at(i)
 		if loot != "":
-			profile.trinkets.append(loot)
-			claimed.append(t.id)
-			last_event += "\nFound the %s! Equip it from Pack." % GameData.trinket(loot).name
-		if t.recruit != "" and not profile.unlock([t.recruit]).is_empty():
+			claimed.append(t.id)  # shared: the liberator keeps it, teammates can't take it again
+			if not replaying:
+				profile.trinkets.append(loot)
+				last_event += "\nFound the %s! Equip it from Pack." % GameData.trinket(loot).name
+		if t.recruit != "" and not replaying and not profile.unlock([t.recruit]).is_empty():
 			var where := "waits in the Stable (the pack is full)" if t.recruit in profile.stable else "joined the pack"
 			last_event += "\nRescued: %s %s at Lv %d! Swap it in from Pack." % [
 				GameData.ANIMALS[t.recruit].name, where, profile.level_of(t.recruit)]
@@ -414,10 +512,19 @@ func resolve_battle(i: int, won: bool) -> void:
 	else:
 		t.failed_attacks += 1
 		last_event = "The pack retreated from %s, but thinned the horde there." % t.full_name()
+	_feed(last_event.get_slice("\n", 0))
 	_end_turn()
 
 
 func save() -> void:
+	if is_team():
+		return  # team maps live on the server; Team keeps this device's moves until they're sent
+	_to_cfg().save(save_path)
+	if save_path == SAVE_PATH:
+		SaveHooks.saved()
+
+
+func _to_cfg() -> ConfigFile:
 	var cfg := ConfigFile.new()
 	var owned_ids: Array[String] = []
 	for t in territories:
@@ -436,11 +543,10 @@ func save() -> void:
 	cfg.set_value("campaign", "spread", spread)
 	cfg.set_value("campaign", "cut_off", cut_off)
 	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
+	cfg.set_value("campaign", "feed", feed)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
-	cfg.save(save_path)
-	if save_path == SAVE_PATH:
-		SaveHooks.saved()
+	return cfg
 
 
 static func clear_saved() -> void:
@@ -449,7 +555,18 @@ static func clear_saved() -> void:
 
 func _load() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(save_path) != OK or cfg.get_value("campaign", "key", "") != _key:
+	if cfg.load(save_path) == OK:
+		_load_cfg(cfg)
+
+
+func _load_text(text: String) -> void:
+	var cfg := ConfigFile.new()
+	if text != "" and cfg.parse(text) == OK:
+		_load_cfg(cfg)
+
+
+func _load_cfg(cfg: ConfigFile) -> void:
+	if cfg.get_value("campaign", "key", "") != _key:
 		return
 	# Rebuild the frontier first: owned ids may include revealed areas.
 	for batch: Array in cfg.get_value("campaign", "revealed", []):
@@ -459,7 +576,7 @@ func _load() -> void:
 	var attacked: String = cfg.get_value("campaign", "under_attack", "")
 	var latest: String = cfg.get_value("campaign", "last_liberated", "")
 	for i in territories.size():
-		territories[i].owned = i == home or territories[i].id in owned_ids
+		territories[i].owned = i in homes or territories[i].id in owned_ids
 		if territories[i].id == attacked:
 			under_attack = i
 		if territories[i].id == latest and territories[i].owned:
@@ -474,6 +591,7 @@ func _load() -> void:
 		t.threat += int(spread.get(t.id, 0))
 	cut_off = cfg.get_value("campaign", "cut_off", {})
 	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
+	feed = cfg.get_value("campaign", "feed", [])
 	_ownership_changed()
 
 
@@ -508,7 +626,7 @@ func _place_caches() -> void:
 	rng.seed = hash(_key + ":caches")
 	var spots: Array[int] = []
 	for i in territories.size():
-		if i != home and territories[i].boss == "" and territories[i].threat >= GameData.MAX_THREAT - 1:
+		if i not in homes and territories[i].boss == "" and territories[i].threat >= GameData.MAX_THREAT - 1:
 			spots.append(i)
 	spots.sort_custom(func(a: int, b: int) -> bool:
 		return territories[a].site.length_squared() > territories[b].site.length_squared())
@@ -529,7 +647,7 @@ func pending_recruit(i: int) -> String:
 func _place_recruits(p: Profile) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(_key + ":recruits")
-	var starters: Array = GameData.REGIONS[p.region].animals
+	var starters := _starters()
 	var order := range(territories.size())
 	for k in range(order.size() - 1, 0, -1):
 		var j := rng.randi_range(0, k)
@@ -540,7 +658,7 @@ func _place_recruits(p: Profile) -> void:
 	for i: int in order:
 		if placed.size() >= MAX_RECRUITS:
 			break
-		if i == home or territories[i].boss != "":
+		if i in homes or territories[i].boss != "":
 			continue
 		var region: Dictionary = GameData.REGIONS.get(territories[i].region, {})
 		var options := []
@@ -587,9 +705,9 @@ func _place_real_lairs(first: int) -> Array[String]:
 		if area < 0 or not _slot.has(area) or _slot[area] < first:
 			continue
 		var i: int = _slot[area]
-		if i == home:
-			# A legend from the player's own ZIP lurks just next door instead.
-			i = territories[home].neighbors[0] if not territories[home].neighbors.is_empty() else -1
+		if i in homes:
+			# A legend from a player's own ZIP lurks just next door instead.
+			i = territories[i].neighbors[0] if not territories[i].neighbors.is_empty() else -1
 		if i < 0 or territories[i].boss != "":
 			continue
 		territories[i].boss = legend_id
@@ -642,7 +760,7 @@ static func _compass(v: Vector2) -> String:
 func _start_counterattack() -> void:
 	var border: Array[int] = []
 	for i in territories.size():
-		if i == home or not territories[i].owned:
+		if i in homes or not territories[i].owned:
 			continue
 		for n in territories[i].neighbors:
 			if not territories[n].owned:
@@ -683,7 +801,57 @@ func _build_from_zips(zip: String) -> void:
 	for pair in region.links:
 		_link(_slot[pair[0]], _slot[pair[1]])
 	home = 0
+	homes.assign([home])
 	_relabel()
+
+
+## Team map: every member's home ZIP grows its own patch of the real map (as big as a solo map);
+## patches that touch merge into one front. Projected around the first member's home, so every
+## teammate builds the identical map.
+func _build_team(p: Profile) -> void:
+	var mine := -1
+	for m: Dictionary in members:
+		var zip := String(m.zip)
+		var info := ZipDB.lookup(zip)
+		var area := ZctaDB.find(zip, info.lat, info.lon) if not info.is_empty() else -1
+		if area < 0:
+			continue
+		var region := ZctaDB.grow(area, TERRITORY_COUNT)
+		if not uses_zip_data:
+			uses_zip_data = true
+			_origin = ZctaDB.label_point(area)
+			_scale = Vector2(cos(deg_to_rad(_origin.y)) * KM_PER_DEG_LON, -KM_PER_DEG_LAT)
+		var fresh: Array[int] = []
+		for idx: int in region.indices:
+			if not _slot.has(idx):
+				fresh.append(idx)
+		_add_areas(fresh)
+		for pair in region.links:
+			if _slot.has(pair[0]) and _slot.has(pair[1]):
+				_link(_slot[pair[0]], _slot[pair[1]])
+		var h: int = _slot[area]
+		territories[h].name = info.place
+		territories[h].label = info.place
+		if h not in homes:
+			homes.append(h)
+			_home_names[h] = String(m.name).get_slice(" · ", 0)
+		if zip == p.zip and mine < 0:
+			mine = h
+		_starter_regions.append(String(info.region))
+	if homes.is_empty():
+		return
+	home = mine if mine >= 0 else homes[0]
+	_relabel()
+
+
+## Animals the map's survivors are never drawn from: the home region's (every member's on a team).
+func _starters() -> Array:
+	if _starter_regions.is_empty():
+		return GameData.REGIONS[profile.region].animals
+	var out := []
+	for r in _starter_regions:
+		out.append_array(GameData.REGIONS.get(r, {}).get("animals", []))
+	return out
 
 
 ## Adds ZIP areas as territories (projected around home) and links them to everything on the map.
@@ -723,7 +891,7 @@ func _relabel() -> void:
 		name_counts[t.name] = name_counts.get(t.name, 0) + 1
 	for i in territories.size():
 		var t := territories[i]
-		t.label = t.id if name_counts[t.name] > 1 and i != home else t.name
+		t.label = t.id if name_counts[t.name] > 1 and i not in homes else t.name
 
 
 ## Liberating an edge territory reveals the ZIP areas beyond it. Returns text for the event log.
@@ -770,7 +938,7 @@ func _place_frontier_extras(first_new: int) -> void:
 	for t in territories:
 		if t.recruit != "":
 			placed[t.recruit] = true
-	var starters: Array = GameData.REGIONS[profile.region].animals
+	var starters := _starters()
 	for i in range(first_new, territories.size()):
 		var t := territories[i]
 		if t.boss != "":
@@ -839,19 +1007,29 @@ func _build_generated(profile: Profile) -> void:
 			territories[-1].region = profile.region
 			territories[-1].condition = Campaign.condition_for(territories[-1], 0.0)
 	home = 0
+	homes.assign([home])
 
 
 ## Threat grows with distance from home: 1 next door, MAX_THREAT at the edge of the starting map,
 ## and higher still as the frontier pushes further out.
 func _assign_threat() -> void:
-	var origin := territories[home].site
-	_base_far = 0.0
+	_fars.clear()
+	for h in homes:
+		_fars[h] = 0.0
 	for t in territories:
-		_base_far = maxf(_base_far, t.site.distance_to(origin))
+		var h := _nearest_home(t.site)
+		_fars[h] = maxf(_fars[h], t.site.distance_to(territories[h].site))
 	for t in territories:
 		t.threat = _threat_at(t.site)
 
 
+## Measured from the nearest home, against how far that home's own patch reaches.
 func _threat_at(site: Vector2) -> int:
-	var d := site.distance_to(territories[home].site) / maxf(_base_far, 0.001)
+	var d := INF
+	for h in homes:
+		d = minf(d, site.distance_to(territories[h].site) / maxf(_fars.get(h, 1.0), 0.001))
 	return maxi(1, ceili(d * GameData.MAX_THREAT))
+
+
+func _home_distance(site: Vector2) -> float:
+	return site.distance_to(territories[_nearest_home(site)].site)

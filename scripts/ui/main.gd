@@ -4,6 +4,7 @@ extends Control
 
 var _profile: Profile
 var _campaign: Campaign
+var _campaign_stale := false  # the team map changed on the server: rebuild before showing it
 
 
 func _ready() -> void:
@@ -13,6 +14,9 @@ func _ready() -> void:
 		# A newer save arrived from the cloud: start over from it.
 		cloud.downloaded.connect(func() -> void: get_tree().reload_current_scene.call_deferred())
 		cloud.reset_requested.connect(_show_account)
+	var team := get_node_or_null("/root/Team")
+	if team:
+		team.changed.connect(_on_team_changed)
 		if cloud.reset_pending:
 			_show_account()  # a cloud download reloaded the game mid-reset
 			return
@@ -32,8 +36,11 @@ func _show_onboarding(existing: Profile) -> void:
 
 
 func _show_map(profile: Profile, allow_auto := true) -> void:
-	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key():
-		_campaign = Campaign.create(profile)
+	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key() or _campaign_stale:
+		var message := _campaign.last_event if _campaign and _campaign_stale else ""
+		_campaign = _make_campaign(profile)
+		_campaign.last_event = message  # a teammate's move rebuilt the map: keep this player's news
+		_campaign_stale = false
 	_profile = profile
 	var screen := MapScreen.new()
 	screen.campaign = _campaign
@@ -71,6 +78,26 @@ func _queue_auto(screen: MapScreen) -> void:
 	await get_tree().create_timer(GameData.AUTO_DELAY).timeout
 	if is_instance_valid(screen) and screen.is_inside_tree() and not screen.is_queued_for_deletion() and _profile.auto_battle:
 		_start_battle(target, false, _campaign.battle_config(target), true)
+
+
+## The solo campaign, or the team's shared map with this device's unsent moves on top.
+func _make_campaign(profile: Profile) -> Campaign:
+	var team := get_node_or_null("/root/Team")
+	if team == null or not team.on_team() or profile.zip == "":
+		return Campaign.create(profile)
+	var c := Campaign.create(profile, team.info)
+	c.me = team.my_name(profile)
+	for action: Dictionary in team.pending:
+		c.apply(action)
+	c.on_action = team.record
+	return c
+
+
+## Teammates moved (or the team changed): rebuild the map now if it's showing, else next time.
+func _on_team_changed() -> void:
+	_campaign_stale = true
+	if _profile and get_child_count() > 0 and get_child(-1) is MapScreen:
+		_show_map(_profile, false)
 
 
 func _show_account() -> void:

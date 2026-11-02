@@ -46,6 +46,9 @@ func _select(i: int) -> void:
 	if i == campaign.under_attack:
 		_info_body.text = "Under attack! Lv %d · threat %d. Lose this fight and the territory falls." % [campaign.territory_level(i), t.threat]
 		_action.text = "Defend!"
+	elif campaign.home_owner(i) != "":
+		_info_body.text = "%s's home: your teammate's pack began here.\nIt links your shared land like your own home does." % campaign.home_owner(i)
+		_action.visible = false
 	elif i == campaign.home:
 		_info_body.text = "Home. Where %s began.\nRest here to heal injuries and clear fatigue (takes a turn)." % _pack_name()
 		_action.text = "Rest"
@@ -294,6 +297,11 @@ func _build_ui() -> void:
 
 	var title := Label.new()
 	title.text = "Liberate %s" % campaign.territories[campaign.home].name
+	if campaign.is_team():
+		var towns: PackedStringArray = []
+		for h in campaign.homes:
+			towns.append(campaign.territories[h].name)
+		title.text = "Team: " + " & ".join(towns)
 	Retro.title(title, 18)
 	title.clip_text = true
 	col.add_child(title)
@@ -319,6 +327,16 @@ func _build_ui() -> void:
 	Retro.text(_event, 22, Retro.ORANGE)
 	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_event)
+	if campaign.is_team() and not campaign.feed.is_empty():
+		var recent: PackedStringArray = []
+		for k in range(campaign.feed.size() - 1, maxi(-1, campaign.feed.size() - 4), -1):
+			var entry: Dictionary = campaign.feed[k]
+			recent.append("%s: %s" % [String(entry.who).get_slice(" · ", 0), entry.text])
+		var team_feed := Label.new()
+		Retro.text(team_feed, 19, Retro.CYAN)
+		team_feed.text = "Team: " + "\n".join(recent)
+		team_feed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(team_feed)
 
 	_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_map.clip_contents = true

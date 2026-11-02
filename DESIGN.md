@@ -116,6 +116,17 @@ The apocalypse starts **where you actually live**.
   by +1 threat (each area at most +2, never above the nest's threat), most infested first, so
   the danger creeps toward the pack until around turn 45. Liberating a nest stops it for good.
   Saved as `spread`; data `GameData.NEST_COUNT`, `MIGRATE_EVERY`, `MAX_SPREAD`.
+- **Teams** (co-op, Cloud screen; US ZIP maps only; `scripts/net/team.gd`, `server/teams.sql`): up
+  to 4 signed-in players share one map built from all their homes. Each home grows its own patch
+  as big as a solo map; patches that touch merge. Threat counts from the nearest home, supply links
+  to any home, each home gets 2 nests, and the horde's clock (counterattacks, spread, cut-off
+  countdown) runs `pace()` = team size times slower, since every member's moves advance it.
+  Everyone keeps their own critters; liberating is shared, and whoever liberates gets the
+  survivor and trinket. Join with a 6-character code. Moves apply at once on the device and queue;
+  Team.flush() replays them on the newest shared map (no rewards on replay) and saves it only if
+  the version is unchanged, retrying on a teammate's newer map. A territory a teammate already
+  freed just costs the turn. The map shows teammates' homes (cyan) and a feed of recent moves;
+  it polls every 20 s while on a team.
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the

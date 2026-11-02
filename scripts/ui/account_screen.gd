@@ -9,6 +9,8 @@ var _content := VBoxContainer.new()
 var _status := Label.new()
 var _email := LineEdit.new()
 var _password := LineEdit.new()
+var _code := LineEdit.new()
+var _team_status := Label.new()
 
 
 func _ready() -> void:
@@ -27,6 +29,9 @@ func _ready() -> void:
 	var cloud := _cloud()
 	if cloud:
 		cloud.status_changed.connect(func(_t: String) -> void: _status.text = cloud.status)
+	var team := get_node_or_null("/root/Team")
+	if team:
+		team.changed.connect(_build)
 	_build()
 
 
@@ -36,7 +41,7 @@ func _cloud() -> Node:
 
 func _build() -> void:
 	for child in _content.get_children():
-		if child in [_status, _email, _password]:
+		if child in [_status, _email, _password, _code, _team_status]:
 			_content.remove_child(child)  # reused across rebuilds
 		else:
 			child.queue_free()
@@ -49,6 +54,8 @@ func _build() -> void:
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_content.add_child(intro)
 
+	Retro.text(_team_status, 19, Retro.ORANGE)
+	_team_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	Retro.text(_status, 20, Retro.CYAN)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.text = cloud.status if cloud else ""
@@ -83,6 +90,7 @@ func _build() -> void:
 		_content.add_child(_button("Log out", func() -> void:
 			cloud.log_out()
 			_build()))
+		_team_section()
 	else:
 		_email.placeholder_text = "Email"
 		_email.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS
@@ -97,6 +105,64 @@ func _build() -> void:
 
 	_content.add_child(Control.new())
 	_content.add_child(_button("Back", closed.emit))
+
+
+## Teams: create one, join with a code, or see who's on yours and leave.
+func _team_section() -> void:
+	var team := get_node_or_null("/root/Team")
+	if team == null:
+		return
+	_content.add_child(Retro.title(Label.new(), 14, Retro.GOLD))
+	_content.get_child(-1).text = "Team"
+	var profile := Profile.load_saved()
+	if profile == null or profile.zip == "":
+		_note("Teams play on real ZIP maps: set up a US ZIP code first (Setup on the map).", Retro.FOG)
+		return
+	if team.on_team():
+		_note("Team code: %s  (share it: up to %d players)" % [team.info.code, team.MAX_MEMBERS], Retro.WHITE)
+		for m: Dictionary in team.info.get("members", []):
+			_note("• %s, %s" % [m.name, ZipDB.lookup(String(m.zip)).get("place", m.zip)], Retro.CYAN)
+		_note("You share one map built from all your homes, and each keep your own critters. Liberating is shared; whoever liberates a territory gets its survivor and trinket.", Retro.FOG)
+		_content.add_child(_team_status)
+		var leave := _button("Leave team", Callable())
+		leave.pressed.connect(func() -> void:
+			if leave.text == "Leave team":
+				leave.text = "Tap again to leave (your solo map comes back)"
+				return
+			_team_status.text = "Leaving..."
+			var error: String = await team.leave()
+			_team_status.text = error
+			_build())
+		_content.add_child(leave)
+	else:
+		_note("Play with friends: one shared map built from all your homes, each with your own critters. Liberating is shared; whoever liberates a territory gets its survivor and trinket.", Retro.FOG)
+		_content.add_child(_team_status)
+		_content.add_child(_button("Create a team", func() -> void:
+			_team_status.text = "Creating..."
+			var error: String = await team.create(profile)
+			_team_status.text = error
+			_build()))
+		_code.placeholder_text = "Team code"
+		_code.custom_minimum_size = Vector2(0, 64)
+		_code.add_theme_font_size_override("font_size", Retro.px(14))
+		_content.add_child(_code)
+		_content.add_child(_button("Join team", func() -> void:
+			if _code.text.strip_edges() == "":
+				_team_status.text = "Enter the code a teammate shared."
+				return
+			_team_status.text = "Joining..."
+			var error: String = await team.join(_code.text, profile)
+			_team_status.text = error
+			if error == "":
+				_code.text = ""
+			_build()))
+
+
+func _note(text: String, color: Color) -> void:
+	var label := Retro.text(Label.new(), 19, color)
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_content.add_child(label)
 
 
 func _submit(create: bool) -> void:
@@ -118,6 +184,9 @@ func _submit(create: bool) -> void:
 	else:
 		_password.text = ""
 		_build()
+		var team := get_node_or_null("/root/Team")
+		if team:
+			team.refresh()  # this account may already be on a team (made on another device)
 
 
 func _add_password_field(hint: String) -> void:

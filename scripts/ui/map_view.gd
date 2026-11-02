@@ -149,12 +149,17 @@ func _draw() -> void:
 			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), SELECTED)
 			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
 			label = "HOME"
+		elif campaign.home_owner(i) != "":
+			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), Retro.CYAN)
+			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
+			label = campaign.home_owner(i).to_upper()
+			color = Retro.CYAN
 		elif is_lair:
 			label = GameData.LEGENDS[t.boss].name
 			color = LAIR
 		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var label_box := Rect2(c.x - text_w / 2.0, c.y + 4 - font_size, text_w, font_size * 1.3).grow(LABEL_GAP)
-		var must_show := i == campaign.home or i == selected or is_lair
+		var must_show := i in campaign.homes or i == selected or is_lair
 		if must_show or not placed.any(func(r: Rect2) -> bool: return r.intersects(label_box)):
 			placed.append(label_box)
 			_text(font, c + Vector2(0, 4), label, font_size, color)
@@ -192,7 +197,7 @@ func _label_order() -> Array[int]:
 		var t := campaign.territories[i]
 		var is_lair := t.boss != "" and not t.owned
 		var on_screen := _bboxes[i].size * _fit_scale * _zoom
-		if i == campaign.home or i == selected:
+		if i in campaign.homes or i == selected:
 			rank[i] = 0
 		elif is_lair:
 			rank[i] = 1
@@ -243,7 +248,7 @@ func _fill(i: int) -> Color:
 	if t.owned:
 		if campaign.is_cut_off(i):
 			return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
-		return HOME if i == campaign.home else OWNED
+		return HOME if i in campaign.homes else OWNED
 	if campaign.can_attack(i):
 		return ATTACKABLE
 	return INFESTED.lerp(INFESTED_DEEP, float(t.threat) / GameData.MAX_THREAT)

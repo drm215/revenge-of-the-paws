@@ -8,6 +8,8 @@ extends Node
 signal status_changed(text: String)
 ## A cloud save was written to disk; the game should reload it.
 signal downloaded
+## The player logged out (teams forget the account's team).
+signal signed_out
 ## The player opened a link from a Supabase email: show the account screen (new password, or why it failed).
 signal reset_requested
 
@@ -49,6 +51,11 @@ func _ready() -> void:
 		return
 	if signed_in():
 		sync()
+
+
+## The signed-in account's id ("" when signed out).
+func user_id() -> String:
+	return _user_id
 
 
 func enabled() -> bool:
@@ -101,6 +108,7 @@ func log_out() -> void:
 	reset_pending = false
 	_store_state()
 	_set_status("Signed out. Your game is still saved on this device.")
+	signed_out.emit()
 
 
 ## Emails a link that opens the game ready to choose a new password. "" on success, else an error.
@@ -398,6 +406,18 @@ func _error_text(r: Dictionary) -> String:
 
 func _note_error(what: String, r: Dictionary) -> void:
 	_last_error = " (%s: %s)" % [what, "no connection" if r.code == 0 else "%d %s" % [r.code, _error_text(r)]]
+
+
+## A signed-in request for other server features (teams): {ok, code, data}.
+func api(method: int, path: String, body: Variant = null) -> Dictionary:
+	if not enabled() or not signed_in() or not await _ensure_token():
+		return {"ok": false, "code": 0, "data": null}
+	return await _request(method, path, body)
+
+
+## A failed request's reason, for people.
+func error_text(r: Dictionary) -> String:
+	return _error_text(r)
 
 
 # --- Weekly siege -----------------------------------------------------------------------------
