@@ -26,6 +26,7 @@ const LABEL_GAP := 3.0  # px kept clear around each label; crowded labels wait f
 
 var campaign: Campaign
 var selected := -1
+var pings := {}  # territory ids teammates pinged recently -> who (Chat.recent_pings)
 
 var _fit_scale := 1.0
 var _fit_offset := Vector2.ZERO
@@ -134,6 +135,9 @@ func _draw() -> void:
 	for i in campaign.territories.size():
 		if campaign.territories[i].boss != "" and not campaign.territories[i].owned:
 			_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
+	for i in campaign.territories.size():
+		if pings.has(campaign.territories[i].id):
+			_outline(i, Retro.CYAN.lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0)), 5.0)
 	if selected >= 0:
 		_outline(selected, SELECTED, 4.0)
 

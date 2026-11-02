@@ -130,6 +130,12 @@ The apocalypse starts **where you actually live**.
   the version is unchanged, retrying on a teammate's newer map. A territory a teammate already
   freed just costs the turn. The map shows teammates' homes (cyan) and a feed of recent moves;
   it polls every 20 s while on a team.
+- **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
+  maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
+  10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on
+  teammates' maps for 10 minutes. Polls every 10 s on a team; the server keeps 200 per team.
+- **Loading screen:** `art/splash.png` (drawn by `tools/make_splash.gd`) is the boot splash, and
+  the web page matches it (dark background, gold progress bar, "Rallying the pack...").
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the

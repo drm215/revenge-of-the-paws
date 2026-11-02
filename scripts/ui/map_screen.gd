@@ -12,6 +12,7 @@ signal pack_requested
 signal stable_requested
 signal account_requested
 signal siege_requested
+signal chat_requested
 signal auto_toggled
 
 var campaign: Campaign
@@ -23,12 +24,18 @@ var _event := Label.new()
 var _info_title := Label.new()
 var _info_body := Label.new()
 var _action := Button.new()
+var _ping := Button.new()  # team: point teammates at the selected territory
+var _chat_button: Button
 var _briefing: Control
 
 
 func _ready() -> void:
 	_build_ui()
 	_map.campaign = campaign
+	var chat := get_node_or_null("/root/Chat")
+	if chat and campaign.is_team():
+		chat.received.connect(_on_chat)
+		_on_chat()
 	_map.territory_selected.connect(_select)
 	_refresh_status()
 	_select(campaign.under_attack if campaign.under_attack >= 0 else campaign.home)
@@ -128,6 +135,28 @@ func _refresh_status() -> void:
 func announce(text: String) -> void:
 	_event.text = (_event.text + "\n" + text) if _event.visible else text
 	_event.visible = true
+
+
+## New team chat: unread count on the Chat button, pings outlined on the map.
+func _on_chat() -> void:
+	var chat := get_node_or_null("/root/Chat")
+	if chat == null:
+		return
+	var unread: int = chat.unread()
+	if _chat_button:
+		_chat_button.text = "Chat (%d)" % unread if unread > 0 else "Chat"
+	_map.pings = chat.recent_pings()
+	_map.queue_redraw()
+
+
+func _on_ping() -> void:
+	var t := campaign.territories[_map.selected]
+	_ping.disabled = true
+	var error: String = await get_node("/root/Chat").send("pinged " + t.full_name(), t.id)
+	if not is_inside_tree():
+		return
+	_ping.disabled = false
+	_event.text = error if error != "" else "Pinged %s for your team." % t.full_name()
 
 
 func _on_action() -> void:
@@ -362,8 +391,17 @@ func _build_ui() -> void:
 	_info_body.custom_minimum_size = Vector2(0, 52)
 	info.add_child(_info_body)
 	_action.custom_minimum_size = Vector2(0, 84)
+	_action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action.pressed.connect(_on_action)
-	info.add_child(_action)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 10)
+	info.add_child(actions)
+	actions.add_child(_action)
+	_ping.text = "Ping"
+	_ping.custom_minimum_size = Vector2(140, 84)
+	_ping.visible = campaign.is_team()
+	_ping.pressed.connect(_on_ping)
+	actions.add_child(_ping)
 
 	# Buttons share one row evenly; the data credit gets its own full-width line below them.
 	var footer := HBoxContainer.new()
@@ -389,6 +427,12 @@ func _build_ui() -> void:
 	siege_button.add_theme_font_size_override("font_size", Retro.px(10))
 	siege_button.pressed.connect(siege_requested.emit)
 	footer.add_child(siege_button)
+	if campaign.is_team():
+		_chat_button = Button.new()
+		_chat_button.text = "Chat"
+		_chat_button.add_theme_font_size_override("font_size", Retro.px(10))
+		_chat_button.pressed.connect(chat_requested.emit)
+		footer.add_child(_chat_button)
 	var cloud_button := Button.new()
 	cloud_button.text = "Cloud"
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))

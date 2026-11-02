@@ -8,11 +8,15 @@ config/name="Revenge of the Paws"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.0941176, 0.0784314, 0.145098, 1)
+boot_splash/image="res://art/splash.png"
+boot_splash/use_filter=false
 
 [autoload]
 
 Cloud="*res://scripts/net/cloud.gd"
 Team="*res://scripts/net/team.gd"
+Chat="*res://scripts/net/chat.gd"
 
 [display]
 

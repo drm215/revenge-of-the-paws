@@ -59,6 +59,10 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
+	screen.chat_requested.connect(func() -> void:
+		var chat := ChatScreen.new()
+		chat.closed.connect(func() -> void: _show_map(_profile, false))
+		_swap(chat))
 	screen.auto_toggled.connect(func() -> void:
 		_profile.auto_battle = not _profile.auto_battle
 		_profile.save()
