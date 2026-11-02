@@ -41,6 +41,9 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_campaign = _make_campaign(profile)
 		_campaign.last_event = message  # a teammate's move rebuilt the map: keep this player's news
 		_campaign_stale = false
+		var gained := profile.collect_team_xp(_campaign.team_key(), int(_campaign.shared_xp.get(_campaign.my_id, 0)))
+		if gained > 0:
+			_campaign.last_event += "\nTeammates' battles next to your land earned your pack +%d XP each." % gained
 	_profile = profile
 	var screen := MapScreen.new()
 	screen.campaign = _campaign
@@ -61,7 +64,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_profile.save()
 		_show_map(_profile))
 	_swap(screen)
-	if allow_auto and profile.auto_battle:
+	if allow_auto and profile.auto_battle and GameData.AUTO_MODE_ENABLED:
 		_queue_auto(screen)
 
 
@@ -87,6 +90,8 @@ func _make_campaign(profile: Profile) -> Campaign:
 		return Campaign.create(profile)
 	var c := Campaign.create(profile, team.info)
 	c.me = team.my_name(profile)
+	var cloud := get_node_or_null("/root/Cloud")
+	c.my_id = cloud.user_id() if cloud else ""
 	for action: Dictionary in team.pending:
 		c.apply(action)
 	c.on_action = team.record
@@ -169,7 +174,7 @@ func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := fal
 		if patrol:
 			_campaign.resolve_patrol(territory, won)
 		else:
-			_campaign.resolve_battle(territory, won)
+			_campaign.resolve_battle(territory, won, screen.xp_awarded)
 		if auto and not won:
 			_profile.auto_battle = false
 			_campaign.last_event += "\nAuto mode switched off after the retreat."

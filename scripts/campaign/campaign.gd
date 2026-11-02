@@ -44,6 +44,8 @@ var homes: Array[int] = []
 var members: Array = []  # [{user_id, name, zip}] in join order; empty when playing solo
 var feed: Array = []  # team: recent moves [{who, text, turn}], newest last
 var me := ""  # this player's name in the team feed
+var my_id := ""  # this player's account id (team XP shares)
+var shared_xp := {}  # team: account id -> XP teammates' battles have earned them, all time
 var replaying := false  # re-applying queued moves to newer team state: no rewards, no recording
 var on_action := Callable()  # team: told about each move so it can be sent to the server
 
@@ -57,6 +59,7 @@ var _rng := RandomNumberGenerator.new()
 var _fars := {}  # home index -> km to the edge of its starting patch; threat 5 there
 var _starter_regions: Array[String] = []  # team: every member's home region
 var _home_names := {}  # team: home index -> its member's short name
+var _home_of := {}  # team: account id -> home index
 var _slot := {}  # ZIP area index -> territory index
 var _area_of: Array[int] = []  # territory index -> ZIP area index
 var _linked := {}  # cache of supplied(); cleared whenever ownership changes
@@ -125,7 +128,7 @@ func apply(action: Dictionary) -> void:
 	match String(action.get("do", "")):
 		"battle":
 			if i >= 0:
-				resolve_battle(i, bool(action.won))
+				resolve_battle(i, bool(action.won), int(action.get("xp", 0)))
 		"patrol":
 			if i >= 0:
 				resolve_patrol(i, bool(action.won))
@@ -139,6 +142,28 @@ func apply(action: Dictionary) -> void:
 func _act(action: Dictionary) -> void:
 	if is_team() and not replaying and on_action.is_valid():
 		on_action.call(action)
+
+
+## Teammates whose home links to this player's through held land are owed GameData.TEAM_XP_SHARE
+## of the battle's XP; each device collects its own (Profile.collect_team_xp).
+func _share_xp(xp: int) -> void:
+	var amount := roundi(xp * GameData.TEAM_XP_SHARE)
+	if not is_team() or amount <= 0:
+		return
+	var linked := _reach([home], -1)
+	for id in _home_of:
+		if id != my_id and linked.has(_home_of[id]):
+			shared_xp[id] = int(shared_xp.get(id, 0)) + amount
+
+
+## True if this player's home and `other` are joined by an unbroken chain of held land.
+func homes_linked(other: int) -> bool:
+	return _reach([home], -1).has(other)
+
+
+## This team map's key, for the XP each player has collected from it.
+func team_key() -> String:
+	return _key if is_team() else ""
 
 
 func _feed(text: String) -> void:
@@ -238,9 +263,14 @@ func is_nest(i: int) -> bool:
 
 ## Held land reachable from any home without passing through `skip`.
 func _reach_from_home(skip: int) -> Dictionary:
+	return _reach(homes, skip)
+
+
+## Held land reachable from `starts` without passing through `skip`.
+func _reach(starts: Array[int], skip: int) -> Dictionary:
 	var seen := {}
 	var queue: Array[int] = []
-	for h in homes:
+	for h in starts:
 		seen[h] = true
 		queue.append(h)
 	while not queue.is_empty():
@@ -465,8 +495,9 @@ func _migrate() -> void:
 			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
-func resolve_battle(i: int, won: bool) -> void:
-	_act({"do": "battle", "t": territories[i].id, "won": won})
+## `xp`: what each of this player's fighters earned; linked teammates get a share of it.
+func resolve_battle(i: int, won: bool, xp := 0) -> void:
+	_act({"do": "battle", "t": territories[i].id, "won": won, "xp": xp})
 	turn += 1
 	var t := territories[i]
 	if t.owned and i != under_attack:
@@ -513,6 +544,7 @@ func resolve_battle(i: int, won: bool) -> void:
 		t.failed_attacks += 1
 		last_event = "The pack retreated from %s, but thinned the horde there." % t.full_name()
 	_feed(last_event.get_slice("\n", 0))
+	_share_xp(xp)
 	_end_turn()
 
 
@@ -544,6 +576,7 @@ func _to_cfg() -> ConfigFile:
 	cfg.set_value("campaign", "cut_off", cut_off)
 	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
 	cfg.set_value("campaign", "feed", feed)
+	cfg.set_value("campaign", "shared_xp", shared_xp)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	return cfg
@@ -592,6 +625,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	cut_off = cfg.get_value("campaign", "cut_off", {})
 	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
 	feed = cfg.get_value("campaign", "feed", [])
+	shared_xp = cfg.get_value("campaign", "shared_xp", {})
 	_ownership_changed()
 
 
@@ -832,6 +866,7 @@ func _build_team(p: Profile) -> void:
 		var h: int = _slot[area]
 		territories[h].name = info.place
 		territories[h].label = info.place
+		_home_of[String(m.get("user_id", ""))] = h
 		if h not in homes:
 			homes.append(h)
 			_home_names[h] = String(m.name).get_slice(" · ", 0)

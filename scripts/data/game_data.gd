@@ -1235,6 +1235,8 @@ static func territory_level(zombie_strength: float) -> int:
 const PACK_LEVEL_GAP := 2
 ## Auto mode fights a territory on its own when the pack leader is at least this many levels above it.
 const AUTO_LEVEL_GAP := 10
+## Auto mode is parked for now: no footer button, no auto-fights, no hints (the code stays).
+const AUTO_MODE_ENABLED := false
 ## Auto fights teach less than ones the player plays: their XP (fighters and bench) is halved.
 const AUTO_XP_SHARE := 0.5
 ## Seconds the map waits before auto mode starts its next fight, so it can be switched off.
@@ -1260,6 +1262,9 @@ const CHOKEPOINT_CHANCE := 0.7
 ## ground by 1 (each area at most MAX_SPREAD, never above the nest's own threat), so the wave
 ## creeps out toward the pack. Liberating a nest stops it.
 const NEST_COUNT := 2
+## Teams: when a teammate fights for a territory, every other member whose home links to theirs
+## through held land gets this share of the battle's XP. No link, no XP.
+const TEAM_XP_SHARE := 0.1
 const MIGRATE_EVERY := 3
 const MAX_SPREAD := 2
 

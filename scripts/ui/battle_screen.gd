@@ -26,6 +26,7 @@ var auto := false
 ## Set at the end when the AI fought at least part of the battle: earns AUTO_XP_SHARE.
 var was_auto := false
 var battle: Battle
+var xp_awarded := 0  # what each fighter earned (teammates get a share of it)
 var cards := {}  # Combatant -> UnitCard
 
 var _actor: Combatant
@@ -203,6 +204,7 @@ func _award_xp(won: bool) -> String:
 	var fought: Array[String] = []
 	for c in battle.party:
 		fought.append(c.id)
+	xp_awarded = amount
 	return "\n".join(profile.after_battle(fought, battle.downed, amount, won))
 
 

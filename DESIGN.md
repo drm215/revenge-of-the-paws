@@ -122,7 +122,10 @@ The apocalypse starts **where you actually live**.
   to any home, each home gets 2 nests, and the horde's clock (counterattacks, spread, cut-off
   countdown) runs `pace()` = team size times slower, since every member's moves advance it.
   Everyone keeps their own critters; liberating is shared, and whoever liberates gets the
-  survivor and trinket. Join with a 6-character code. Moves apply at once on the device and queue;
+  survivor and trinket. After each battle for a territory (attack or defense, won or lost; not
+  patrols), every other member whose home links to the fighter's through held land is owed 10% of
+  its XP (`TEAM_XP_SHARE`), for every animal in their pack; no link, no XP. The shared map keeps
+  each player's running total (`shared_xp`) and each profile what it has collected (`team_xp`). Join with a 6-character code. Moves apply at once on the device and queue;
   Team.flush() replays them on the newest shared map (no rewards on replay) and saves it only if
   the version is unchanged, retrying on a teammate's newer map. A territory a teammate already
   freed just costs the turn. The map shows teammates' homes (cyan) and a feed of recent moves;
@@ -139,7 +142,7 @@ The apocalypse starts **where you actually live**.
     (a retreat carries its wounded home, so losses don't snowball).
   - *Recovery:* **Rest** at home heals all injuries and clears fatigue (costs a map turn);
     **Patrol** a territory you hold for an easier fight (threat -1) that earns XP.
-  - *Auto mode* (map footer toggle): territories and counterattacks at least 10 levels below the
+  - *Auto mode* (parked: `GameData.AUTO_MODE_ENABLED` is false, so no footer button or auto-fights): territories and counterattacks at least 10 levels below the
     pack leader (the pet, else the highest-level animal) are fought one at a time after a short
     pause on the map: the AI plays the pack's turns on the battle screen ("Take control" hands it
     back) and the fight earns half XP. Legend lairs are never auto-fought; a retreat turns it off.

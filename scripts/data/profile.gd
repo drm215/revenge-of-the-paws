@@ -43,6 +43,7 @@ var rows := {}  # unit id -> "front" / "back", where it differs from its role's 
 var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
 var siege_claimed: Array[int] = []  # weekly sieges whose reward was claimed
+var team_xp := {}  # team map key -> XP from teammates' battles already collected
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -466,6 +467,7 @@ func save() -> void:
 	cfg.set_value("profile", "auto_battle", auto_battle)
 	cfg.set_value("profile", "fixes", Array(fixes))
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
+	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -498,6 +500,7 @@ static func load_saved() -> Profile:
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
 	p.fixes.assign(cfg.get_value("profile", "fixes", []))
 	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
+	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
@@ -534,6 +537,19 @@ func claim_siege(week: int) -> String:
 	lines.append("The pack gains half a level of XP.")
 	save()
 	return "\n".join(lines)
+
+
+## Collects XP teammates' battles have earned this pack (`owed`: the all-time total on team map
+## `key`) for every animal in the pack. Returns the XP each gained (0 if nothing new).
+func collect_team_xp(key: String, owed: int) -> int:
+	var gained := owed - int(team_xp.get(key, 0))
+	if key == "" or gained <= 0:
+		return 0
+	team_xp[key] = owed
+	for id in pack_ids():
+		add_xp(id, gained)
+	save()
+	return gained
 
 
 ## How this pack appears on the siege leaderboard: pet (or lead animal) and region, never the town.

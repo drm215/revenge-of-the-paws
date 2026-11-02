@@ -130,6 +130,7 @@ func flush() -> void:
 		var row: Dictionary = r.data
 		var c := Campaign.create(profile, row)
 		c.me = my_name(profile)
+		c.my_id = _cloud().user_id()
 		for action: Dictionary in pending:
 			c.apply(action)
 		var text := c.to_text()

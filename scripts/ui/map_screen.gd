@@ -98,7 +98,7 @@ func _select(i: int) -> void:
 			_info_body.text += "\nScouted: " + GameData.waves_text(cfg.waves)
 		else:
 			_info_body.text += "\nWaves unknown: put a benched animal on scout duty."
-		if profile.auto_battle and t.boss == "":
+		if GameData.AUTO_MODE_ENABLED and profile.auto_battle and t.boss == "":
 			_info_body.text += "\nAuto mode takes this one once your leader is Lv %d." % (campaign.base_level(i) + GameData.AUTO_LEVEL_GAP)
 		if campaign.is_nest(i):
 			_info_body.text += "\nHORDE NEST: spreads toward you every %d turns until liberated." % GameData.MIGRATE_EVERY
@@ -394,11 +394,12 @@ func _build_ui() -> void:
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))
 	cloud_button.pressed.connect(account_requested.emit)
 	footer.add_child(cloud_button)
-	var auto := Button.new()
-	auto.text = "Auto: " + ("On" if profile.auto_battle else "Off")
-	auto.add_theme_font_size_override("font_size", Retro.px(10))
-	auto.pressed.connect(auto_toggled.emit)
-	footer.add_child(auto)
+	if GameData.AUTO_MODE_ENABLED:
+		var auto := Button.new()
+		auto.text = "Auto: " + ("On" if profile.auto_battle else "Off")
+		auto.add_theme_font_size_override("font_size", Retro.px(10))
+		auto.pressed.connect(auto_toggled.emit)
+		footer.add_child(auto)
 	setup.text = "Setup"
 	setup.add_theme_font_size_override("font_size", Retro.px(10))
 	setup.pressed.connect(setup_requested.emit)
