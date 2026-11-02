@@ -31,7 +31,8 @@ directory `.`) and redeploys on every push.
 Accounts and saves live in a Supabase project (`scripts/net/cloud.gd`). Cloud saves are off while
 `scripts/net/cloud_config.gd` has an empty `URL`. To turn them on:
 
-1. Create a free project at https://supabase.com and run `server/supabase.sql` in its SQL Editor.
+1. Create a free project at https://supabase.com and run `server/supabase.sql`, then
+   `server/siege.sql` (the weekly siege), in its SQL Editor.
 2. Authentication → URL Configuration: set **Site URL** to `https://revengeofthepaws.com` and add
    it under **Redirect URLs**, so confirm and reset emails open the game.
 3. Optionally turn **Confirm email** off (Authentication → Sign In / Providers → Email).

@@ -35,6 +35,7 @@ var current: Combatant
 var place := ""
 var xp_earned := 0  # from every zombie and legend the pack has defeated so far
 var xp_mult := 1.0  # XP per kill scales with the territory's own strength, not with pack-scaled zombies
+var kills := 0  # zombies and legends the pack destroyed (revived ones count once); hits the weekly siege
 var downed: Array[String] = []  # pack members knocked out at any point (they'll be injured)
 var condition := ""
 var _perk_log: PackedStringArray = []  # lineup effects, announced as the first wave starts
@@ -542,6 +543,7 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 			downed.append(dst.id)
 	if not dst.is_player and not dst.revived:
 		xp_earned += roundi(dst.xp_value * xp_mult)
+		kills += 1
 	if dst.is_leader and outcome() == Outcome.ONGOING:
 		log_message.emit("[color=#ff8080]Without %s, the pack falters![/color]" % dst.display_name)
 	var blast: int = dst.traits.get("explode_on_death", 0)

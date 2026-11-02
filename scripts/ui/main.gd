@@ -48,6 +48,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.pack_requested.connect(_show_pack)
 	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
+	screen.siege_requested.connect(_show_siege)
 	screen.auto_toggled.connect(func() -> void:
 		_profile.auto_battle = not _profile.auto_battle
 		_profile.save()
@@ -80,6 +81,13 @@ func _show_account() -> void:
 			_show_map(profile)
 		else:
 			_show_onboarding(null))
+	_swap(screen)
+
+
+func _show_siege() -> void:
+	var screen := SiegeScreen.new()
+	screen.profile = _profile
+	screen.closed.connect(func() -> void: _show_map(_profile, false))
 	_swap(screen)
 
 
@@ -138,12 +146,23 @@ func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := fal
 		if auto and not won:
 			_profile.auto_battle = false
 			_campaign.last_event += "\nAuto mode switched off after the retreat."
+		_hit_siege(screen.battle.kills * int(config.get("threat", 1)))
 		_profile.save()  # XP and any rescued recruit
 		if not _profile.units_with_new_points().is_empty():
 			_show_upgrades()
 		else:
 			_show_map(_profile))
 	_swap(screen)
+
+
+## Every zombie destroyed hits the weekly siege for the territory's threat.
+func _hit_siege(points: int) -> void:
+	var cloud := get_node_or_null("/root/Cloud")
+	if points <= 0 or cloud == null or not cloud.enabled():
+		return
+	cloud.siege_add(points, _profile.siege_name())
+	_campaign.last_event += "\n+%d damage to %s (Siege)." % [points, GameData.siege_info(GameData.siege_week(Time.get_unix_time_from_system())).name]
+	_campaign.save()
 
 
 func _swap(screen: Control) -> void:

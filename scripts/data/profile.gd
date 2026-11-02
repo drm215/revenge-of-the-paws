@@ -42,6 +42,7 @@ var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
 var rows := {}  # unit id -> "front" / "back", where it differs from its role's default
 var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
+var siege_claimed: Array[int] = []  # weekly sieges whose reward was claimed
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -464,6 +465,7 @@ func save() -> void:
 	cfg.set_value("profile", "rows", rows)
 	cfg.set_value("profile", "auto_battle", auto_battle)
 	cfg.set_value("profile", "fixes", Array(fixes))
+	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -495,6 +497,7 @@ static func load_saved() -> Profile:
 	p.rows = cfg.get_value("profile", "rows", {})
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
 	p.fixes.assign(cfg.get_value("profile", "fixes", []))
+	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
@@ -513,6 +516,30 @@ static func load_saved() -> Profile:
 			p.tree.erase("alligator")
 		p.save()
 	return p
+
+
+## The siege reward for helping bring down `week`'s horde: a cache trinket and half a level of XP
+## for everyone in the pack. Returns what was gained, or "" if already claimed.
+func claim_siege(week: int) -> String:
+	if week in siege_claimed:
+		return ""
+	siege_claimed.append(week)
+	var found: String = GameData.CACHE_TRINKETS.pick_random()
+	trinkets.append(found)
+	var lines: PackedStringArray = ["Found the %s! Equip it from Pack." % GameData.trinket(found).name]
+	for id in active():
+		var level_cost := GameData.xp_to_reach(level_of(id) + 1) - GameData.xp_to_reach(level_of(id))
+		if add_xp(id, roundi(level_cost * GameData.SIEGE_REWARD_XP)) > 0:
+			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
+	lines.append("The pack gains half a level of XP.")
+	save()
+	return "\n".join(lines)
+
+
+## How this pack appears on the siege leaderboard: pet (or lead animal) and region, never the town.
+func siege_name() -> String:
+	var lead := pet_name if has_pet() else (unit_name(team[0]) + "'s pack" if not team.is_empty() else "A pack")
+	return ("%s · %s" % [lead, GameData.REGIONS[region].name]).left(40) if GameData.REGIONS.has(region) else lead.left(40)
 
 
 static func clear_saved() -> void:

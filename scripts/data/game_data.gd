@@ -1455,6 +1455,40 @@ static func default_row(role: String) -> String:
 	return "back" if role in BACK_ROLES else "front"
 
 
+## Weekly siege (server/siege.sql): one giant horde shared by every signed-in player. Each zombie
+## a pack destroys hits it for the territory's threat. Its HP grows with the packs taking part;
+## when the week's damage reaches it, everyone who helped claims a trinket and XP.
+const SIEGE_HP_BASE := 150
+const SIEGE_HP_PER_PLAYER := 300
+const SIEGE_EPOCH := 345600  # Monday 1970-01-05 00:00 UTC: siege weeks start Mondays
+const SIEGE_REWARD_XP := 0.5  # share of a level each animal in the pack gains
+const SIEGES := [
+	{"name": "The Interstate Horde", "lore": "Ten miles of stalled traffic, and every car emptied out at once."},
+	{"name": "The Mall Swarm", "lore": "The food court never closed. Neither did the doors."},
+	{"name": "The Stadium Crush", "lore": "Sixty thousand fans, still in their jerseys, still chanting."},
+	{"name": "The Freight Line Shamblers", "lore": "They ride the boxcars from town to town and spill out at every crossing."},
+	{"name": "The County Fair Rot", "lore": "The rides still turn. Something keeps buying tickets."},
+	{"name": "The Harbor Drowned", "lore": "They walked out of the water, and the tide keeps bringing more."},
+]
+
+
+static func siege_week(unix: float) -> int:
+	return floori((unix - SIEGE_EPOCH) / 604800.0)
+
+
+static func siege_info(week: int) -> Dictionary:
+	return SIEGES[posmod(week, SIEGES.size())]
+
+
+static func siege_hp(players: int) -> int:
+	return SIEGE_HP_BASE + SIEGE_HP_PER_PLAYER * maxi(1, players)
+
+
+## Seconds until the siege of `week` ends.
+static func siege_left(week: int, unix: float) -> int:
+	return maxi(0, int(SIEGE_EPOCH + (week + 1) * 604800 - unix))
+
+
 ## What a row means, for the Pack screen ("" for the one-line summary of both). Birds hit at full
 ## strength from the back.
 static func row_hint(row := "", bird := false) -> String:

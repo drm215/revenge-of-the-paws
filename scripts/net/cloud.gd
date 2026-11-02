@@ -33,6 +33,8 @@ var _dirty := false  # local save changed since the last sync
 var _busy := false
 var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
+var _siege_pending := {}  # siege week (as text) -> damage not yet sent
+var _siege_name := ""
 var _last_error := ""  # why the last request failed, shown after "Offline" so problems can be traced
 var _conflict_ui: CanvasLayer
 
@@ -199,6 +201,7 @@ func sync() -> void:
 		return
 	_busy = true
 	await _sync_once()
+	await _send_siege()
 	_busy = false
 
 
@@ -388,6 +391,55 @@ func _note_error(what: String, r: Dictionary) -> void:
 	_last_error = " (%s: %s)" % [what, "no connection" if r.code == 0 else "%d %s" % [r.code, _error_text(r)]]
 
 
+# --- Weekly siege -----------------------------------------------------------------------------
+
+## Queues siege damage from a battle; it's sent with the next sync (kept until you log in).
+func siege_add(points: int, pack_name: String) -> void:
+	if points <= 0:
+		return
+	var week := str(GameData.siege_week(Time.get_unix_time_from_system()))
+	_siege_pending[week] = int(_siege_pending.get(week, 0)) + points
+	_siege_name = pack_name
+	_store_state()
+	if signed_in():
+		_timer.start(UPLOAD_DELAY)
+
+
+## Damage waiting to be sent for `week`.
+func siege_pending(week: int) -> int:
+	return int(_siege_pending.get(str(week), 0))
+
+
+func _send_siege() -> void:
+	if _siege_pending.is_empty() or _siege_name == "" or not await _ensure_token():
+		return
+	for week in _siege_pending.keys():
+		var left: int = _siege_pending[week]
+		while left > 0:
+			var points := mini(left, 2000)
+			var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/siege_hits",
+				{"week": int(week), "name": _siege_name, "points": points}, true, ["Prefer: return=minimal"])
+			if not r.ok:
+				_note_error("siege", r)
+				_siege_pending[week] = left
+				_store_state()
+				return
+			left -= points
+		_siege_pending.erase(week)
+		_store_state()
+
+
+## The week's totals: {"total", "players", "mine", "top": [{"name", "points"}]}, or {} offline.
+func siege_board(week: int) -> Dictionary:
+	if signed_in() and not await _ensure_token():
+		return {}
+	var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/rpc/siege_board", {"p_week": week}, signed_in())
+	if not r.ok or not r.data is Dictionary:
+		_note_error("siege", r)
+		return {}
+	return r.data
+
+
 func _set_status(text: String) -> void:
 	status = text
 	status_changed.emit(text)
@@ -401,6 +453,8 @@ func _store_state() -> void:
 	cfg.set_value("cloud", "last_synced_at", last_synced_at)
 	cfg.set_value("cloud", "last_synced_unix", last_synced_unix)
 	cfg.set_value("cloud", "dirty", _dirty)
+	cfg.set_value("cloud", "siege_pending", _siege_pending)
+	cfg.set_value("cloud", "siege_name", _siege_name)
 	cfg.save(state_path)
 
 
@@ -414,3 +468,5 @@ func _load_state() -> void:
 	last_synced_at = cfg.get_value("cloud", "last_synced_at", "")
 	last_synced_unix = cfg.get_value("cloud", "last_synced_unix", 0.0)
 	_dirty = cfg.get_value("cloud", "dirty", false)
+	_siege_pending = cfg.get_value("cloud", "siege_pending", {})
+	_siege_name = cfg.get_value("cloud", "siege_name", "")

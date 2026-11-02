@@ -11,6 +11,7 @@ signal setup_requested
 signal pack_requested
 signal stable_requested
 signal account_requested
+signal siege_requested
 signal auto_toggled
 
 var campaign: Campaign
@@ -353,6 +354,11 @@ func _build_ui() -> void:
 	stable_button.add_theme_font_size_override("font_size", Retro.px(10))
 	stable_button.pressed.connect(stable_requested.emit)
 	footer.add_child(stable_button)
+	var siege_button := Button.new()
+	siege_button.text = "Siege"
+	siege_button.add_theme_font_size_override("font_size", Retro.px(10))
+	siege_button.pressed.connect(siege_requested.emit)
+	footer.add_child(siege_button)
 	var cloud_button := Button.new()
 	cloud_button.text = "Cloud"
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(10))

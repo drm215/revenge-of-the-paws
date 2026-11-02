@@ -175,6 +175,7 @@ func battle_config(i: int) -> Dictionary:
 	rng.seed = hash(t.id)  # same zombies every visit, so a retry is a fair rematch
 	return {
 		"waves": GameData.generate_waves(threat, rng, t.boss),
+		"threat": threat,
 		"zombie_mult": zombie_strength(threat) * t.horde_strength(),
 		"xp_mult": GameData.zombie_mult(threat) * t.horde_strength(),
 		"party_mult": 1.0 + held_bonus(),
@@ -193,6 +194,7 @@ func patrol_config(i: int) -> Dictionary:
 	rng.seed = hash(t.id + ":patrol:%d" % turn)
 	return {
 		"waves": GameData.generate_waves(threat, rng),
+		"threat": threat,
 		"zombie_mult": zombie_strength(threat),
 		"xp_mult": GameData.zombie_mult(threat),
 		"party_mult": 1.0 + held_bonus(),
@@ -665,7 +667,9 @@ func _build_generated(profile: Profile) -> void:
 				ok = false
 				break
 		if ok:
-			territories.append(Territory.new("d%d" % territories.size(), names[territories.size() - 1], p))
+			var n := territories.size() - 1  # more territories than names: later ones reuse them, numbered
+			var label: String = names[n % names.size()] + ("" if n < names.size() else " %d" % (n / names.size() + 1))
+			territories.append(Territory.new("d%d" % territories.size(), label, p))
 			territories[-1].region = profile.region
 			territories[-1].condition = Campaign.condition_for(territories[-1], 0.0)
 	home = 0

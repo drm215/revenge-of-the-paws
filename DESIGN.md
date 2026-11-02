@@ -106,6 +106,13 @@ The apocalypse starts **where you actually live**.
   picker): two trinkets become one with every effect added up, both drawbacks included; both are
   used up. A fused trinket can't be fused again, and two wave-start effects can't share one.
   Saved as `fuse:a+b`; `GameData.trinket()` builds it.
+- **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
+  Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
+  patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the
+  week's damage reaches it, everyone who helped claims a cache trinket and half a level of XP for
+  each pack animal (last week's stays claimable for a week). Damage queues on the device (also
+  while logged out) and is sent with the cloud sync; the leaderboard shows the pet and region,
+  never the town. Server side: `server/siege.sql`.
 - **Why the lineup matters** (data in `GameData`, bookkeeping in `Profile.after_battle`):
   - *Injuries:* animals knocked out in a battle you win fight the next 2 battles at -25% HP/ATK
     (a retreat carries its wounded home, so losses don't snowball).
