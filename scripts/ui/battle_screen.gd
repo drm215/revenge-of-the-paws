@@ -86,7 +86,7 @@ func _show_take_control() -> void:
 	b.text = "AUTO · Take control"
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.custom_minimum_size = Vector2(0, 84)
-	b.add_theme_font_size_override("font_size", Retro.px(12))
+	b.add_theme_font_size_override("font_size", Retro.px(17))
 	b.pressed.connect(func() -> void:
 		auto = false
 		b.queue_free())
@@ -136,7 +136,7 @@ func _begin_player_turn(actor: Combatant) -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 84)
 		b.clip_text = true
-		b.add_theme_font_size_override("font_size", Retro.px(12))
+		b.add_theme_font_size_override("font_size", Retro.px(17))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.text = skill.name + ((" +%d" % actor.upgrade_count(skill_id)) if actor.upgrade_count(skill_id) > 0 else "")
 		if not actor.can_use(skill_id):
@@ -316,8 +316,8 @@ func _build_ui() -> void:
 	margin.add_child(col)
 
 	_wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	Retro.title(_wave_label, 16)
-	_wave_label.clip_text = true
+	Retro.title(_wave_label, 13)  # the bold body font: long place names wrap instead of clipping
+	_wave_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_wave_label)
 
 	_order_label.bbcode_enabled = true

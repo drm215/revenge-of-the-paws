@@ -53,6 +53,7 @@ Free projects pause after about a week without activity; un-pause them from the 
 
 - ZIP code places: [GeoNames](https://www.geonames.org), CC BY 4.0.
 - ZIP code area boundaries: US Census Bureau, 2020 ZIP Code Tabulation Areas (public domain).
-- Fonts: [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) and
-  [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans), SIL Open Font License (see `fonts/`).
+- Fonts: [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) (titles) and
+  [Atkinson Hyperlegible](https://fonts.google.com/specimen/Atkinson+Hyperlegible) (text) by the
+  Braille Institute, SIL Open Font License (see `fonts/`).
 - Palette: [ENDESGA 32](https://lospec.com/palette-list/endesga-32).

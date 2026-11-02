@@ -298,7 +298,7 @@ func _link(text: String, on_press: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.flat = true
-	b.add_theme_font_size_override("font_size", Retro.px(11))
+	b.add_theme_font_size_override("font_size", Retro.px(15))
 	b.add_theme_color_override("font_color", Retro.CYAN)
 	b.add_theme_color_override("font_hover_color", Retro.WHITE)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT

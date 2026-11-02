@@ -95,7 +95,7 @@ func _build() -> void:
 		_email.placeholder_text = "Email"
 		_email.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_EMAIL_ADDRESS
 		_email.custom_minimum_size = Vector2(0, 64)
-		_email.add_theme_font_size_override("font_size", Retro.px(14))
+		_email.add_theme_font_size_override("font_size", Retro.px(20))
 		_content.add_child(_email)
 		_add_password_field("Password (6+ characters)")
 		_content.add_child(_status)
@@ -144,7 +144,7 @@ func _team_section() -> void:
 			_build()))
 		_code.placeholder_text = "Team code"
 		_code.custom_minimum_size = Vector2(0, 64)
-		_code.add_theme_font_size_override("font_size", Retro.px(14))
+		_code.add_theme_font_size_override("font_size", Retro.px(20))
 		_content.add_child(_code)
 		_content.add_child(_button("Join team", func() -> void:
 			if _code.text.strip_edges() == "":
@@ -194,7 +194,7 @@ func _add_password_field(hint: String) -> void:
 	_password.secret = true
 	_password.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD
 	_password.custom_minimum_size = Vector2(0, 64)
-	_password.add_theme_font_size_override("font_size", Retro.px(14))
+	_password.add_theme_font_size_override("font_size", Retro.px(20))
 	_content.add_child(_password)
 
 

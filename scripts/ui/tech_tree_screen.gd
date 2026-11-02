@@ -166,7 +166,7 @@ func _build_tabs() -> void:
 		tab.toggle_mode = true
 		tab.button_pressed = id == _current
 		tab.text = profile.unit_name(id) + (" (%d)" % profile.points_left(id) if profile.points_left(id) > 0 else "")
-		tab.add_theme_font_size_override("font_size", Retro.px(9))
+		tab.add_theme_font_size_override("font_size", Retro.px(13))
 		tab.clip_text = true
 		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tab.pressed.connect(_show.bind(id))

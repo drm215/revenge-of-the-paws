@@ -201,7 +201,7 @@ func _refresh() -> void:
 		var open := Button.new()
 		open.text = "Stable (%d)  >" % profile.stable.size()
 		open.custom_minimum_size = Vector2(0, 72)
-		open.add_theme_font_size_override("font_size", Retro.px(11))
+		open.add_theme_font_size_override("font_size", Retro.px(15))
 		open.pressed.connect(open_stable.emit)
 		_list.add_child(open)
 	var names: PackedStringArray = []
@@ -268,7 +268,7 @@ func _toggle(id: String) -> void:
 func _build_roster() -> void:
 	for child in _roster.get_children():
 		child.queue_free()
-	var head := Retro.title(Label.new(), 10, Retro.FOG)
+	var head := Retro.title(Label.new(), 12, Retro.FOG)
 	head.text = "Your pack:"
 	head.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_roster.add_child(head)
@@ -303,7 +303,7 @@ func _tile_button(label: String, on_press: Callable) -> Button:
 	b.clip_text = true
 	b.custom_minimum_size = Vector2(0, 52)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.add_theme_font_size_override("font_size", Retro.px(9))
+	b.add_theme_font_size_override("font_size", Retro.px(16))
 	if on_press.is_valid():
 		b.pressed.connect(on_press)
 	return b
@@ -363,11 +363,11 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	top.mouse_filter = Control.MOUSE_FILTER_STOP
 	top.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	Retro.on_tap(top, _show_details.bind(id))
-	var name_label := Retro.title(Label.new(), 9, Retro.GOLD if selected else Retro.WHITE)
+	var name_label := Retro.title(Label.new(), 12, Retro.GOLD if selected else Retro.WHITE)
 	name_label.text = unit.display_name
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	head.add_child(name_label)
-	var lv := Retro.title(Label.new(), 9, Retro.YELLOW)
+	var lv := Retro.title(Label.new(), 11, Retro.YELLOW)
 	lv.text = "Lv %d" % level
 	head.add_child(lv)
 	var bar := ProgressBar.new()

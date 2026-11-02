@@ -29,15 +29,19 @@ const SAND := Color("ead4aa")
 const PINK := Color("f6757a")
 
 const TITLE_FONT := "res://fonts/PressStart2P-Regular.ttf"
-const BODY_FONT := "res://fonts/PixelifySans.ttf"
+const BODY_FONT := "res://fonts/AtkinsonHyperlegible-Regular.ttf"
+const BOLD_FONT := "res://fonts/AtkinsonHyperlegible-Bold.ttf"
 const BORDER := 4
 ## One knob for every text size in the game (sizes in code are written at 1.0).
 const TEXT_SCALE := 1.35
-## Pixelify Sans is a variable font; a heavier weight keeps thin pixel strokes readable.
-const BODY_WEIGHT := 600
+## The arcade font is kept for big screen titles; smaller "titles" (names, labels, buttons) use
+## the bold body font, scaled up to match the arcade font's wide letters.
+const MIN_ARCADE_SIZE := 16
+const SMALL_TITLE_SCALE := 1.5
 
 static var _title_font: FontFile
-static var _body_font: FontVariation
+static var _body_font: FontFile
+static var _bold_font: FontFile
 
 
 static func title_font() -> FontFile:
@@ -46,12 +50,24 @@ static func title_font() -> FontFile:
 	return _title_font
 
 
+## Atkinson Hyperlegible: drawn smooth, made for reading at small sizes.
 static func body_font() -> Font:
 	if _body_font == null:
-		_body_font = FontVariation.new()
-		_body_font.base_font = _crisp(BODY_FONT)
-		_body_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): BODY_WEIGHT}
+		_body_font = _smooth(BODY_FONT)
 	return _body_font
+
+
+static func bold_font() -> Font:
+	if _bold_font == null:
+		_bold_font = _smooth(BOLD_FONT)
+	return _bold_font
+
+
+static func _smooth(path: String) -> FontFile:
+	var f: FontFile = load(path)
+	f.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+	f.hinting = TextServer.HINTING_LIGHT
+	return f
 
 
 ## A font size scaled by TEXT_SCALE.
@@ -117,10 +133,12 @@ static func on_tap(control: Control, action: Callable) -> void:
 				action.call())
 
 
-## Styles a label as an arcade title (Press Start 2P).
+## Styles a label as a title: the arcade font (Press Start 2P) from MIN_ARCADE_SIZE up, the bold
+## body font below it (small pixel text is hard to read on a phone).
 static func title(label: Label, font_size := 16, color := GOLD) -> Label:
-	label.add_theme_font_override("font", title_font())
-	label.add_theme_font_size_override("font_size", px(font_size))
+	var arcade := font_size >= MIN_ARCADE_SIZE
+	label.add_theme_font_override("font", title_font() if arcade else bold_font())
+	label.add_theme_font_size_override("font_size", px(font_size if arcade else font_size * SMALL_TITLE_SCALE))
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_shadow_color", INK)
 	label.add_theme_constant_override("shadow_offset_x", 2)
@@ -128,7 +146,7 @@ static func title(label: Label, font_size := 16, color := GOLD) -> Label:
 	return label
 
 
-## A plain pixel-text label (Pixelify Sans).
+## A plain text label (the body font).
 static func text(label: Label, font_size := 22, color := MIST) -> Label:
 	label.add_theme_font_size_override("font_size", px(font_size))
 	label.add_theme_color_override("font_color", color)
@@ -142,8 +160,8 @@ static func make_theme() -> Theme:
 
 	t.set_color("font_color", "Label", MIST)
 
-	t.set_font("font", "Button", title_font())
-	t.set_font_size("font_size", "Button", px(16))
+	t.set_font("font", "Button", bold_font())
+	t.set_font_size("font_size", "Button", px(20))
 	t.set_stylebox("normal", "Button", box(SLATE, STEEL, BORDER, 4))
 	t.set_stylebox("hover", "Button", box(STEEL, FOG, BORDER, 4))
 	t.set_stylebox("pressed", "Button", box(GOLD, YELLOW, BORDER, 1))
@@ -158,8 +176,8 @@ static func make_theme() -> Theme:
 
 	t.set_stylebox("normal", "LineEdit", box(INK, STEEL))
 	t.set_stylebox("focus", "LineEdit", box(INK, GOLD))
-	t.set_font("font", "LineEdit", title_font())
-	t.set_font_size("font_size", "LineEdit", px(22))
+	t.set_font("font", "LineEdit", body_font())
+	t.set_font_size("font_size", "LineEdit", px(24))
 	t.set_color("font_color", "LineEdit", WHITE)
 	t.set_color("font_placeholder_color", "LineEdit", STEEL)
 	t.set_color("caret_color", "LineEdit", GOLD)
@@ -168,7 +186,7 @@ static func make_theme() -> Theme:
 	t.set_stylebox("background", "ProgressBar", box(INK, INK, 2, 0, 0))
 	t.set_color("default_color", "RichTextLabel", MIST)
 	t.set_font("normal_font", "RichTextLabel", body_font())
-	t.set_font("bold_font", "RichTextLabel", title_font())
+	t.set_font("bold_font", "RichTextLabel", bold_font())
 
 	for bar in ["VScrollBar", "HScrollBar"]:
 		t.set_stylebox("scroll", bar, box(INK, INK, 0, 0, 2))
