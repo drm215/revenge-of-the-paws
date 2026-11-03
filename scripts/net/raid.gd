@@ -53,7 +53,10 @@ func my_id() -> String:
 	return cloud.user_id() if cloud else ""
 
 
+## Team-level calls name the team of the game being played.
 func _api(fn: String, body: Dictionary) -> Dictionary:
+	if fn in ["team_raid", "open_raid", "join_raid", "leave_raid", "start_raid"]:
+		body["p_team"] = get_node("/root/Team").team_id
 	return await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/" + fn, body)
 
 

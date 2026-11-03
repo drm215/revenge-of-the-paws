@@ -33,12 +33,14 @@ func _show_saves() -> void:
 	screen.chosen.connect(func(id: String) -> void:
 		Saves.use(id)
 		var profile := Profile.load_saved()
+		_use_team(profile.team_id if profile else "")
 		if profile:
 			_show_map(profile)
 		else:
 			_show_onboarding(null))  # an unfinished save: finish setting it up
 	screen.new_game.connect(func() -> void:
 		Saves.use(Saves.new_slot())
+		_use_team("")  # a new game starts solo, from scratch
 		_show_onboarding(null))
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
@@ -49,7 +51,7 @@ func _show_onboarding(existing: Profile) -> void:
 	screen.initial = existing
 	screen.finished.connect(func(profile: Profile) -> void:
 		_campaign = null  # a new game: rebuild the map from scratch
-		_show_map(profile))
+		_show_partner(profile))
 	if existing:
 		screen.cancelled.connect(func() -> void: _show_map(existing, false))
 	else:
@@ -188,10 +190,34 @@ func _on_team_changed() -> void:
 		_show_map(_profile, false)
 
 
-func _show_account() -> void:
+## Points Team (and so chat and raids) at the team a saved game is played with.
+func _use_team(id: String) -> void:
+	var team := get_node_or_null("/root/Team")
+	if team:
+		team.use(id)
+
+
+## After a new game's setup: invite a partner, join one, or play solo.
+func _show_partner(profile: Profile) -> void:
+	var screen := PartnerScreen.new()
+	screen.profile = profile
+	screen.done.connect(func() -> void:
+		_campaign = null
+		_show_map(Profile.load_saved()))  # it may have joined a team
+	screen.account_requested.connect(func() -> void: _show_account(_show_partner.bind(profile)))
+	_swap(screen)
+
+
+## The Cloud screen; `back` is where to go when it closes (the map or the save picker by default).
+func _show_account(back := Callable()) -> void:
 	var screen := AccountScreen.new()
 	screen.closed.connect(func() -> void:
-		if _profile:
+		if back.is_valid():
+			back.call()
+		elif _profile:
+			_profile = Profile.load_saved()  # the Cloud screen may have changed this game's team
+			_use_team(_profile.team_id)
+			_campaign_stale = true
 			_show_map(_profile)
 		else:
 			_show_saves())

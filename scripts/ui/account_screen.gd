@@ -127,10 +127,10 @@ func _team_section() -> void:
 		var leave := _button("Leave team", Callable())
 		leave.pressed.connect(func() -> void:
 			if leave.text == "Leave team":
-				leave.text = "Tap again to leave (your solo map comes back)"
+				leave.text = "Tap again to leave (this game's solo map comes back)"
 				return
 			_team_status.text = "Leaving..."
-			var error: String = await team.leave()
+			var error: String = await team.leave(profile)
 			_team_status.text = error
 			_build())
 		_content.add_child(leave)
@@ -156,6 +156,32 @@ func _team_section() -> void:
 			if error == "":
 				_code.text = ""
 			_build()))
+		_other_teams(team, profile)
+
+
+## Teams this account is on (from other games, or from before each game had its own team), to
+## play one in this game.
+func _other_teams(team: Node, profile: Profile) -> void:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	_content.add_child(box)
+	var teams: Array = await team.my_teams()
+	if not is_instance_valid(box) or teams.is_empty():
+		return
+	var head := Retro.text(Label.new(), 19, Retro.FOG)
+	head.text = "Your teams in other games (play one in this game):"
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(head)
+	for t: Dictionary in teams:
+		var names: PackedStringArray = []
+		for m: Dictionary in t.get("members", []):
+			names.append(String(m.name).get_slice(" · ", 0))
+		var b := _button("Play %s's team here" % " & ".join(names), func() -> void:
+			_team_status.text = "Joining..."
+			var error: String = await team.bring_back(t, profile)
+			_team_status.text = error
+			_build())
+		box.add_child(b)
 
 
 func _note(text: String, color: Color) -> void:

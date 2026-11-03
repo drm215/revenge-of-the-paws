@@ -1,4 +1,5 @@
--- Legend raids for Revenge of the Paws. Run once in the Supabase SQL editor (after teams.sql).
+-- Legend raids for Revenge of the Paws. Run in the Supabase SQL editor (after teams.sql); safe to run
+-- again. Raid calls name the team (a player can be on one team per saved game).
 -- Up to 4 teammates fight a legend together, live, each controlling the 3 critters they bring.
 -- Every device runs the same battle from the same seed and config; only the players' moves are
 -- shared, numbered in order (the first move posted for a number wins, so a timeout takeover can't
@@ -39,13 +40,15 @@ alter table public.raids enable row level security;
 alter table public.raid_members enable row level security;
 alter table public.raid_actions enable row level security;
 
-create or replace function public.raid_my_team() returns uuid
-language sql stable security definer set search_path = public as $$
-  select team_id from team_members where user_id = auth.uid();
-$$;
+drop function if exists public.team_raid();
+drop function if exists public.open_raid(text, text, bigint, text, text);
+drop function if exists public.join_raid(text, text, boolean);
+drop function if exists public.leave_raid();
+drop function if exists public.start_raid(text);
+drop function if exists public.raid_my_team();
 
 -- The team's latest raid (open, fighting, or finished in the last day), with its members; or null.
-create or replace function public.team_raid() returns json
+create or replace function public.team_raid(p_team uuid) returns json
 language sql stable security definer set search_path = public as $$
   select json_build_object(
     'id', r.id, 'host', r.host, 'territory', r.territory, 'legend', r.legend, 'seed', r.seed,
@@ -54,18 +57,18 @@ language sql stable security definer set search_path = public as $$
                 'pack', m.pack, 'ready', m.ready) order by m.joined_at, m.user_id), '[]'::json)
                 from raid_members m where m.raid_id = r.id))
   from raids r
-  where r.team_id = raid_my_team() and r.status <> 'cancelled' and r.created_at > now() - interval '1 day'
+  where r.team_id = p_team and is_team_member(p_team) and r.status <> 'cancelled' and r.created_at > now() - interval '1 day'
   order by r.created_at desc limit 1;
 $$;
 
 -- Opens a raid lobby on a legend's lair; the opener is in it (ready once they've picked a pack).
-create or replace function public.open_raid(p_territory text, p_legend text, p_seed bigint, p_name text, p_pack text) returns json
+create or replace function public.open_raid(p_team uuid, p_territory text, p_legend text, p_seed bigint, p_name text, p_pack text) returns json
 language plpgsql security definer set search_path = public as $$
 declare
-  t_id uuid := raid_my_team();
+  t_id uuid := p_team;
   r_id uuid;
 begin
-  if t_id is null then raise exception 'Join a team first.'; end if;
+  if not is_team_member(p_team) then raise exception 'Join a team first.'; end if;
   update raids set status = 'cancelled'
   where team_id = t_id and status in ('lobby', 'fighting') and created_at < now() - interval '2 hours';
   if exists (select 1 from raids where team_id = t_id and status in ('lobby', 'fighting')) then
@@ -74,17 +77,18 @@ begin
   insert into raids (team_id, host, territory, legend, seed) values (t_id, auth.uid(), p_territory, p_legend, p_seed)
   returning id into r_id;
   insert into raid_members (raid_id, user_id, name, pack, ready) values (r_id, auth.uid(), p_name, p_pack, p_pack <> '');
-  return team_raid();
+  return team_raid(p_team);
 end;
 $$;
 
 -- Joins the open lobby (or updates your pack and ready state).
-create or replace function public.join_raid(p_name text, p_pack text, p_ready boolean) returns json
+create or replace function public.join_raid(p_team uuid, p_name text, p_pack text, p_ready boolean) returns json
 language plpgsql security definer set search_path = public as $$
 declare
   r_id uuid;
 begin
-  select id into r_id from raids where team_id = raid_my_team() and status = 'lobby' order by created_at desc limit 1;
+  if not is_team_member(p_team) then raise exception 'Join a team first.'; end if;
+  select id into r_id from raids where team_id = p_team and status = 'lobby' order by created_at desc limit 1;
   if r_id is null then raise exception 'There is no raid to join right now.'; end if;
   if not exists (select 1 from raid_members where raid_id = r_id and user_id = auth.uid())
      and (select count(*) from raid_members where raid_id = r_id) >= 4 then
@@ -92,17 +96,17 @@ begin
   end if;
   insert into raid_members (raid_id, user_id, name, pack, ready) values (r_id, auth.uid(), p_name, p_pack, p_ready)
   on conflict (raid_id, user_id) do update set name = excluded.name, pack = excluded.pack, ready = excluded.ready;
-  return team_raid();
+  return team_raid(p_team);
 end;
 $$;
 
 -- Leaves the lobby; if the opener leaves, the raid is called off.
-create or replace function public.leave_raid() returns void
+create or replace function public.leave_raid(p_team uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare
   r raids;
 begin
-  select * into r from raids where team_id = raid_my_team() and status = 'lobby' order by created_at desc limit 1;
+  select * into r from raids where team_id = p_team and is_team_member(p_team) and status = 'lobby' order by created_at desc limit 1;
   if r.id is null then return; end if;
   if r.host = auth.uid() then
     update raids set status = 'cancelled' where id = r.id;
@@ -113,17 +117,17 @@ end;
 $$;
 
 -- The opener starts the fight with everyone who is ready, fixing the battle config.
-create or replace function public.start_raid(p_config text) returns json
+create or replace function public.start_raid(p_team uuid, p_config text) returns json
 language plpgsql security definer set search_path = public as $$
 declare
   r raids;
 begin
-  select * into r from raids where team_id = raid_my_team() and status = 'lobby' order by created_at desc limit 1;
+  select * into r from raids where team_id = p_team and is_team_member(p_team) and status = 'lobby' order by created_at desc limit 1;
   if r.id is null then raise exception 'There is no raid to start.'; end if;
   if r.host <> auth.uid() then raise exception 'Only the player who opened the raid can start it.'; end if;
   delete from raid_members where raid_id = r.id and not ready;
   update raids set status = 'fighting', config = p_config where id = r.id;
-  return team_raid();
+  return team_raid(p_team);
 end;
 $$;
 
@@ -165,20 +169,19 @@ begin
 end;
 $$;
 
-revoke all on function public.raid_my_team() from public;
-revoke all on function public.team_raid() from public;
-revoke all on function public.open_raid(text, text, bigint, text, text) from public;
-revoke all on function public.join_raid(text, text, boolean) from public;
-revoke all on function public.leave_raid() from public;
-revoke all on function public.start_raid(text) from public;
-revoke all on function public.post_raid_action(uuid, int, text) from public;
-revoke all on function public.raid_actions_after(uuid, int) from public;
-revoke all on function public.finish_raid(uuid, text) from public;
-grant execute on function public.team_raid() to authenticated;
-grant execute on function public.open_raid(text, text, bigint, text, text) to authenticated;
-grant execute on function public.join_raid(text, text, boolean) to authenticated;
-grant execute on function public.leave_raid() to authenticated;
-grant execute on function public.start_raid(text) to authenticated;
+revoke all on function public.team_raid(uuid) from public, anon;
+revoke all on function public.open_raid(uuid, text, text, bigint, text, text) from public, anon;
+revoke all on function public.join_raid(uuid, text, text, boolean) from public, anon;
+revoke all on function public.leave_raid(uuid) from public, anon;
+revoke all on function public.start_raid(uuid, text) from public, anon;
+revoke all on function public.post_raid_action(uuid, int, text) from public, anon;
+revoke all on function public.raid_actions_after(uuid, int) from public, anon;
+revoke all on function public.finish_raid(uuid, text) from public, anon;
+grant execute on function public.team_raid(uuid) to authenticated;
+grant execute on function public.open_raid(uuid, text, text, bigint, text, text) to authenticated;
+grant execute on function public.join_raid(uuid, text, text, boolean) to authenticated;
+grant execute on function public.leave_raid(uuid) to authenticated;
+grant execute on function public.start_raid(uuid, text) to authenticated;
 grant execute on function public.post_raid_action(uuid, int, text) to authenticated;
 grant execute on function public.raid_actions_after(uuid, int) to authenticated;
 grant execute on function public.finish_raid(uuid, text) to authenticated;

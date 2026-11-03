@@ -45,6 +45,7 @@ var auto_battle := false  # auto mode: fight territories far below the leader wi
 var siege_claimed: Array[int] = []  # weekly sieges whose reward was claimed
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
 var raids_claimed: Array[String] = []  # legend raids whose rewards this player has collected
+var team_id := ""  # the team this game is played with ("" = solo); see Team
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -470,6 +471,7 @@ func save() -> void:
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
+	cfg.set_value("profile", "team_id", team_id)
 	cfg.set_value("profile", "slot", Saves.slot_of(save_path))  # so a cloud copy comes back to this game
 	cfg.save(save_path)
 	if Saves.is_slot(save_path):
@@ -505,6 +507,7 @@ static func load_saved() -> Profile:
 	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
+	p.team_id = cfg.get_value("profile", "team_id", "")
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)

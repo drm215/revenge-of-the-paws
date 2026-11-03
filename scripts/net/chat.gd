@@ -53,7 +53,7 @@ func _on_team() -> bool:
 ## A different team (or none): its chat starts fresh.
 func _on_team_changed() -> void:
 	var team := _team()
-	var id: String = String(team.info.get("id", "")) if team else ""
+	var id: String = team.team_id if team else ""
 	if id == _team_id:
 		return
 	_team_id = id
@@ -73,7 +73,8 @@ func poll() -> void:
 		return
 	_busy = true
 	var after: float = messages[-1].id if not messages.is_empty() else 0.0
-	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/team_messages_since", {"p_after": int(after)})
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/team_messages_since",
+		{"p_team": _team().team_id, "p_after": int(after)})
 	if r.ok and r.data is Array and not (r.data as Array).is_empty():
 		messages.append_array(r.data)
 		messages = messages.slice(-KEEP)
@@ -91,7 +92,8 @@ func send(body: String, ping := "") -> String:
 		return "Type a message first."
 	if not _on_team():
 		return "Join a team to chat."
-	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/send_team_message", {"p_body": body, "p_ping": ping})
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/send_team_message",
+		{"p_team": _team().team_id, "p_body": body, "p_ping": ping})
 	if not r.ok:
 		return _cloud().error_text(r)
 	await poll()
