@@ -117,7 +117,11 @@ The apocalypse starts **where you actually live**.
   the danger creeps toward the pack until around turn 45. Liberating a nest stops it for good.
   Saved as `spread`; data `GameData.NEST_COUNT`, `MIGRATE_EVERY`, `MAX_SPREAD`.
 - **Teams** (co-op, Cloud screen; US ZIP maps only; `scripts/net/team.gd`, `server/teams.sql`): up
-  to 4 signed-in players share one map built from all their homes. Each home grows its own patch
+  to 4 signed-in players share one map built from all their homes. A team belongs to one saved
+  game (`Profile.team_id`; an account can be on one team per game): a new game starts solo and
+  fresh (only home liberated), and right after its setup asks "Play with a partner?" (Invite: a
+  team for this game and a code to share; Join: their code; Play solo). The Cloud screen lists the
+  account's other teams so one can be played in the current game. Each home grows its own patch
   as big as a solo map; patches that touch merge. Threat counts from the nearest home, supply links
   to any home, each home gets 2 nests, and the horde's clock (counterattacks, spread, cut-off
   countdown) runs `pace()` = team size times slower, since every member's moves advance it.
