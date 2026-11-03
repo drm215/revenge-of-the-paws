@@ -160,6 +160,8 @@ func refresh() -> void:
 			perks += 1
 	if perks > 0:
 		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
+	if unit.ally_of != "":
+		parts.insert(0, unit.ally_of + "'s")
 	if not unit.is_player and unit.traits.get("reach", false) and unit.is_alive():
 		parts.append("Reaches back row")
 	if GameData.ZOMBIE_WEAKNESS.has(unit.id) and unit.is_alive():

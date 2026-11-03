@@ -46,6 +46,7 @@ var feed: Array = []  # team: recent moves [{who, text, turn}], newest last
 var me := ""  # this player's name in the team feed
 var my_id := ""  # this player's account id (team XP shares)
 var shared_xp := {}  # team: account id -> XP teammates' battles have earned them, all time
+var packs := {}  # team: account id -> their fighting lineup (Profile.snapshot), for legend fights
 var replaying := false  # re-applying queued moves to newer team state: no rewards, no recording
 var on_action := Callable()  # team: told about each move so it can be sent to the server
 
@@ -128,7 +129,7 @@ func apply(action: Dictionary) -> void:
 	match String(action.get("do", "")):
 		"battle":
 			if i >= 0:
-				resolve_battle(i, bool(action.won), int(action.get("xp", 0)))
+				resolve_battle(i, bool(action.won), int(action.get("xp", 0)), String(action.get("helper", "")))
 		"patrol":
 			if i >= 0:
 				resolve_patrol(i, bool(action.won))
@@ -136,6 +137,8 @@ func apply(action: Dictionary) -> void:
 			rest()
 		"stable":
 			bring_from_stable(String(action.get("id", "")))
+		"pack":
+			packs[my_id] = String(action.get("snap", ""))
 	replaying = false
 
 
@@ -144,16 +147,37 @@ func _act(action: Dictionary) -> void:
 		on_action.call(action)
 
 
-## Teammates whose home links to this player's through held land are owed GameData.TEAM_XP_SHARE
-## of the battle's XP; each device collects its own (Profile.collect_team_xp).
-func _share_xp(xp: int) -> void:
-	var amount := roundi(xp * GameData.TEAM_XP_SHARE)
-	if not is_team() or amount <= 0:
+## The teammate whose lineup fought beside this player (`helper`) is owed the battle's full XP;
+## other teammates whose home links to this player's through held land are owed
+## GameData.TEAM_XP_SHARE of it. Each device collects its own (Profile.collect_team_xp).
+func _share_xp(xp: int, helper := "") -> void:
+	if not is_team() or xp <= 0:
 		return
+	if helper != "" and helper != my_id:
+		shared_xp[helper] = int(shared_xp.get(helper, 0)) + xp
+	var amount := roundi(xp * GameData.TEAM_XP_SHARE)
 	var linked := _reach([home], -1)
 	for id in _home_of:
-		if id != my_id and linked.has(_home_of[id]):
+		if id != my_id and id != helper and amount > 0 and linked.has(_home_of[id]):
 			shared_xp[id] = int(shared_xp.get(id, 0)) + amount
+
+
+## Shares this player's fighting lineup with the team (only when it changed).
+func share_pack(snapshot: String) -> void:
+	if not is_team() or my_id == "" or packs.get(my_id, "") == snapshot:
+		return
+	packs[my_id] = snapshot
+	_act({"do": "pack", "snap": snapshot})
+
+
+## Teammates' lineups that can join a legend fight: [{id, name, pack}].
+func teammate_packs() -> Array:
+	var out := []
+	for m: Dictionary in members:
+		var id := String(m.get("user_id", ""))
+		if id != my_id and packs.has(id):
+			out.append({"id": id, "name": String(m.name).get_slice(" · ", 0), "pack": packs[id]})
+	return out
 
 
 ## True if this player's home and `other` are joined by an unbroken chain of held land.
@@ -342,6 +366,9 @@ func battle_config(i: int) -> Dictionary:
 		"place": territories[i].full_name(),
 		"condition": t.condition,
 		"region": t.region,
+		"boss_hp": GameData.legend_growth(pace()).x if t.boss != "" else 1.0,
+		"boss_atk": GameData.legend_growth(pace()).y if t.boss != "" else 1.0,
+		"teammates": teammate_packs() if t.boss != "" else [],
 	}
 
 
@@ -495,9 +522,10 @@ func _migrate() -> void:
 			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
-## `xp`: what each of this player's fighters earned; linked teammates get a share of it.
-func resolve_battle(i: int, won: bool, xp := 0) -> void:
-	_act({"do": "battle", "t": territories[i].id, "won": won, "xp": xp})
+## `xp`: what each of this player's fighters earned; linked teammates get a share of it, and
+## `helper` (a teammate whose lineup fought here) all of it.
+func resolve_battle(i: int, won: bool, xp := 0, helper := "") -> void:
+	_act({"do": "battle", "t": territories[i].id, "won": won, "xp": xp, "helper": helper})
 	turn += 1
 	var t := territories[i]
 	if t.owned and i != under_attack:
@@ -544,7 +572,7 @@ func resolve_battle(i: int, won: bool, xp := 0) -> void:
 		t.failed_attacks += 1
 		last_event = "The pack retreated from %s, but thinned the horde there." % t.full_name()
 	_feed(last_event.get_slice("\n", 0))
-	_share_xp(xp)
+	_share_xp(xp, helper)
 	_end_turn()
 
 
@@ -577,6 +605,7 @@ func _to_cfg() -> ConfigFile:
 	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
 	cfg.set_value("campaign", "feed", feed)
 	cfg.set_value("campaign", "shared_xp", shared_xp)
+	cfg.set_value("campaign", "packs", packs)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	return cfg
@@ -626,6 +655,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
 	feed = cfg.get_value("campaign", "feed", [])
 	shared_xp = cfg.get_value("campaign", "shared_xp", {})
+	packs = cfg.get_value("campaign", "packs", {})
 	_ownership_changed()
 
 

@@ -1265,6 +1265,21 @@ const NEST_COUNT := 2
 ## Teams: when a teammate fights for a territory, every other member whose home links to theirs
 ## through held land gets this share of the battle's XP. No link, no XP.
 const TEAM_XP_SHARE := 0.1
+## Teams: a legend grows with the players on the team, and in its lair one teammate's lineup can
+## fight beside yours (6 critters instead of 3). Most of the growth comes with the second player,
+## tuned so 6 critters win about as often as 3 do solo; each player beyond adds a little.
+const LEGEND_TEAM_HP := 1.8
+const LEGEND_TEAM_ATK := 0.55
+const LEGEND_EXTRA_HP := 0.25
+const LEGEND_EXTRA_ATK := 0.08
+
+
+## A legend's (HP, ATK) multipliers on a team of `players`.
+static func legend_growth(players: int) -> Vector2:
+	if players < 2:
+		return Vector2.ONE
+	var extra := players - 2
+	return Vector2(1.0 + LEGEND_TEAM_HP + LEGEND_EXTRA_HP * extra, 1.0 + LEGEND_TEAM_ATK + LEGEND_EXTRA_ATK * extra)
 const MIGRATE_EVERY := 3
 const MAX_SPREAD := 2
 

@@ -13,7 +13,7 @@ const AUTO_THINK_TIME := 0.35
 const AUTO_AFTER_TIME := 0.3
 const AUTO_WAVE_PAUSE := 1.2
 const ORDER_PREVIEW := 7
-const PARTY_SPRITE := 150.0
+const PARTY_SPRITE := {3: 150.0, 4: 120.0, 5: 104.0, 6: 90.0}  # by party size (team legend fights bring 6)
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
 ## Front-row cards sit this much closer to the middle of the field than back-row ones.
 const ROW_SHIFT := 44
@@ -62,7 +62,7 @@ func _new_game() -> void:
 
 	battle = Battle.new(profile, config.waves, config.zombie_mult, config.party_mult, config.place, -1,
 		config.get("condition", ""), config.get("region", ""))
-	battle.xp_mult = config.get("xp_mult", config.zombie_mult)
+	battle.configure(config)
 	battle.log_message.connect(_on_log)
 	battle.acting.connect(func(c: Combatant) -> void: _card(c).lunge())
 	battle.damaged.connect(_on_damaged)
@@ -73,7 +73,7 @@ func _new_game() -> void:
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 
 	for c in battle.party:
-		_add_card(c, _party_col, PARTY_SPRITE)
+		_add_card(c, _party_col, PARTY_SPRITE[clampi(battle.party.size(), 3, 6)])
 	if auto:
 		was_auto = true
 		_show_take_control()
@@ -203,7 +203,8 @@ func _award_xp(won: bool) -> String:
 		amount = roundi(amount * GameData.AUTO_XP_SHARE)
 	var fought: Array[String] = []
 	for c in battle.party:
-		fought.append(c.id)
+		if c.ally_of == "":  # a teammate's critters earn their XP on their own device
+			fought.append(c.id)
 	xp_awarded = amount
 	return "\n".join(profile.after_battle(fought, battle.downed, amount, won))
 

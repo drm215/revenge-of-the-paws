@@ -39,6 +39,8 @@ var xp_mult := 1.0  # XP per kill scales with the territory's own strength, not 
 var kills := 0  # zombies and legends the pack destroyed (revived ones count once); hits the weekly siege
 var downed: Array[String] = []  # pack members knocked out at any point (they'll be injured)
 var condition := ""
+var boss_hp_mult := 1.0  # team maps: legends grow with the team
+var boss_atk_mult := 1.0
 var _perk_log: PackedStringArray = []  # lineup effects, announced as the first wave starts
 var rng := RandomNumberGenerator.new()
 
@@ -70,6 +72,33 @@ func _init(profile: Profile, waves: Array = GameData.WAVES, zombie_mult := 1.0, 
 		party.append(c)
 	condition = territory_condition
 	_apply_lineup(profile, territory_region)
+
+
+## The rest of a Campaign battle config: XP scale, a team legend's growth and a teammate's lineup
+## fighting beside the pack ("helper"). Call before the first wave.
+func configure(cfg: Dictionary) -> void:
+	xp_mult = cfg.get("xp_mult", cfg.get("zombie_mult", 1.0))
+	boss_hp_mult = cfg.get("boss_hp", 1.0)
+	boss_atk_mult = cfg.get("boss_atk", 1.0)
+	var helper: Dictionary = cfg.get("helper", {})
+	var theirs := Profile.from_snapshot(String(helper.get("pack", ""))) if not helper.is_empty() else null
+	if theirs:
+		var allies: Array[Combatant] = []
+		for id in theirs.pack_ids():
+			var u := theirs.build_unit(id)
+			u.row = theirs.row_of(id)
+			allies.append(u)
+		add_allies(allies, String(helper.name))
+
+
+## Team legend fights: a teammate's lineup fights beside the pack (call before the first wave).
+## Their pet doesn't lead, and they earn no XP or injuries on this device.
+func add_allies(units: Array[Combatant], owner: String) -> void:
+	for c in units:
+		c.ally_of = owner
+		c.is_leader = false
+		party.append(c)
+	log_message.emit("[color=#2ce8f5]%s's pack fights beside you![/color]" % owner)
 
 
 ## Injuries, fatigue, terrain, home turf and bonds: the reasons a lineup matters.
@@ -143,6 +172,8 @@ func start_next_wave() -> void:
 			z.display_name += " " + "ABCD"[seen.get(zombie_id, 0)]
 			seen[zombie_id] = seen.get(zombie_id, 0) + 1
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
+		if z.is_boss:
+			z.scale_stats(boss_hp_mult, boss_atk_mult, 1.0)
 		enemies.append(z)
 	round_number = 0
 	_turn_queue.clear()
@@ -568,7 +599,7 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 		_announce_exposed(_allies(dst))
 	if dst.is_player:
 		dst.fell_in_wave = wave_index
-		if dst.id not in downed:
+		if dst.id not in downed and dst.ally_of == "":
 			downed.append(dst.id)
 	if not dst.is_player and not dst.revived:
 		xp_earned += roundi(dst.xp_value * xp_mult)

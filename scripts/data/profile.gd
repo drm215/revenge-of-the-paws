@@ -552,6 +552,39 @@ func collect_team_xp(key: String, owed: int) -> int:
 	return gained
 
 
+## What a teammate needs to field this pack beside theirs in a legend fight: the lineup, its levels,
+## tech trees, trinkets and rows. JSON with sorted keys, so an unchanged pack gives the same text.
+func snapshot() -> String:
+	var snap := {"pet_species": pet_species, "pet_name": pet_name, "team": Array(team),
+		"xp": {}, "tree": {}, "equipped": {}, "rows": {}}
+	for id in pack_ids():
+		snap.xp[id] = int(xp.get(id, 0))
+		if tree.has(id):
+			snap.tree[id] = tree[id]
+		if equipped.has(id):
+			snap.equipped[id] = equipped[id]
+		if rows.has(id):
+			snap.rows[id] = rows[id]
+	return JSON.stringify(snap, "", true)
+
+
+## A teammate's pack from their snapshot(), ready for build_unit(); null if it can't be read.
+static func from_snapshot(text: String) -> Profile:
+	var d: Variant = JSON.parse_string(text)
+	if not d is Dictionary:
+		return null
+	var p := Profile.new()
+	p.pet_species = String(d.get("pet_species", ""))
+	p.pet_name = String(d.get("pet_name", ""))
+	p.team.assign(d.get("team", []))
+	for id in d.get("xp", {}):
+		p.xp[id] = int(d.xp[id])
+	p.tree = d.get("tree", {})
+	p.equipped = d.get("equipped", {})
+	p.rows = d.get("rows", {})
+	return p
+
+
 ## How this pack appears on the siege leaderboard: pet (or lead animal) and region, never the town.
 func siege_name() -> String:
 	var lead := pet_name if has_pet() else (unit_name(team[0]) + "'s pack" if not team.is_empty() else "A pack")

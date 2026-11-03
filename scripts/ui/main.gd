@@ -45,6 +45,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_campaign = _make_campaign(profile)
 		_campaign.last_event = message  # a teammate's move rebuilt the map: keep this player's news
 		_campaign_stale = false
+		_campaign.share_pack(profile.snapshot())  # so teammates can bring this lineup to a legend
 		var gained := profile.collect_team_xp(_campaign.team_key(), int(_campaign.shared_xp.get(_campaign.my_id, 0)))
 		if gained > 0:
 			_campaign.last_event += "\nTeammates' battles next to your land earned your pack +%d XP each." % gained
@@ -182,7 +183,7 @@ func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := fal
 		if patrol:
 			_campaign.resolve_patrol(territory, won)
 		else:
-			_campaign.resolve_battle(territory, won, screen.xp_awarded)
+			_campaign.resolve_battle(territory, won, screen.xp_awarded, String(config.get("helper", {}).get("id", "")))
 		if auto and not won:
 			_profile.auto_battle = false
 			_campaign.last_event += "\nAuto mode switched off after the retreat."
