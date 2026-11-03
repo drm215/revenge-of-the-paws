@@ -115,13 +115,19 @@ func mark_read() -> void:
 		received.emit()
 
 
-## Territory ids pinged in the last PING_MINUTES -> who pinged them.
+## Territory ids pinged in the last PING_MINUTES -> {who, why}. A message's ping is "id@why"
+## ("open": the horde held it, "attack": it was under counterattack), or "-id" to clear it.
 func recent_pings() -> Dictionary:
 	var out := {}
 	var now := Time.get_unix_time_from_system()
 	for m: Dictionary in messages:
-		if String(m.get("ping", "")) != "" and now - _posted(m) < PING_MINUTES * 60:
-			out[m.ping] = String(m.name).get_slice(" · ", 0)
+		var ping := String(m.get("ping", ""))
+		if ping == "" or now - _posted(m) >= PING_MINUTES * 60:
+			continue
+		if ping.begins_with("-"):
+			out.erase(ping.substr(1))
+		else:
+			out[ping.get_slice("@", 0)] = {"who": String(m.name).get_slice(" · ", 0), "why": ping.get_slice("@", 1)}
 	return out
 
 

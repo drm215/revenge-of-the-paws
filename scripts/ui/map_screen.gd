@@ -126,6 +126,7 @@ func _select(i: int) -> void:
 			var a: Dictionary = GameData.ANIMALS[survivor]
 			_info_body.text += "\nSurvivor here: %s (%s). Liberate it to recruit!" % [a.name, a.role]
 	_action.set_meta("territory", i)
+	_ping.text = "Unping" if _map.pings.has(t.id) else "Ping"
 	_fit_info()
 
 
@@ -183,18 +184,40 @@ func _on_chat() -> void:
 	var unread: int = chat.unread()
 	if _chat_button:
 		_chat_button.text = "Chat (%d)" % unread if unread > 0 else "Chat"
-	_map.pings = chat.recent_pings()
+	_map.pings = _live_pings(chat.recent_pings())
 	_map.queue_redraw()
+	if _map.selected >= 0:
+		_ping.text = "Unping" if _map.pings.has(campaign.territories[_map.selected].id) else "Ping"
 
 
+## Pings whose job is done clear themselves: horde land once it's liberated, a counterattack once
+## it's over.
+func _live_pings(pings: Dictionary) -> Dictionary:
+	var out := {}
+	for i in campaign.territories.size():
+		var t := campaign.territories[i]
+		if not pings.has(t.id):
+			continue
+		var why := String(pings[t.id].why)
+		if (why == "open" and t.owned) or (why == "attack" and campaign.under_attack != i):
+			continue
+		out[t.id] = pings[t.id].who
+	return out
+
+
+## Pings the selected territory for the team, or clears its ping.
 func _on_ping() -> void:
-	var t := campaign.territories[_map.selected]
+	var i := _map.selected
+	var t := campaign.territories[i]
+	var clearing := _map.pings.has(t.id)
+	var why := "attack" if i == campaign.under_attack else ("open" if not t.owned else "held")
 	_ping.disabled = true
-	var error: String = await get_node("/root/Chat").send("pinged " + t.full_name(), t.id)
+	var error: String = await get_node("/root/Chat").send(
+		("cleared the ping on " if clearing else "pinged ") + t.full_name(), ("-" + t.id) if clearing else "%s@%s" % [t.id, why])
 	if not is_inside_tree():
 		return
 	_ping.disabled = false
-	_event.text = error if error != "" else "Pinged %s for your team." % t.full_name()
+	_event.text = error if error != "" else ("Cleared the ping on %s." if clearing else "Pinged %s for your team.") % t.full_name()
 	_event.visible = true
 	_fit_news()
 

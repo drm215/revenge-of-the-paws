@@ -141,7 +141,9 @@ The apocalypse starts **where you actually live**.
 - **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
   maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
   10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on
-  teammates' maps for 10 minutes. Polls every 10 s on a team; the server keeps 200 per team.
+  teammates' maps for 10 minutes. Ping on a pinged territory becomes Unping (clears it for everyone),
+  and pings clear themselves once done: horde land when it's liberated, a counterattack when it's
+  over. Polls every 10 s on a team; the server keeps 200 per team.
 - **Loading screen:** `art/splash.png` (drawn by `tools/make_splash.gd`) is the boot splash, and
   the web page matches it (dark background, gold progress bar, "Rallying the pack...").
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
