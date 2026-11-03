@@ -1,9 +1,11 @@
 extends Node
 
 ## Cloud saves through Supabase (autoload "Cloud"): email/password accounts via Supabase Auth and
-## one row per player in the `saves` table (server/supabase.sql). Sync is automatic: each local
-## save uploads a few seconds later; on launch and before uploading, the newer of this device and
-## the cloud wins, and if both changed the player chooses. Offline play just syncs later.
+## one row per saved game in the `saves` table (server/supabase.sql), so every game follows the
+## player to any device. Sync is automatic and game by game: a save uploads a few seconds later;
+## on launch and before uploading, the newer of this device and the cloud wins, a game this device
+## doesn't have downloads, and if the same game changed on both the player chooses. Deleting a game
+## deletes its cloud copy. Offline play just syncs later.
 
 signal status_changed(text: String)
 ## A cloud save was written to disk; the game should reload it.
@@ -23,7 +25,6 @@ var anon_key := CloudConfig.ANON_KEY
 
 var email := ""
 var status := ""
-var last_synced_at := ""  # server updated_at of the cloud save this device last matched
 var last_synced_unix := 0.0
 var reset_pending := false  # signed in from a reset link; waiting on a new password
 
@@ -31,7 +32,9 @@ var _access := ""
 var _refresh := ""
 var _expires_at := 0.0
 var _user_id := ""
-var _dirty := false  # local save changed since the last sync
+var _synced := {}  # saved game (slot) -> server updated_at of the cloud copy this device last matched
+var _dirty := {}  # saved games changed here since they last synced
+var _deleted: Array = []  # saved games deleted here whose cloud copy still has to go
 var _busy := false
 var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
@@ -47,6 +50,7 @@ func _ready() -> void:
 	add_child(_timer)
 	_load_state()
 	SaveHooks.on_saved = mark_dirty
+	SaveHooks.on_deleted = forget
 	if enabled() and await _take_link_session():
 		return
 	if signed_in():
@@ -66,9 +70,23 @@ func signed_in() -> bool:
 	return _refresh != ""
 
 
-## Called after every local save.
+## Called after every local save (of the game being played).
 func mark_dirty() -> void:
-	_dirty = true
+	var slot := Saves.slot_of(Profile.save_path)
+	if slot == "":
+		return
+	_dirty[slot] = true
+	_store_state()
+	if signed_in():
+		_timer.start(UPLOAD_DELAY)
+
+
+## A saved game was deleted here: delete its cloud copy too (now, or once back online).
+func forget(slot: String) -> void:
+	_dirty.erase(slot)
+	_synced.erase(slot)
+	if slot not in _deleted:
+		_deleted.append(slot)
 	_store_state()
 	if signed_in():
 		_timer.start(UPLOAD_DELAY)
@@ -104,7 +122,7 @@ func log_out() -> void:
 	_refresh = ""
 	_user_id = ""
 	email = ""
-	last_synced_at = ""
+	_synced.clear()
 	reset_pending = false
 	_store_state()
 	_set_status("Signed out. Your game is still saved on this device.")
@@ -220,59 +238,81 @@ func _sync_once(retried := false) -> void:
 			_set_status("Offline. Will sync when back online." + _last_error)
 			_timer.start(RETRY_DELAY)
 		return
-	var path := "/rest/v1/saves?user_id=eq.%s&select=profile,campaign,updated_at" % _user_id
+	var path := "/rest/v1/saves?user_id=eq.%s&select=slot,updated_at" % _user_id
 	var r := await _request(HTTPClient.METHOD_GET, path)
 	if r.code == 401 or r.code == 403:
 		_access = ""  # the database turned the login down: refresh it and try once more
 		if await _ensure_token():
 			r = await _request(HTTPClient.METHOD_GET, path)
-	if not r.ok:
+	if not r.ok or not r.data is Array:
 		if signed_in():
 			_note_error("read", r)
 			_set_status("Offline. Will sync when back online." + _last_error)
 			_timer.start(RETRY_DELAY)
 		return
-	var cloud: Dictionary = r.data[0] if r.data is Array and not r.data.is_empty() else {}
-	var has_local := FileAccess.file_exists(Profile.save_path)
-	if cloud.is_empty():
-		if has_local:
-			await _upload("", retried)
+	var cloud := {}  # slot -> updated_at
+	for row: Dictionary in r.data:
+		cloud[String(row.slot)] = String(row.updated_at)
+	# Games deleted here go from the cloud too.
+	for slot: String in _deleted.duplicate():
+		var d := await _request(HTTPClient.METHOD_DELETE, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s" % [_user_id, slot.uri_encode()])
+		if d.ok:
+			_deleted.erase(slot)
+			cloud.erase(slot)
+	_store_state()
+	var changed := 0
+	for slot: String in cloud:
+		if slot in _deleted:
+			continue
+		var here := FileAccess.file_exists(Saves.path(slot, Saves.PROFILE))
+		if here and _synced.get(slot, "") == cloud[slot]:
+			if _dirty.get(slot, false):
+				await _upload(slot, cloud[slot], retried)
+				changed += 1
+		elif not here or (not _dirty.get(slot, false) and _synced.has(slot)):
+			await _download(slot)  # newer from another device, or a game this device doesn't have yet
+			changed += 1
 		else:
-			_set_status("Signed in. Nothing saved yet.")
-	elif cloud.updated_at == last_synced_at:
-		if _dirty and has_local:
-			await _upload(cloud.updated_at, retried)
-		else:
-			_set_status("Up to date.")
-	elif _slot_in(String(cloud.profile)) != Saves.slot_of(Profile.save_path):
-		_apply(cloud)  # another game's newer copy: it goes back to its own save, not this one
-		if _dirty and has_local:
-			await _upload(cloud.updated_at, retried)
-	elif not has_local or not _dirty:
-		_apply(cloud)  # newer save from another device
-	else:
-		_pending = cloud
-		_show_conflict()
+			# Changed here and in the cloud (or never compared): the same text is no conflict.
+			var row := await _fetch(slot)
+			if row.is_empty():
+				continue
+			if String(row.profile) == FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)) \
+					and String(row.get("campaign", "")) == _local_campaign(slot):
+				_mark_synced(slot, String(row.updated_at))
+				continue
+			_pending = row
+			_show_conflict()
+			return  # one question at a time; the rest syncs after it's answered
+	# Games the cloud doesn't have yet.
+	for info: Dictionary in Saves.list():
+		var slot := String(info.id)
+		if not cloud.has(slot) and (_dirty.get(slot, false) or not _synced.has(slot)):
+			await _upload(slot, "", retried)
+			changed += 1
+	if changed == 0:
+		_set_status("Up to date.")
 
 
-## Uploads this device's save over cloud version `expected` ("" = the cloud has none yet). The write
-## only lands if the cloud still holds exactly that version, so a save another device uploaded a
-## moment ago is never overwritten: sync looks again instead and offers the conflict prompt.
-func _upload(expected: String, retried := false) -> void:
+## Uploads saved game `slot` over its cloud copy `expected` ("" = the cloud has none yet). The
+## write only lands if the cloud still holds exactly that version, so a copy another device
+## uploaded a moment ago is never overwritten: sync looks again instead and offers the choice.
+func _upload(slot: String, expected: String, retried := false) -> void:
 	var body := {
-		"profile": FileAccess.get_file_as_string(Profile.save_path),
-		"campaign": FileAccess.get_file_as_string(Campaign.save_path) if FileAccess.file_exists(Campaign.save_path) else "",
+		"profile": FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)),
+		"campaign": _local_campaign(slot),
 		"device": OS.get_name(),
 	}
 	var r: Dictionary
 	if expected == "":
 		body.user_id = _user_id
+		body.slot = slot
 		r = await _request(HTTPClient.METHOD_POST, "/rest/v1/saves", body, true, ["Prefer: return=representation"])
 	else:
-		r = await _request(HTTPClient.METHOD_PATCH, "/rest/v1/saves?user_id=eq.%s&updated_at=eq.%s" % [_user_id, expected.uri_encode()],
-			body, true, ["Prefer: return=representation"])
+		r = await _request(HTTPClient.METHOD_PATCH, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s&updated_at=eq.%s" % [
+			_user_id, slot.uri_encode(), expected.uri_encode()], body, true, ["Prefer: return=representation"])
 	if r.ok and r.data is Array and not r.data.is_empty():
-		_mark_synced(r.data[0].updated_at)
+		_mark_synced(slot, String(r.data[0].updated_at))
 		_set_status("Saved to the cloud.")
 	elif not retried and (r.code == 409 or (r.ok and r.data is Array)):
 		await _sync_once(true)  # another device saved first (insert clashed, or the update matched nothing)
@@ -282,10 +322,28 @@ func _upload(expected: String, retried := false) -> void:
 		_timer.start(RETRY_DELAY)
 
 
-## Writes a cloud copy into the save it came from. The game restarts (to the save picker) only if
-## that's the game being played, or none is yet.
+## The whole cloud copy of saved game `slot` ({} if it can't be read).
+func _fetch(slot: String) -> Dictionary:
+	var r := await _request(HTTPClient.METHOD_GET, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s&select=slot,profile,campaign,updated_at" % [
+		_user_id, slot.uri_encode()])
+	return r.data[0] if r.ok and r.data is Array and not r.data.is_empty() else {}
+
+
+func _download(slot: String) -> void:
+	var row := await _fetch(slot)
+	if not row.is_empty():
+		_apply(row)
+
+
+func _local_campaign(slot: String) -> String:
+	var file := Saves.path(slot, Saves.CAMPAIGN)
+	return FileAccess.get_file_as_string(file) if FileAccess.file_exists(file) else ""
+
+
+## Writes a cloud copy into its saved game. The game restarts (to the save picker) only if that's
+## the game being played, or none is yet.
 func _apply(cloud: Dictionary) -> void:
-	var slot := _slot_in(String(cloud.profile))
+	var slot := String(cloud.get("slot", "")) if String(cloud.get("slot", "")) != "" else _slot_in(String(cloud.profile))
 	var active := Saves.slot_of(Profile.save_path)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(Saves.DIR + "/" + slot))
 	_write(Saves.path(slot, Saves.PROFILE), cloud.profile)
@@ -293,13 +351,13 @@ func _apply(cloud: Dictionary) -> void:
 		_write(Saves.path(slot, Saves.CAMPAIGN), cloud.campaign)
 	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(Saves.path(slot, Saves.CAMPAIGN)))
-	_mark_synced(cloud.updated_at)
+	_mark_synced(slot, String(cloud.updated_at))
 	_set_status("Loaded your cloud save.")
 	if active == "" or active == slot:
 		downloaded.emit()
 
 
-## The save a cloud copy belongs to; copies from before save slots get one of their own.
+## The save a cloud copy belongs to, from its profile text ("save_cloud" if it doesn't say).
 static func _slot_in(profile_text: String) -> String:
 	var cfg := ConfigFile.new()
 	if cfg.parse(profile_text) == OK:
@@ -309,10 +367,10 @@ static func _slot_in(profile_text: String) -> String:
 	return "save_cloud"
 
 
-func _mark_synced(updated_at: String) -> void:
-	last_synced_at = updated_at
+func _mark_synced(slot: String, updated_at: String) -> void:
+	_synced[slot] = updated_at
+	_dirty.erase(slot)
 	last_synced_unix = Time.get_unix_time_from_system()
-	_dirty = false
 	_store_state()
 
 
@@ -365,9 +423,9 @@ func _show_conflict() -> void:
 	col.add_child(title)
 	var body := Retro.text(Label.new(), 21)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var local := summary(FileAccess.get_file_as_string(Profile.save_path),
-		FileAccess.get_file_as_string(Campaign.save_path) if FileAccess.file_exists(Campaign.save_path) else "")
-	body.text = "This device and your cloud save both changed since they last synced.\n\nThis device: %s\nCloud: %s\n\nWhich one do you want to keep? The other is replaced." % [
+	var slot := String(_pending.slot)
+	var local := summary(FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)), _local_campaign(slot))
+	body.text = "This game changed on this device and in your cloud save since they last synced.\n\nThis device: %s\nCloud: %s\n\nWhich one do you want to keep? The other is replaced." % [
 		local, summary(_pending.profile, _pending.get("campaign", ""))]
 	col.add_child(body)
 	for choice in [["Keep this device", false], ["Use the cloud save", true]]:
@@ -387,8 +445,9 @@ func _resolve_conflict(use_cloud: bool) -> void:
 		_apply(cloud)
 	else:
 		_busy = true
-		await _upload(cloud.updated_at)  # replace exactly the cloud save the player was shown
+		await _upload(String(cloud.slot), String(cloud.updated_at))  # replace exactly the copy the player was shown
 		_busy = false
+	sync()  # the other games
 
 
 # --- Plumbing -------------------------------------------------------------------------------
@@ -499,9 +558,10 @@ func _store_state() -> void:
 	cfg.set_value("cloud", "email", email)
 	cfg.set_value("cloud", "user_id", _user_id)
 	cfg.set_value("cloud", "refresh", _refresh)
-	cfg.set_value("cloud", "last_synced_at", last_synced_at)
+	cfg.set_value("cloud", "synced", _synced)
 	cfg.set_value("cloud", "last_synced_unix", last_synced_unix)
-	cfg.set_value("cloud", "dirty", _dirty)
+	cfg.set_value("cloud", "dirty_games", _dirty)
+	cfg.set_value("cloud", "deleted", _deleted)
 	cfg.set_value("cloud", "siege_pending", _siege_pending)
 	cfg.set_value("cloud", "siege_name", _siege_name)
 	cfg.save(state_path)
@@ -514,8 +574,9 @@ func _load_state() -> void:
 	email = cfg.get_value("cloud", "email", "")
 	_user_id = cfg.get_value("cloud", "user_id", "")
 	_refresh = cfg.get_value("cloud", "refresh", "")
-	last_synced_at = cfg.get_value("cloud", "last_synced_at", "")
+	_synced = cfg.get_value("cloud", "synced", {})  # (games sync one by one now; older state is dropped)
 	last_synced_unix = cfg.get_value("cloud", "last_synced_unix", 0.0)
-	_dirty = cfg.get_value("cloud", "dirty", false)
+	_dirty = cfg.get_value("cloud", "dirty_games", {})
+	_deleted = cfg.get_value("cloud", "deleted", [])
 	_siege_pending = cfg.get_value("cloud", "siege_pending", {})
 	_siege_name = cfg.get_value("cloud", "siege_name", "")

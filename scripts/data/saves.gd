@@ -84,11 +84,14 @@ static func describe(id: String) -> Dictionary:
 		"detail": " · ".join(bits), "played": played}
 
 
-## Deletes a slot and everything in it.
+## Deletes a slot and everything in it (its cloud copy too).
 static func delete(id: String) -> void:
+	var had_game := FileAccess.file_exists(path(id, PROFILE))
 	for file in [PROFILE, CAMPAIGN]:
 		DirAccess.remove_absolute(_abs(path(id, file)))
 	DirAccess.remove_absolute(_abs(DIR + "/" + id))
+	if had_game:
+		SaveHooks.deleted(id)
 
 
 static func _abs(p: String) -> String:

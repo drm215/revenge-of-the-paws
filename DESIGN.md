@@ -162,8 +162,10 @@ The apocalypse starts **where you actually live**.
   its own folder (`user://saves/<id>/`). After the loading screen the save picker lists them, newest
   first (pet and town, level, territories held, turn, last played), with Play, Delete (asks twice)
   and New game; the map's Saves button comes back here (there is no Setup button any more). A save from before slots becomes the
-  first one. The cloud keeps the most recently played game: each copy records its save, and a
-  download goes back into that save (only the game being played restarts).
+  first one. The cloud keeps every game (one `saves` row per player and game) and syncs them one
+  by one: a game this device doesn't have downloads, the newer copy of each game wins, the same
+  game changed on both devices asks which to keep, and deleting a game deletes its cloud copy.
+  Only the game being played restarts when its copy downloads.
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the
