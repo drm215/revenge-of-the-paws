@@ -31,17 +31,22 @@ const PINK := Color("f6757a")
 const TITLE_FONT := "res://fonts/PressStart2P-Regular.ttf"
 const BODY_FONT := "res://fonts/AtkinsonHyperlegible-Regular.ttf"
 const BOLD_FONT := "res://fonts/AtkinsonHyperlegible-Bold.ttf"
+## Short text (buttons, names, small headings, map labels) keeps a pixel look, drawn smooth so it
+## stays readable on a phone; long text uses the body font.
+const PIXEL_FONT := "res://fonts/PixelifySans.ttf"
+const PIXEL_WEIGHT := 600  # Pixelify Sans is a variable font; semi-bold keeps thin strokes solid
 const BORDER := 4
 ## One knob for every text size in the game (sizes in code are written at 1.0).
 const TEXT_SCALE := 1.35
 ## The arcade font is kept for big screen titles; smaller "titles" (names, labels, buttons) use
-## the bold body font, scaled up to match the arcade font's wide letters.
+## the pixel font, scaled up to match the arcade font's wide letters.
 const MIN_ARCADE_SIZE := 16
-const SMALL_TITLE_SCALE := 1.5
+const SMALL_TITLE_SCALE := 1.7
 
 static var _title_font: FontFile
 static var _body_font: FontFile
 static var _bold_font: FontFile
+static var _pixel_font: FontVariation
 
 
 static func title_font() -> FontFile:
@@ -61,6 +66,15 @@ static func bold_font() -> Font:
 	if _bold_font == null:
 		_bold_font = _smooth(BOLD_FONT)
 	return _bold_font
+
+
+## Pixelify Sans at PIXEL_WEIGHT, drawn smooth.
+static func pixel_font() -> Font:
+	if _pixel_font == null:
+		_pixel_font = FontVariation.new()
+		_pixel_font.base_font = _smooth(PIXEL_FONT)
+		_pixel_font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): PIXEL_WEIGHT}
+	return _pixel_font
 
 
 static func _smooth(path: String) -> FontFile:
@@ -133,11 +147,11 @@ static func on_tap(control: Control, action: Callable) -> void:
 				action.call())
 
 
-## Styles a label as a title: the arcade font (Press Start 2P) from MIN_ARCADE_SIZE up, the bold
-## body font below it (small pixel text is hard to read on a phone).
+## Styles a label as a title: the arcade font (Press Start 2P) from MIN_ARCADE_SIZE up, the
+## smooth pixel font below it (small arcade text is hard to read on a phone).
 static func title(label: Label, font_size := 16, color := GOLD) -> Label:
 	var arcade := font_size >= MIN_ARCADE_SIZE
-	label.add_theme_font_override("font", title_font() if arcade else bold_font())
+	label.add_theme_font_override("font", title_font() if arcade else pixel_font())
 	label.add_theme_font_size_override("font_size", px(font_size if arcade else font_size * SMALL_TITLE_SCALE))
 	label.add_theme_color_override("font_color", color)
 	label.add_theme_color_override("font_shadow_color", INK)
@@ -160,8 +174,8 @@ static func make_theme() -> Theme:
 
 	t.set_color("font_color", "Label", MIST)
 
-	t.set_font("font", "Button", bold_font())
-	t.set_font_size("font_size", "Button", px(20))
+	t.set_font("font", "Button", pixel_font())
+	t.set_font_size("font_size", "Button", px(22))
 	t.set_stylebox("normal", "Button", box(SLATE, STEEL, BORDER, 4))
 	t.set_stylebox("hover", "Button", box(STEEL, FOG, BORDER, 4))
 	t.set_stylebox("pressed", "Button", box(GOLD, YELLOW, BORDER, 1))

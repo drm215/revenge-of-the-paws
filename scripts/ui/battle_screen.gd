@@ -109,7 +109,7 @@ func _show_take_control() -> void:
 	b.text = "AUTO · Take control"
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.custom_minimum_size = Vector2(0, 84)
-	b.add_theme_font_size_override("font_size", Retro.px(17))
+	b.add_theme_font_size_override("font_size", Retro.px(20))
 	b.pressed.connect(func() -> void:
 		auto = false
 		b.queue_free())
@@ -163,7 +163,7 @@ func _begin_player_turn(actor: Combatant) -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 84)
 		b.clip_text = true
-		b.add_theme_font_size_override("font_size", Retro.px(17))
+		b.add_theme_font_size_override("font_size", Retro.px(20))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.text = skill.name + ((" +%d" % actor.upgrade_count(skill_id)) if actor.upgrade_count(skill_id) > 0 else "")
 		if not actor.can_use(skill_id):

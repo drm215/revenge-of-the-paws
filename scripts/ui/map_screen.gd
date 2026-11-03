@@ -515,38 +515,38 @@ func _build_ui() -> void:
 	var setup := Button.new()
 	var pack := Button.new()
 	pack.text = "Pack"
-	pack.add_theme_font_size_override("font_size", Retro.px(14))
+	pack.add_theme_font_size_override("font_size", Retro.px(16))
 	pack.pressed.connect(pack_requested.emit)
 	footer.add_child(pack)
 	var stable_button := Button.new()
 	stable_button.text = "Stable"
-	stable_button.add_theme_font_size_override("font_size", Retro.px(14))
+	stable_button.add_theme_font_size_override("font_size", Retro.px(16))
 	stable_button.pressed.connect(stable_requested.emit)
 	footer.add_child(stable_button)
 	var siege_button := Button.new()
 	siege_button.text = "Siege"
-	siege_button.add_theme_font_size_override("font_size", Retro.px(14))
+	siege_button.add_theme_font_size_override("font_size", Retro.px(16))
 	siege_button.pressed.connect(siege_requested.emit)
 	footer.add_child(siege_button)
 	if campaign.is_team():
 		_chat_button = Button.new()
 		_chat_button.text = "Chat"
-		_chat_button.add_theme_font_size_override("font_size", Retro.px(14))
+		_chat_button.add_theme_font_size_override("font_size", Retro.px(16))
 		_chat_button.pressed.connect(chat_requested.emit)
 		footer.add_child(_chat_button)
 	var cloud_button := Button.new()
 	cloud_button.text = "Cloud"
-	cloud_button.add_theme_font_size_override("font_size", Retro.px(14))
+	cloud_button.add_theme_font_size_override("font_size", Retro.px(16))
 	cloud_button.pressed.connect(account_requested.emit)
 	footer.add_child(cloud_button)
 	if GameData.AUTO_MODE_ENABLED:
 		var auto := Button.new()
 		auto.text = "Auto: " + ("On" if profile.auto_battle else "Off")
-		auto.add_theme_font_size_override("font_size", Retro.px(14))
+		auto.add_theme_font_size_override("font_size", Retro.px(16))
 		auto.pressed.connect(auto_toggled.emit)
 		footer.add_child(auto)
 	setup.text = "Setup"
-	setup.add_theme_font_size_override("font_size", Retro.px(14))
+	setup.add_theme_font_size_override("font_size", Retro.px(16))
 	setup.pressed.connect(setup_requested.emit)
 	footer.add_child(setup)
 	for button in footer.get_children():

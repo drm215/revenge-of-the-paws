@@ -93,6 +93,7 @@ func setup(c: Combatant, sprite_size: float) -> void:
 
 	_name_label.text = c.display_name
 	Retro.text(_name_label, 17 if compact else 23, Retro.WHITE)
+	_name_label.add_theme_font_override("font", Retro.pixel_font())  # short text keeps the pixel look
 	_name_label.clip_text = true
 	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	info.add_child(_name_label)

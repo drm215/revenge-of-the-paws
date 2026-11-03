@@ -330,7 +330,7 @@ func _tile_button(label: String, on_press: Callable) -> Button:
 	b.clip_text = true
 	b.custom_minimum_size = Vector2(0, 52)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.add_theme_font_size_override("font_size", Retro.px(16))
+	b.add_theme_font_size_override("font_size", Retro.px(18))
 	if on_press.is_valid():
 		b.pressed.connect(on_press)
 	return b

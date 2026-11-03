@@ -123,7 +123,7 @@ func _clamp_pan() -> void:
 func _draw() -> void:
 	if campaign == null:
 		return
-	var font := Retro.body_font()
+	var font := Retro.pixel_font()
 	for i in _draw_order:
 		for k in campaign.territories[i].parts.size():
 			var poly := _screen_ring(i, k)
