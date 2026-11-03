@@ -14,6 +14,8 @@ signal siege_requested
 signal chat_requested
 ## Join (or go back to) the team's legend raid.
 signal raid_requested
+## Back to the save picker.
+signal saves_requested
 signal auto_toggled
 
 var campaign: Campaign
@@ -537,6 +539,11 @@ func _build_ui() -> void:
 	cloud_button.add_theme_font_size_override("font_size", Retro.px(16))
 	cloud_button.pressed.connect(account_requested.emit)
 	footer.add_child(cloud_button)
+	var saves_button := Button.new()
+	saves_button.text = "Saves"
+	saves_button.add_theme_font_size_override("font_size", Retro.px(16))
+	saves_button.pressed.connect(saves_requested.emit)
+	footer.add_child(saves_button)
 	if GameData.AUTO_MODE_ENABLED:
 		var auto := Button.new()
 		auto.text = "Auto: " + ("On" if profile.auto_battle else "Off")

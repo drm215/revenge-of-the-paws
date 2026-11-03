@@ -86,6 +86,9 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
 	screen.raid_requested.connect(_show_raid.bind(-1))
+	screen.saves_requested.connect(func() -> void:
+		_profile.save()  # everything else is already saved after each move
+		_show_saves())
 	screen.chat_requested.connect(func() -> void:
 		var chat := ChatScreen.new()
 		chat.closed.connect(func() -> void: _show_map(_profile, false))

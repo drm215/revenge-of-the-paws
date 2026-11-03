@@ -157,7 +157,7 @@ The apocalypse starts **where you actually live**.
 - **Saves** (`scripts/data/saves.gd`, `scripts/ui/save_screen.gd`): any number of games, each in
   its own folder (`user://saves/<id>/`). After the loading screen the save picker lists them, newest
   first (pet and town, level, territories held, turn, last played), with Play, Delete (asks twice)
-  and New game; there is no Setup button on the map any more. A save from before slots becomes the
+  and New game; the map's Saves button comes back here (there is no Setup button any more). A save from before slots becomes the
   first one. The cloud keeps the most recently played game: each copy records its save, and a
   download goes back into that save (only the game being played restarts).
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
