@@ -2,14 +2,17 @@ class_name Onboarding
 extends Control
 
 ## First-launch setup: home ZIP code (or region outside the US) → real-life pet → local survivors.
-## Emits the finished Profile.
+## Emits the finished Profile. Opened from the map (Setup) it starts a new game: the home, pet and
+## starting animals are offered again, but the pack, Stable, trinkets and map start from scratch.
 
 signal finished(profile: Profile)
 signal account_requested
+## Setup was left without starting a new game.
+signal cancelled
 
 const GOLD := Retro.GOLD
 
-## Optional existing profile to edit instead of starting blank.
+## The current profile when starting over: its home, pet and team are the starting suggestions.
 var initial: Profile
 
 var _profile := Profile.new()
@@ -24,22 +27,19 @@ var _zip_result: Label
 func _ready() -> void:
 	_detected_region = Profile.detect_region()
 	if initial:
+		# A new game: only who you are carries over. Critters, XP, the Stable, trinkets, tech trees,
+		# injuries, duties and rows all start from scratch. Bookkeeping that guards against claiming
+		# a reward twice (siege weeks, team XP collected) and one-off save fixes stays.
 		_profile.region = initial.region
 		_profile.zip = initial.zip
 		_profile.town = initial.town
 		_profile.pet_species = initial.pet_species
 		_profile.pet_name = initial.pet_name
-		_profile.team = initial.team.duplicate()
-		_profile.xp = initial.xp.duplicate()
-		_profile.unlocked = initial.unlocked.duplicate()
-		_profile.stable = initial.stable.duplicate()
-		_profile.trinkets = initial.trinkets.duplicate()
-		_profile.equipped = initial.equipped.duplicate()
-		_profile.tree = initial.tree.duplicate(true)
-		_profile.injuries = initial.injuries.duplicate()
-		_profile.fatigue = initial.fatigue.duplicate()
-		_profile.duties = initial.duties.duplicate()
-		_profile.rows = initial.rows.duplicate()
+		_profile.team.assign(initial.team.filter(func(id: String) -> bool:
+			return id in GameData.REGIONS[initial.region].animals))
+		_profile.siege_claimed = initial.siege_claimed.duplicate()
+		_profile.team_xp = initial.team_xp.duplicate()
+		_profile.fixes = initial.fixes.duplicate()
 		_pet_decided = true
 		_use_zip = initial.zip != ""
 	else:
@@ -172,7 +172,7 @@ func _show_team() -> void:
 		_content.add_child(_choice("%s — %s" % [a.name, a.role], "%s  %s" % [a.desc, stats],
 			id in _profile.team, _toggle_animal.bind(id)))
 	_label("Chosen %d / %d" % [_profile.team.size(), needed], 18, GOLD)
-	var start := _nav(_show_pet, "Start", _finish)
+	var start := _nav(_show_pet, "Start new game" if initial else "Start", _finish)
 	start.disabled = _profile.team.size() != needed
 
 
@@ -199,6 +199,8 @@ func _pet_ready() -> bool:
 
 
 func _finish() -> void:
+	if initial:
+		Campaign.clear_saved()  # a fresh map too, even for the same home
 	_profile.unlock(GameData.REGIONS[_profile.region].animals)
 	_profile.normalize_roster()
 	_profile.save()
@@ -238,6 +240,9 @@ func _heading(title: String, body: String) -> void:
 	Retro.title(_label(title, 22, GOLD), 22).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var b := _label(body, 22, Retro.MIST)
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if initial:
+		var warn := _label("New game: your pack, Stable, trinkets and map start over from scratch. Cancel keeps your current game.", 19, Retro.ORANGE)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_content.add_child(Control.new())  # spacer
 
 
@@ -312,9 +317,12 @@ func _nav(back: Callable, next_text: String, next: Callable) -> Button:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	_content.add_child(row)
+	var cancel := not back.is_valid() and initial != null
+	if cancel:
+		back = cancelled.emit  # the first step: leave setup and keep the current game
 	if back.is_valid():
 		var b := Button.new()
-		b.text = "Back"
+		b.text = "Cancel" if cancel else "Back"
 		b.custom_minimum_size = Vector2(200, 84)
 		b.pressed.connect(back)
 		row.add_child(b)

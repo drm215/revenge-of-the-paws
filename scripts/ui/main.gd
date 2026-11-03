@@ -30,7 +30,11 @@ func _ready() -> void:
 func _show_onboarding(existing: Profile) -> void:
 	var screen := Onboarding.new()
 	screen.initial = existing
-	screen.finished.connect(_show_map)
+	screen.finished.connect(func(profile: Profile) -> void:
+		_campaign = null  # a new game: rebuild the map from scratch
+		_show_map(profile))
+	if existing:
+		screen.cancelled.connect(func() -> void: _show_map(existing, false))
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
 
