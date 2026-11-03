@@ -67,6 +67,12 @@ func _ready() -> void:
 			profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "", GameData.PACK_LIMIT]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
+	if prep:
+		var guide := Button.new()
+		guide.text = "Zombie guide"
+		guide.custom_minimum_size = Vector2(0, 60)
+		guide.pressed.connect(ZombieGuide.open.bind(self))
+		col.add_child(guide)
 	if prep and battle_config.get("raidable", false):
 		var raid := Button.new()
 		raid.text = "Start a raid with your team"

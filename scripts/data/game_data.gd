@@ -684,16 +684,27 @@ const ZOMBIES := {
 	},
 }
 
-## What the counter zombies do, for the scout report and briefing.
-const ZOMBIE_NOTES := {
-	"riot": "armored: takes half damage from single-target attacks",
-	"plague": "sprays infection over the whole pack",
-	"screamer": "fast; its scream can stun everyone and frenzies the other zombies",
-	"medic": "raises a destroyed zombie at 40% HP",
-	"shambler": "stronger in groups",
-	"bloater": "explodes when killed",
-	"runner": "fast, hunts the weakest",
+## The in-game zombie guide (ZombieGuide): the threat each type starts showing up at (see
+## generate_waves) and what makes it dangerous. Stats, moves and weak points come from the data.
+const ZOMBIE_GUIDE := {
+	"shambler": {"from": 1, "note": "Horde: +15% attack for each other Shambler still standing. Its bite can infect."},
+	"runner": {"from": 1, "note": "Very fast, reaches the back row, and goes after your weakest critter most of the time."},
+	"bloater": {"from": 2, "note": "Explodes when destroyed: 14 damage to every critter."},
+	"plague": {"from": 2, "note": "Stands in the back row. Its spit winds up, then can infect the whole pack."},
+	"screamer": {"from": 2, "note": "Stands in the back row. Its scream can stun everyone and frenzies the other zombies (+25% attack). Kill it early."},
+	"medic": {"from": 3, "note": "Stands in the back row and raises a destroyed zombie (never a legend, never twice; no XP the second time). Kill it first."},
+	"riot": {"from": 3, "note": "Armored: takes half damage from single-target attacks. Area attacks hit it fully."},
+	"brute": {"from": 3, "note": "A huge tank at the end of tough waves. Its Rampage winds up, then hits the whole pack."},
 }
+## General tips at the top of the zombie guide.
+const ZOMBIE_TIPS := [
+	"Infected: loses 6% of max HP at the start of each of its turns. Healing that cures (like Mend) clears it.",
+	"Winding up: the card says so. Stun it to cancel the attack, or Guard to halve it; if it lands it hits x1.75.",
+	"Back row: single-target attacks can't reach it while 2 or more zombies stand in front. Area attacks and birds can.",
+	"Enraged: past round 8 of a wave, zombies gain +10% attack every round. Don't let fights drag on.",
+	"Targets: zombies hit what they can knock out, else often your healer. Taunt pulls their single-target attacks.",
+	"Kill first: Medics, then Screamers, then anything winding up.",
+]
 
 ## Zombie weak points: animals with the tag (kind, terrain or role) deal ZOMBIE_WEAK_MULT damage to
 ## that zombie, and some bring a trick: "armor" ignores its armor instead, "defuse" stops its death
@@ -1573,7 +1584,9 @@ static func row_hint(row := "", bird := false) -> String:
 ## A skill's numbers in words, e.g. "One foe · Power 170% · Crit +25% · Cooldown 2".
 static func skill_stats(s: Dictionary) -> String:
 	var who := {"enemy": "One foe", "all_enemies": "All foes", "ally": "One ally", "all_allies": "All allies", "self": "Self"}
-	var parts: PackedStringArray = [who.get(s.target, "")]
+	var parts: PackedStringArray = []
+	if who.has(s.target):
+		parts.append(who[s.target])
 	if s.get("power", 0.0) > 0.0:
 		parts.append("Power %d%%" % roundi(s.power * 100))
 	if s.get("crit_bonus", 0.0) > 0.0:
@@ -1583,6 +1596,12 @@ static func skill_stats(s: Dictionary) -> String:
 	for e: Dictionary in s.get("apply", []):
 		parts.append("%s %d turn%s%s" % [STATUSES[e.status].name, e.turns, "" if e.turns == 1 else "s",
 			(" (%d%%)" % roundi(e.chance * 100)) if e.has("chance") else ""])
+	if s.get("rally", {}).has("status"):
+		parts.append("Others %s %d turns" % [STATUSES[s.rally.status].name.to_lower(), s.rally.turns])
+	if s.get("revive", 0.0) > 0.0:
+		parts.append("Raises a destroyed zombie at %d%% HP" % roundi(s.revive * 100))
+	if s.get("windup", false):
+		parts.append("Winds up first")
 	if s.get("cooldown", 0) > 0:
 		parts.append("Cooldown %d" % s.cooldown)
 	return " · ".join(parts)

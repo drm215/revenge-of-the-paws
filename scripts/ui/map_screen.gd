@@ -472,7 +472,17 @@ func _build_ui() -> void:
 	legend.text = "Green: yours · Orange: can attack · Purple: legend lair · Red blocks: threat · Drag/pinch to move & zoom"
 	Retro.text(legend, 17, Retro.FOG)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(legend)
+	legend.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var legend_row := HBoxContainer.new()
+	legend_row.add_theme_constant_override("separation", 10)
+	col.add_child(legend_row)
+	legend_row.add_child(legend)
+	var guide := Button.new()
+	guide.text = "Zombies"
+	guide.custom_minimum_size = Vector2(130, 52)
+	guide.add_theme_font_size_override("font_size", Retro.px(15))
+	guide.pressed.connect(ZombieGuide.open.bind(self))
+	legend_row.add_child(guide)
 
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.STEEL, Retro.BORDER, 0, 14))
