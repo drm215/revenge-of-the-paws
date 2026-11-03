@@ -9,6 +9,8 @@ extends Control
 ## it, and ends with Fight! (or Back to the map).
 
 signal closed
+## Ready the pack on a team legend lair: open a raid instead of fighting alone.
+signal raid_requested
 signal fight
 signal bring_back(id: String)  # bring this animal back from the Stable (costs a map turn)
 signal open_stable  # switch to the Stable view
@@ -57,6 +59,13 @@ func _ready() -> void:
 			profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "", GameData.PACK_LIMIT]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
+	if prep and battle_config.get("raidable", false):
+		var raid := Button.new()
+		raid.text = "Start a raid with your team"
+		raid.custom_minimum_size = Vector2(0, 72)
+		raid.add_theme_color_override("font_color", Retro.CYAN)
+		raid.pressed.connect(raid_requested.emit)
+		col.add_child(raid)
 	if not stable_view:
 		var rows := Retro.text(Label.new(), 19, Retro.FOG)
 		rows.text = GameData.row_hint()
@@ -143,8 +152,6 @@ func _fight_summary() -> String:
 	var region: String = battle_config.get("region", "")
 	if GameData.REGIONS.has(region):
 		lines.append("Home turf: %s animals +%d%%" % [GameData.REGIONS[region].name, roundi(GameData.HOME_TURF_BONUS * 100)])
-	if battle_config.get("boss_hp", 1.0) > 1.0:
-		lines.append("The legend has grown with your team: HP x%.1f, attack x%.2f." % [battle_config.boss_hp, battle_config.boss_atk])
 	if profile.duties.has("scout"):
 		lines.append("Scouted: " + GameData.waves_text(battle_config.waves))
 		var weak: PackedStringArray = []
@@ -212,8 +219,6 @@ func _refresh() -> void:
 				if (0 if _perks_here(id).strong else 1) == pass_index:
 					by_perk.append(id)
 		order = by_perk
-	if not battle_config.get("teammates", []).is_empty():
-		_teammate_section()
 	var grid := _grid()
 	if profile.has_pet():
 		grid.add_child(_card(profile.pet_species, GameData.PETS[profile.pet_species], true, true, Callable()))
@@ -243,36 +248,6 @@ func _pack_count() -> int:
 
 
 ## A heading (and optional note) in the list.
-## Legend lairs on a team map: one teammate's lineup can fight beside yours (6 critters).
-func _teammate_section() -> void:
-	_section("Call a teammate", "Legends grow with your team. Bring a teammate's lineup to fight beside yours: 6 critters instead of 3. They earn the fight's XP.")
-	var chosen := String(battle_config.get("helper", {}).get("id", ""))
-	for mate: Dictionary in battle_config.teammates:
-		var theirs := Profile.from_snapshot(String(mate.pack))
-		if theirs == null:
-			continue
-		var names: PackedStringArray = []
-		for id in theirs.pack_ids():
-			names.append("%s Lv %d" % [theirs.unit_name(id), theirs.level_of(id)])
-		var line := Retro.text(Label.new(), 19, Retro.MIST)
-		line.text = "%s's pack: %s" % [mate.name, ", ".join(names)]
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_list.add_child(line)
-		var on := chosen == String(mate.id)
-		var b := Button.new()
-		b.text = ("%s fights with you" if on else "Call %s") % mate.name
-		b.custom_minimum_size = Vector2(0, 64)
-		if on:
-			b.add_theme_color_override("font_color", Retro.YELLOW)
-		b.pressed.connect(func() -> void:
-			if on:
-				battle_config.erase("helper")
-			else:
-				battle_config["helper"] = mate
-			_refresh())
-		_list.add_child(b)
-
-
 func _section(heading: String, note: String) -> void:
 	var head := Retro.title(Label.new(), 13, Retro.GOLD)
 	head.text = heading

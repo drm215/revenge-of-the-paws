@@ -130,14 +130,22 @@ The apocalypse starts **where you actually live**.
   the version is unchanged, retrying on a teammate's newer map. A territory a teammate already
   freed just costs the turn. The map shows teammates' homes (cyan) and a feed of recent moves;
   it polls every 20 s while on a team.
-- **Team legends:** on a team map a legend grows with the team (`GameData.legend_growth`: HP x2.8
-  and ATK x1.55 with 2 players, then +0.25 HP / +0.08 ATK per extra player). In its lair, Ready
-  the pack offers "Call <teammate>": their fighting lineup (shared automatically as
-  `Profile.snapshot()` on the team map) fights beside yours, 6 critters in all, played by you.
-  Their pet doesn't lead; they take no injuries and earn the fight's full XP (collected on their
-  device), and linked teammates still get 10%. Simulated: 2 players together win about as often
-  as 3 critters solo (Lv 6: 53% vs 49%); 3 and 4 players together ~36% and ~23%; alone on a team
-  ~0%, so call help.
+- **Legend raids** (teams; `scripts/net/raid.gd`, `scripts/ui/raid_screen.gd`, `server/raids.sql`):
+  in a legend's lair, Ready the pack offers "Start a raid with your team". It opens a lobby (and
+  a chat ping); teammates join from the map's "Join the raid" button. Each player picks the 3
+  critters they bring and readies up; the opener starts with everyone ready (up to 4 players, 12
+  critters). Each player controls their own critters, live: every device runs the same battle
+  from the raid's seed and config (zombies caught up to the strongest critter brought), and only
+  moves travel, numbered in order; the first move posted for a number stands, so if a player
+  doesn't move within 45 s any device plays that turn with the AI. Each pack keeps its own
+  leader aura, bonds, terrain and home-turf bonuses, injuries and fatigue; knockouts injure their
+  owner's critters. The legend grows with the players who fight (`GameData.LEGEND_GROWTH`: HP x3.1
+  / x4.8 / x6.6, ATK x1.65 / x2.2 / x2.7 for 2 / 3 / 4), tuned so every raid size wins about as
+  often as one pack alone (~60% at Lv 5-6); a raid of one is a normal legend fight. XP is split
+  between the players; every player gets the legend's trinket on a win. The first device to
+  report the end stores the outcome and records the territory on the team map; each player
+  collects their own share once (`Profile.claim_raid`), even if they closed the game. Big raids
+  draw two compact cards per row.
 - **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
   maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
   10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on

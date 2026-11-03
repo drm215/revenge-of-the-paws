@@ -17,6 +17,7 @@ boot_splash/use_filter=false
 Cloud="*res://scripts/net/cloud.gd"
 Team="*res://scripts/net/team.gd"
 Chat="*res://scripts/net/chat.gd"
+Raid="*res://scripts/net/raid.gd"
 
 [display]
 

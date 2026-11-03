@@ -45,7 +45,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_campaign = _make_campaign(profile)
 		_campaign.last_event = message  # a teammate's move rebuilt the map: keep this player's news
 		_campaign_stale = false
-		_campaign.share_pack(profile.snapshot())  # so teammates can bring this lineup to a legend
+		_collect_raid()
 		var gained := profile.collect_team_xp(_campaign.team_key(), int(_campaign.shared_xp.get(_campaign.my_id, 0)))
 		if gained > 0:
 			_campaign.last_event += "\nTeammates' battles next to your land earned your pack +%d XP each." % gained
@@ -64,6 +64,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
+	screen.raid_requested.connect(_show_raid.bind(-1))
 	screen.chat_requested.connect(func() -> void:
 		var chat := ChatScreen.new()
 		chat.closed.connect(func() -> void: _show_map(_profile, false))
@@ -105,6 +106,55 @@ func _make_campaign(profile: Profile) -> Campaign:
 		c.apply(action)
 	c.on_action = team.record
 	return c
+
+
+## A raid lobby, opening a new raid on `lair` (or -1 to join or look at the team's raid).
+func _show_raid(lair: int) -> void:
+	var screen := RaidScreen.new()
+	screen.profile = _profile
+	screen.campaign = _campaign
+	screen.lair = lair
+	screen.closed.connect(func() -> void: _show_map(_profile, false))
+	screen.fight.connect(_start_raid_battle)
+	_swap(screen)
+
+
+## The raid started: every raider's battle screen plays the same fight, each player moving their own.
+func _start_raid_battle() -> void:
+	var raid := get_node("/root/Raid")
+	var screen := BattleScreen.new()
+	screen.profile = _profile
+	screen.config = raid.config()
+	screen.raid = true
+	screen.raid_done.connect(func(outcome: Dictionary, recorded_here: bool) -> void:
+		if not recorded_here:
+			return  # the device that reported the result first records it on the team map
+		var raiders: Array = raid.members().map(func(m: Dictionary) -> String: return String(m.user_id))
+		for i in _campaign.territories.size():
+			if _campaign.territories[i].id == String(outcome.get("territory", "")):
+				_campaign.resolve_battle(i, bool(outcome.won), int(outcome.xp), raiders, false))
+	screen.finished.connect(func(_won: bool) -> void:
+		_profile.save()
+		if not _profile.units_with_new_points().is_empty():
+			_show_upgrades()
+		else:
+			_show_map(_profile))
+	_swap(screen)
+
+
+## A raid this player fought in ended without them (they closed the game): collect their share.
+func _collect_raid() -> void:
+	var raid := get_node_or_null("/root/Raid")
+	if raid == null or raid.status() != "done" or not raid.is_member() or String(raid.info.id) in _profile.raids_claimed:
+		return
+	var brought: Array = []
+	for m: Dictionary in raid.members():
+		if String(m.user_id) == raid.my_id():
+			var mine := Profile.from_snapshot(String(m.pack))
+			brought = Array(mine.pack_ids()) if mine else []
+	var lines := _profile.claim_raid(String(raid.info.id), raid.result(), brought, raid.my_id())
+	if not lines.is_empty():
+		_campaign.last_event += "\nThe raid you were in ended: " + " ".join(lines)
 
 
 ## Teammates moved (or the team changed): rebuild the map now if it's showing, else next time.
@@ -162,9 +212,11 @@ func _show_upgrades() -> void:
 ## Every fight starts by readying the pack (lineup, duties, trinkets) for this territory.
 func _show_battle(territory: int, patrol := false) -> void:
 	var config := _campaign.patrol_config(territory) if patrol else _campaign.battle_config(territory)
+	config["raidable"] = not patrol and _campaign.is_team() and _campaign.territories[territory].boss != ""
 	var screen := PackScreen.new()
 	screen.profile = _profile
 	screen.battle_config = config
+	screen.raid_requested.connect(_show_raid.bind(territory))
 	screen.closed.connect(func() -> void:
 		_profile.save()
 		_show_map(_profile))
@@ -183,7 +235,7 @@ func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := fal
 		if patrol:
 			_campaign.resolve_patrol(territory, won)
 		else:
-			_campaign.resolve_battle(territory, won, screen.xp_awarded, String(config.get("helper", {}).get("id", "")))
+			_campaign.resolve_battle(territory, won, screen.xp_awarded)
 		if auto and not won:
 			_profile.auto_battle = false
 			_campaign.last_event += "\nAuto mode switched off after the retreat."

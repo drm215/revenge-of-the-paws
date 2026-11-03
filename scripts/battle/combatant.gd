@@ -37,7 +37,8 @@ var statuses: Dictionary = {}  # status id -> turns remaining
 var cooldowns: Dictionary = {}  # skill id -> turns until ready
 var winding := ""  # a zombie's telegraphed skill, released on its next turn unless it's stunned
 var fell_in_wave := -1  # the wave an animal was knocked out in: it sits out the next one
-var ally_of := ""  # a teammate's critter fighting beside the pack (their name): no XP or injuries here
+var ally_of := ""  # raids: the name of the player whose critter this is (shown on its card)
+var owner := ""  # raids: the account id of the player who controls it ("" when playing solo)
 var revived := false  # a zombie a Medic raised: it can't be raised again and gives no more XP
 var row := "front"  # "front" or "back"; see GameData.BACK_ROW_DAMAGE
 

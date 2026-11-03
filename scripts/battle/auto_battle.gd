@@ -24,7 +24,7 @@ static func play(profile: Profile, cfg: Dictionary, seed_value := -1) -> Diction
 		turns += 1
 	var fought: Array[String] = []
 	for c in battle.party:
-		if c.ally_of == "":
+		if c.owner == "":
 			fought.append(c.id)
 	return {"won": battle.outcome() == Battle.Outcome.VICTORY, "xp": battle.xp_earned, "downed": battle.downed,
 		"fought": fought}

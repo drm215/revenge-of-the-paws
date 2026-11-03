@@ -38,6 +38,7 @@ var xp_earned := 0  # from every zombie and legend the pack has defeated so far
 var xp_mult := 1.0  # XP per kill scales with the territory's own strength, not with pack-scaled zombies
 var kills := 0  # zombies and legends the pack destroyed (revived ones count once); hits the weekly siege
 var downed: Array[String] = []  # pack members knocked out at any point (they'll be injured)
+var knocked_out := {}  # raids: owner account id -> ids of their critters knocked out at any point
 var condition := ""
 var boss_hp_mult := 1.0  # team maps: legends grow with the team
 var boss_atk_mult := 1.0
@@ -71,41 +72,44 @@ func _init(profile: Profile, waves: Array = GameData.WAVES, zombie_mult := 1.0, 
 		c.row = profile.row_of(unit_id)
 		party.append(c)
 	condition = territory_condition
-	_apply_lineup(profile, territory_region)
+	_apply_lineup(profile, territory_region, party)
 
 
-## The rest of a Campaign battle config: XP scale, a team legend's growth and a teammate's lineup
-## fighting beside the pack ("helper"). Call before the first wave.
+## The rest of a Campaign battle config: XP scale and a legend's growth. Call before the first wave.
 func configure(cfg: Dictionary) -> void:
 	xp_mult = cfg.get("xp_mult", cfg.get("zombie_mult", 1.0))
 	boss_hp_mult = cfg.get("boss_hp", 1.0)
 	boss_atk_mult = cfg.get("boss_atk", 1.0)
-	var helper: Dictionary = cfg.get("helper", {})
-	var theirs := Profile.from_snapshot(String(helper.get("pack", ""))) if not helper.is_empty() else null
-	if theirs:
-		var allies: Array[Combatant] = []
-		for id in theirs.pack_ids():
-			var u := theirs.build_unit(id)
-			u.row = theirs.row_of(id)
-			allies.append(u)
-		add_allies(allies, String(helper.name))
 
 
-## Team legend fights: a teammate's lineup fights beside the pack (call before the first wave).
-## Their pet doesn't lead, and they earn no XP or injuries on this device.
-func add_allies(units: Array[Combatant], owner: String) -> void:
-	for c in units:
-		c.ally_of = owner
-		c.is_leader = false
-		party.append(c)
-	log_message.emit("[color=#2ce8f5]%s's pack fights beside you![/color]" % owner)
+## A legend raid: every player's pack, in the same order on every device. `packs`:
+## [{profile, owner (account id), name}]. Each pack keeps its own leader, bonds and lineup effects.
+static func raid(packs: Array, waves: Array, zombie_mult: float, place_name: String, seed_value: int,
+		territory_condition := "", territory_region := "") -> Battle:
+	var b := Battle.new(Profile.new(), waves, zombie_mult, 1.0, place_name, seed_value, territory_condition)
+	for pack: Dictionary in packs:
+		b.add_pack(pack.profile, String(pack.owner), String(pack.name), territory_region)
+	return b
+
+
+## Adds one player's critters to a raid, with their own lineup effects.
+func add_pack(p: Profile, owner_id: String, owner_name: String, region := "") -> void:
+	var units: Array[Combatant] = []
+	for unit_id in p.pack_ids():
+		var c := p.build_unit(unit_id)
+		c.row = p.row_of(unit_id)
+		c.owner = owner_id
+		c.ally_of = owner_name
+		units.append(c)
+	party.append_array(units)
+	_apply_lineup(p, region, units)
 
 
 ## Injuries, fatigue, terrain, home turf and bonds: the reasons a lineup matters.
-func _apply_lineup(profile: Profile, region: String) -> void:
+func _apply_lineup(profile: Profile, region: String, units: Array[Combatant]) -> void:
 	var suited: PackedStringArray = []
 	var natives: PackedStringArray = []
-	for c in party:
+	for c in units:
 		var hp := 1.0
 		var atk := 1.0
 		var def := 1.0
@@ -130,17 +134,17 @@ func _apply_lineup(profile: Profile, region: String) -> void:
 			natives.append(c.display_name)
 			c.notes.append("Home turf")
 		c.scale_stats(hp, atk, def)
-	if condition != "":
+	if condition != "" and not units.is_empty():
 		_perk_log.append("[color=#2ce8f5]%s: %s[/color]" % [GameData.CONDITIONS[condition].name,
 			("%s +%d%%" % [", ".join(suited), roundi(GameData.CONDITION_BONUS * 100)]) if not suited.is_empty() else "nobody here is suited to it"])
 	if not natives.is_empty():
 		_perk_log.append("[color=#2ce8f5]Home turf: %s +%d%%[/color]" % [", ".join(natives), roundi(GameData.HOME_TURF_BONUS * 100)])
 	var ids: Array[String] = []
-	for c in party:
+	for c in units:
 		ids.append(c.id)
 	for bond in GameData.active_bonds(ids):
 		var names: PackedStringArray = []
-		for c in party:
+		for c in units:
 			if c.id in bond.members:
 				c.scale_stats(1.0, 1.0 + GameData.BOND_BONUS, 1.0 + GameData.BOND_BONUS)
 				c.notes.append(bond.name)
@@ -197,8 +201,7 @@ func start_next_wave() -> void:
 	for z in enemies:
 		if z.is_boss:
 			log_message.emit("[color=#c99bff][b]%s appears![/b] %s[/color]" % [z.display_name, GameData.LEGENDS[z.id].lore])
-	var leader := _leader(party)
-	if leader:
+	for leader in living(party).filter(func(c: Combatant) -> bool: return c.is_leader):
 		log_message.emit("[color=#ffd34d]%s leads the pack: allies +%d%% ATK/DEF.[/color]" % [
 			leader.display_name, roundi(GameData.LEADER_AURA * 100)])
 	_announce_exposed(party)
@@ -477,12 +480,19 @@ func _allies(actor: Combatant) -> Array[Combatant]:
 	return party if actor.is_player else enemies
 
 
+## Fastest first; ties go to the pack, then to whoever comes first in the lineup, so every device in
+## a raid agrees on the order.
 func _turn_order() -> Array[Combatant]:
 	var order := living(party) + living(enemies)
+	var place := {}
+	for k in order.size():
+		place[order[k]] = k
 	order.sort_custom(func(a: Combatant, b: Combatant) -> bool:
 		if a.spd != b.spd:
 			return a.spd > b.spd
-		return a.is_player and not b.is_player)
+		if a.is_player != b.is_player:
+			return a.is_player
+		return place[a] < place[b])
 	var typed: Array[Combatant] = []
 	typed.assign(order)
 	return typed
@@ -494,16 +504,17 @@ func _end_turn(actor: Combatant) -> void:
 		status_changed.emit(actor)
 
 
-func _leader(side: Array[Combatant]) -> Combatant:
+## The living leader of `owner`'s pack on this side (each player's pet leads their own pack).
+func _leader(side: Array[Combatant], owner_id := "") -> Combatant:
 	for c in side:
-		if c.is_leader and c.is_alive():
+		if c.is_leader and c.is_alive() and c.owner == owner_id:
 			return c
 	return null
 
 
 ## 1 + LEADER_AURA when a living leader (other than this unit) is on its side.
 func _aura_mult(c: Combatant) -> float:
-	var leader := _leader(_allies(c))
+	var leader := _leader(_allies(c), c.owner)
 	return 1.0 + GameData.LEADER_AURA if leader and leader != c else 1.0
 
 
@@ -599,8 +610,11 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 		_announce_exposed(_allies(dst))
 	if dst.is_player:
 		dst.fell_in_wave = wave_index
-		if dst.id not in downed and dst.ally_of == "":
+		if dst.id not in downed and dst.owner == "":
 			downed.append(dst.id)
+		var theirs: Array = knocked_out.get_or_add(dst.owner, [])
+		if dst.id not in theirs:
+			theirs.append(dst.id)
 	if not dst.is_player and not dst.revived:
 		xp_earned += roundi(dst.xp_value * xp_mult)
 		kills += 1

@@ -13,6 +13,8 @@ signal stable_requested
 signal account_requested
 signal siege_requested
 signal chat_requested
+## Join (or go back to) the team's legend raid.
+signal raid_requested
 signal auto_toggled
 
 var campaign: Campaign
@@ -34,6 +36,7 @@ var _info_body := Label.new()
 var _action := Button.new()
 var _ping := Button.new()  # team: point teammates at the selected territory
 var _chat_button: Button
+var _raid_button := Button.new()  # team: an open raid to join, or one this player is fighting in
 var _briefing: Control
 
 
@@ -44,6 +47,10 @@ func _ready() -> void:
 	if chat and campaign.is_team():
 		chat.received.connect(_on_chat)
 		_on_chat()
+	var raid := get_node_or_null("/root/Raid")
+	if raid and campaign.is_team():
+		raid.changed.connect(_on_raid)
+		_on_raid()
 	_map.territory_selected.connect(_select)
 	_refresh_status()
 	_select(campaign.under_attack if campaign.under_attack >= 0 else campaign.home)
@@ -188,6 +195,18 @@ func _on_chat() -> void:
 	_map.queue_redraw()
 	if _map.selected >= 0:
 		_ping.text = "Unping" if _map.pings.has(campaign.territories[_map.selected].id) else "Ping"
+
+
+## The team's raid: a button to join an open lobby, or to go back to a fight this player is in.
+func _on_raid() -> void:
+	var raid := get_node("/root/Raid")
+	var legend: Dictionary = GameData.LEGENDS.get(String(raid.info.get("legend", "")), {})
+	var lobby: bool = raid.status() == "lobby"
+	var fighting: bool = raid.status() == "fighting" and raid.is_member()
+	_raid_button.visible = not legend.is_empty() and (lobby or fighting)
+	if _raid_button.visible:
+		_raid_button.text = ("Back to the raid on the %s" if fighting or raid.is_member() else "Join the raid on the %s") % legend.name
+	_fit_news()
 
 
 ## Pings whose job is done clear themselves: horde land once it's liberated, a counterattack once
@@ -424,6 +443,11 @@ func _build_ui() -> void:
 	_news_box.add_theme_constant_override("separation", 4)
 	_news.add_child(_news_box)
 	_news.resized.connect(_on_resized.bind(_news, _fit_news))
+	_raid_button.visible = false
+	_raid_button.custom_minimum_size = Vector2(0, 64)
+	_raid_button.add_theme_color_override("font_color", Retro.CYAN)
+	_raid_button.pressed.connect(raid_requested.emit)
+	col.add_child(_raid_button)
 	Retro.text(_event, 20, Retro.ORANGE)
 	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_news_box.add_child(_event)

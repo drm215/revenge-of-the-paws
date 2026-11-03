@@ -5,6 +5,9 @@ extends Control
 ## Builds its layout in code and drives a Battle turn by turn.
 
 signal finished(won: bool)
+## A legend raid ended: its stored outcome, and whether this device recorded it (and so should
+## record the territory's result on the team map).
+signal raid_done(outcome: Dictionary, recorded_here: bool)
 
 const ENEMY_THINK_TIME := 0.6
 const AFTER_ACTION_TIME := 0.45
@@ -13,7 +16,8 @@ const AUTO_THINK_TIME := 0.35
 const AUTO_AFTER_TIME := 0.3
 const AUTO_WAVE_PAUSE := 1.2
 const ORDER_PREVIEW := 7
-const PARTY_SPRITE := {3: 150.0, 4: 120.0, 5: 104.0, 6: 90.0}  # by party size (team legend fights bring 6)
+const PARTY_SPRITE := {3: 150.0, 4: 120.0, 5: 104.0, 6: 90.0, 7: 56.0, 8: 56.0, 9: 52.0, 10: 52.0, 11: 48.0, 12: 48.0}  # by party size (raids bring up to 12)
+const RAID_WAVE_PAUSE := 1.5  # raids move on to the next wave by themselves, on every device
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
 ## Front-row cards sit this much closer to the middle of the field than back-row ones.
 const ROW_SHIFT := 44
@@ -27,6 +31,9 @@ var auto := false
 var was_auto := false
 var battle: Battle
 var xp_awarded := 0  # what each fighter earned (teammates get a share of it)
+## A legend raid (Raid autoload): every player's critters, each player controlling their own.
+var raid := false
+var _seq := 0  # the next move number in a raid
 var cards := {}  # Combatant -> UnitCard
 
 var _actor: Combatant
@@ -60,9 +67,14 @@ func _new_game() -> void:
 	cards.clear()
 	_log.clear()
 
-	battle = Battle.new(profile, config.waves, config.zombie_mult, config.party_mult, config.place, -1,
-		config.get("condition", ""), config.get("region", ""))
-	battle.configure(config)
+	for child in _party_col.get_children():
+		child.queue_free()
+	if raid:
+		battle = _raid_battle()
+	else:
+		battle = Battle.new(profile, config.waves, config.zombie_mult, config.party_mult, config.place, -1,
+			config.get("condition", ""), config.get("region", ""))
+		battle.configure(config)
 	battle.log_message.connect(_on_log)
 	battle.acting.connect(func(c: Combatant) -> void: _card(c).lunge())
 	battle.damaged.connect(_on_damaged)
@@ -72,8 +84,19 @@ func _new_game() -> void:
 	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 
-	for c in battle.party:
-		_add_card(c, _party_col, PARTY_SPRITE[clampi(battle.party.size(), 3, 6)])
+	# Big raids: two cards per row, and the pack's side of the field gets more room.
+	var big := battle.party.size() > 6
+	_party_col.size_flags_stretch_ratio = 1.6 if big else 1.0
+	var row: HBoxContainer
+	for k in battle.party.size():
+		var holder: Container = _party_col
+		if big:
+			if k % 2 == 0:
+				row = HBoxContainer.new()
+				row.add_theme_constant_override("separation", 4)
+				_party_col.add_child(row)
+			holder = row
+		_add_card(battle.party[k], holder, PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], 8 if big else ROW_SHIFT, big)
 	if auto:
 		was_auto = true
 		_show_take_control()
@@ -99,7 +122,8 @@ func _start_wave() -> void:
 		cards.erase(c)
 	battle.start_next_wave()
 	for c in battle.enemies:
-		_add_card(c, _enemy_col, ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)])
+		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 6 else 1.0)
+		_add_card(c, _enemy_col, enemy_sprite, ROW_SHIFT)
 	var cond: String = config.get("condition", "")
 	_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
 		(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
@@ -115,6 +139,9 @@ func _run_turns() -> void:
 			_show_outcome()
 			return
 		_set_active(actor)
+		if raid and actor.is_player and actor.owner != _raid().my_id():
+			_await_teammate(actor)
+			return  # resumes once their move arrives (or the AI plays it after a timeout)
 		if actor.is_player and not auto:
 			_begin_player_turn(actor)
 			return  # resumes from _execute() once the player picks a target
@@ -177,7 +204,18 @@ func _execute(target: Combatant) -> void:
 	_skill_desc.text = ""
 	for child in _skill_row.get_children():
 		child.queue_free()
-	battle.use_skill(actor, _selected_skill, target)
+	if raid:
+		_skill_desc.text = "Sending your move..."
+		var move := {}
+		while move.is_empty():
+			move = await _raid().post(_seq, {"skill": _selected_skill, "target": _ref(target)})
+			if move.is_empty():
+				_skill_desc.text = "Can't reach the raid. Trying again..."
+				await get_tree().create_timer(2.0).timeout
+		_skill_desc.text = ""
+		_play_move(actor, move.action)  # someone else's if the AI already played this turn for you
+	else:
+		battle.use_skill(actor, _selected_skill, target)
 	_set_active(null)
 	await get_tree().create_timer(AFTER_ACTION_TIME).timeout
 	_run_turns()
@@ -186,6 +224,13 @@ func _execute(target: Combatant) -> void:
 func _show_outcome() -> void:
 	_set_active(null)
 	match battle.outcome():
+		Battle.Outcome.WAVE_CLEARED when raid:
+			_show_overlay("Wave cleared!", "The raid pushes on...", "Next wave", _start_wave)
+			await get_tree().create_timer(RAID_WAVE_PAUSE).timeout
+			if _overlay.visible:
+				_start_wave()
+		Battle.Outcome.VICTORY, Battle.Outcome.DEFEAT when raid:
+			_finish_raid()
 		Battle.Outcome.WAVE_CLEARED:
 			_show_overlay("Wave cleared!", "The pack rests and patches up.\nAnyone knocked out sits the next wave out, then gets back up.", "Next wave", _start_wave)
 			if auto:
@@ -198,6 +243,112 @@ func _show_outcome() -> void:
 			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s" % _award_xp(false), "Back to map", finished.emit.bind(false))
 
 
+# --- Raids -----------------------------------------------------------------------------------
+
+func _raid() -> Node:
+	return get_node("/root/Raid")
+
+
+## Every raider's pack in join order, from the snapshots they brought, so all devices build the
+## same battle; the legend grows with the number of players.
+func _raid_battle() -> Battle:
+	var r := _raid()
+	var cfg: Dictionary = r.config()
+	var packs := []
+	for m: Dictionary in r.members():
+		var p := Profile.from_snapshot(String(m.pack))
+		if p:
+			packs.append({"profile": p, "owner": String(m.user_id), "name": String(m.name).get_slice(" · ", 0)})
+	var b := Battle.raid(packs, cfg.waves, float(cfg.zombie_mult), String(cfg.place), int(r.info.seed),
+		String(cfg.get("condition", "")), String(cfg.get("region", "")))
+	b.xp_mult = float(cfg.get("xp_mult", cfg.zombie_mult))
+	var growth := GameData.legend_growth(packs.size())
+	b.boss_hp_mult = growth.x
+	b.boss_atk_mult = growth.y
+	return b
+
+
+## A unit as move data: which side and where in it (the same on every device).
+func _ref(c: Combatant) -> Dictionary:
+	return {"side": "party", "i": battle.party.find(c)} if c.is_player else {"side": "enemies", "i": battle.enemies.find(c)}
+
+
+func _unref(ref: Dictionary) -> Combatant:
+	var side: Array[Combatant] = battle.party if String(ref.get("side", "")) == "party" else battle.enemies
+	var i := int(ref.get("i", -1))
+	return side[i] if i >= 0 and i < side.size() else null
+
+
+## Plays raid move number _seq. A move that doesn't fit (it shouldn't happen) falls back to the AI.
+func _play_move(actor: Combatant, action: Dictionary) -> void:
+	var skill := String(action.get("skill", ""))
+	var target := _unref(action.get("target", {}))
+	if skill not in actor.skills or not actor.can_use(skill) or target == null or target not in battle.valid_targets(actor, skill):
+		var plan := AutoBattle.pick_action(battle, actor)
+		skill = plan.skill
+		target = plan.target
+	battle.use_skill(actor, skill, target)
+	_seq += 1
+
+
+## A teammate's critter is up: wait for their move; after Raid.turn_timeout the AI plays it.
+func _await_teammate(actor: Combatant) -> void:
+	var r := _raid()
+	var since := Time.get_ticks_msec()
+	while is_inside_tree():
+		var waited := (Time.get_ticks_msec() - since) / 1000.0
+		_skill_desc.text = "Waiting for %s's %s... (%d)" % [actor.ally_of, actor.display_name, maxi(0, roundi(r.turn_timeout - waited))]
+		var moves: Array = await r.moves_after(_seq - 1)
+		var move: Dictionary = {}
+		for m: Dictionary in moves:
+			if m.seq == _seq:
+				move = m
+		if move.is_empty() and waited > r.turn_timeout:
+			var plan := AutoBattle.pick_action(battle, actor)
+			move = await r.post(_seq, {"skill": plan.skill, "target": _ref(plan.target), "auto": true})
+		if not is_inside_tree():
+			return
+		if not move.is_empty():
+			_skill_desc.text = ""
+			_play_move(actor, move.action)
+			_set_active(null)
+			await get_tree().create_timer(AFTER_ACTION_TIME).timeout
+			_run_turns()
+			return
+		await get_tree().create_timer(1.0).timeout
+
+
+## The fight is over: the first device to report it stores the outcome (XP split between the
+## players, who was knocked out); every player then collects their own share.
+func _finish_raid() -> void:
+	var r := _raid()
+	var won := battle.outcome() == Battle.Outcome.VICTORY
+	var players := maxi(1, r.members().size())
+	var xp := battle.xp_earned if won else roundi(battle.xp_earned * GameData.DEFEAT_XP_SHARE)
+	var outcome := {"won": won, "xp": roundi(xp / float(players)), "knocked": battle.knocked_out,
+		"legend": String(r.config().get("legend", "")), "territory": String(r.config().get("territory", ""))}
+	_show_overlay("Raid over", "Reporting back to the team...", "Back to map", Callable())
+	_overlay_button.disabled = true
+	var stored := {}
+	while stored.is_empty():
+		stored = await r.finish(outcome)
+		if stored.is_empty():
+			await get_tree().create_timer(2.0).timeout
+	var result: Dictionary = stored.result
+	var brought: Array = []
+	for m: Dictionary in r.members():
+		if String(m.user_id) == r.my_id():
+			var mine := Profile.from_snapshot(String(m.pack))
+			brought = Array(mine.pack_ids()) if mine else []
+	var lines := profile.claim_raid(String(r.info.id), result, brought, r.my_id())
+	raid_done.emit(result, bool(stored.mine))
+	won = bool(result.get("won", false))
+	_overlay_button.disabled = false
+	_show_overlay("The legend falls!" if won else "The raid falls back",
+		("%s is free.\n\n" % battle.place if won else "The legend was too much this time.\n\n") + "\n".join(lines),
+		"Back to map", finished.emit.bind(won))
+
+
 ## XP (half on a retreat, half again in auto mode), bench XP, injuries, fatigue and foraging.
 ## The caller saves the profile.
 func _award_xp(won: bool) -> String:
@@ -206,8 +357,7 @@ func _award_xp(won: bool) -> String:
 		amount = roundi(amount * GameData.AUTO_XP_SHARE)
 	var fought: Array[String] = []
 	for c in battle.party:
-		if c.ally_of == "":  # a teammate's critters earn their XP on their own device
-			fought.append(c.id)
+		fought.append(c.id)
 	xp_awarded = amount
 	return "\n".join(profile.after_battle(fought, battle.downed, amount, won))
 
@@ -276,8 +426,9 @@ func _card(c: Combatant) -> UnitCard:
 
 
 ## Front-row cards are nudged toward the middle of the field, back-row ones toward the edge.
-func _add_card(c: Combatant, column: VBoxContainer, sprite_size: float) -> void:
+func _add_card(c: Combatant, column: Container, sprite_size: float, shift: int, compact := false) -> void:
 	var card := UnitCard.new()
+	card.compact = compact
 	card.battle = battle
 	card.setup(c, sprite_size)
 	card.pressed.connect(_on_card_pressed)
@@ -285,8 +436,9 @@ func _add_card(c: Combatant, column: VBoxContainer, sprite_size: float) -> void:
 	# Padding on the edge side pushes a card toward the middle; on the middle side, toward the edge.
 	var edge_side := "margin_left" if c.is_player else "margin_right"
 	var middle_side := "margin_right" if c.is_player else "margin_left"
-	slot.add_theme_constant_override(edge_side, ROW_SHIFT if c.row == "front" else 0)
-	slot.add_theme_constant_override(middle_side, 0 if c.row == "front" else ROW_SHIFT)
+	slot.add_theme_constant_override(edge_side, shift if c.row == "front" else 0)
+	slot.add_theme_constant_override(middle_side, 0 if c.row == "front" else shift)
+	slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slot.add_child(card)
 	column.add_child(slot)
 	cards[c] = card

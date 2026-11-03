@@ -23,6 +23,7 @@ const BORDER_COLORS := {
 const LUNGE := 26.0
 
 var unit: Combatant
+var compact := false  # big raids: name, HP and one status line only (set before setup)
 var battle: Battle  # set on the battle screen, to show when a back-row unit is exposed
 
 var _style := StyleBoxFlat.new()
@@ -44,7 +45,7 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	_style.set_border_width_all(Retro.BORDER)
 	_style.set_corner_radius_all(0)
 	_style.anti_aliasing = false
-	_style.set_content_margin_all(6)
+	_style.set_content_margin_all(3 if compact else 6)
 	add_theme_stylebox_override("panel", _style)
 
 	var row := HBoxContainer.new()
@@ -91,7 +92,7 @@ func setup(c: Combatant, sprite_size: float) -> void:
 		row.add_child(info)
 
 	_name_label.text = c.display_name
-	Retro.text(_name_label, 23, Retro.WHITE)
+	Retro.text(_name_label, 17 if compact else 23, Retro.WHITE)
 	_name_label.clip_text = true
 	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	info.add_child(_name_label)
@@ -109,7 +110,7 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	elif c.is_player:
 		tag.text = "Lv %d %s" % [c.level, c.role]
 		tag.add_theme_color_override("font_color", Retro.FOG)
-	if tag.text != "":
+	if tag.text != "" and not compact:
 		info.add_child(tag)
 
 	var fill := StyleBoxFlat.new()
@@ -120,20 +121,20 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	_hp_bar.add_theme_stylebox_override("fill", fill)
 	_hp_bar.add_theme_stylebox_override("background", bg)
 	_hp_bar.show_percentage = false
-	_hp_bar.custom_minimum_size = Vector2(0, 26)
+	_hp_bar.custom_minimum_size = Vector2(0, 18 if compact else 26)
 	_hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info.add_child(_hp_bar)
 	_hp_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	Retro.text(_hp_label, 18, Retro.WHITE)
+	Retro.text(_hp_label, 14 if compact else 18, Retro.WHITE)
 	_hp_label.add_theme_color_override("font_outline_color", Retro.INK)
 	_hp_label.add_theme_constant_override("outline_size", 4)
 	_hp_bar.add_child(_hp_label)
 
-	Retro.text(_status_label, 16, Retro.YELLOW)
+	Retro.text(_status_label, 13 if compact else 16, Retro.YELLOW)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.max_lines_visible = 3  # a long list of statuses must not stretch the card
+	_status_label.max_lines_visible = 1 if compact else 3  # a long list of statuses must not stretch the card
 	info.add_child(_status_label)
 
 	set_highlight(Highlight.NONE)

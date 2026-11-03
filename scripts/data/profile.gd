@@ -44,6 +44,7 @@ var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
 var siege_claimed: Array[int] = []  # weekly sieges whose reward was claimed
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
+var raids_claimed: Array[String] = []  # legend raids whose rewards this player has collected
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -468,6 +469,7 @@ func save() -> void:
 	cfg.set_value("profile", "fixes", Array(fixes))
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
 	cfg.set_value("profile", "team_xp", team_xp)
+	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
 	cfg.save(save_path)
 	if save_path == SAVE_PATH:
 		SaveHooks.saved()
@@ -501,6 +503,7 @@ static func load_saved() -> Profile:
 	p.fixes.assign(cfg.get_value("profile", "fixes", []))
 	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
+	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
@@ -552,23 +555,25 @@ func collect_team_xp(key: String, owed: int) -> int:
 	return gained
 
 
-## What a teammate needs to field this pack beside theirs in a legend fight: the lineup, its levels,
-## tech trees, trinkets and rows. JSON with sorted keys, so an unchanged pack gives the same text.
-func snapshot() -> String:
-	var snap := {"pet_species": pet_species, "pet_name": pet_name, "team": Array(team),
-		"xp": {}, "tree": {}, "equipped": {}, "rows": {}}
-	for id in pack_ids():
+## The critters this player brings to a legend raid (`picks`, up to GameData.RAID_PICKS from the
+## pack; the fighting lineup if empty), with what every device needs to field them exactly as
+## here: levels, tech trees, trinkets, rows, injuries and fatigue. JSON with sorted keys.
+func snapshot(picks: Array = []) -> String:
+	var ids: Array = picks if not picks.is_empty() else Array(pack_ids())
+	var pet_in := has_pet() and pet_species in ids
+	var snap := {"pet_species": pet_species if pet_in else "", "pet_name": pet_name if pet_in else "",
+		"team": ids.filter(func(id: String) -> bool: return id != pet_species),
+		"xp": {}, "tree": {}, "equipped": {}, "rows": {}, "injuries": {}, "fatigue": {}}
+	for id: String in ids:
 		snap.xp[id] = int(xp.get(id, 0))
-		if tree.has(id):
-			snap.tree[id] = tree[id]
-		if equipped.has(id):
-			snap.equipped[id] = equipped[id]
-		if rows.has(id):
-			snap.rows[id] = rows[id]
+		for field in ["tree", "equipped", "rows", "injuries", "fatigue"]:
+			var source: Dictionary = get(field)
+			if source.has(id):
+				snap[field][id] = source[id]
 	return JSON.stringify(snap, "", true)
 
 
-## A teammate's pack from their snapshot(), ready for build_unit(); null if it can't be read.
+## A player's raid pack from their snapshot(), ready for build_unit(); null if it can't be read.
 static func from_snapshot(text: String) -> Profile:
 	var d: Variant = JSON.parse_string(text)
 	if not d is Dictionary:
@@ -582,7 +587,35 @@ static func from_snapshot(text: String) -> Profile:
 	p.tree = d.get("tree", {})
 	p.equipped = d.get("equipped", {})
 	p.rows = d.get("rows", {})
+	for id in d.get("injuries", {}):
+		p.injuries[id] = int(d.injuries[id])
+	for id in d.get("fatigue", {}):
+		p.fatigue[id] = int(d.fatigue[id])
 	return p
+
+
+## Collects this player's share of a finished legend raid, once: the split XP for the critters
+## they brought (and bench XP as usual), injuries for those knocked out, and the legend's trinket
+## on a win. `outcome`: {won, xp, knocked: {account id: [ids]}, legend}. Returns lines to show.
+func claim_raid(raid_id: String, outcome: Dictionary, brought: Array, account: String) -> PackedStringArray:
+	if raid_id == "" or raid_id in raids_claimed:
+		return PackedStringArray()
+	raids_claimed.append(raid_id)
+	var fought: Array[String] = []
+	for id: String in brought:
+		if id == pet_species or id in unlocked:
+			fought.append(id)
+	var downed: Array[String] = []
+	downed.assign(outcome.get("knocked", {}).get(account, []))
+	var won := bool(outcome.get("won", false))
+	var lines := after_battle(fought, downed, int(outcome.get("xp", 0)), won)
+	var legend := String(outcome.get("legend", ""))
+	if won and GameData.LEGENDS.has(legend):
+		var drop: String = GameData.LEGENDS[legend].drop
+		trinkets.append(drop)
+		lines.append("Everyone who fought gets the %s! Equip it from Pack." % GameData.trinket(drop).name)
+	save()
+	return lines
 
 
 ## How this pack appears on the siege leaderboard: pet (or lead animal) and region, never the town.
