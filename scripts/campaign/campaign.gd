@@ -518,7 +518,7 @@ func _migrate() -> void:
 		var target := territories[pick]
 		target.threat += 1
 		spread[target.id] = int(spread.get(target.id, 0)) + 1
-		last_event += "\nThe horde spreads from %s into %s (threat %d → %d)." % [
+		last_event += "\nThe horde spreads from %s into %s (threat %d to %d)." % [
 			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
