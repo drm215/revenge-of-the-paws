@@ -12,7 +12,7 @@ var profile: Profile
 
 var _content := VBoxContainer.new()
 var _status := Label.new()
-var _code := LineEdit.new()
+var _code := Retro.typing(LineEdit.new())
 var _invited := ""  # the code to share once a team was made
 
 

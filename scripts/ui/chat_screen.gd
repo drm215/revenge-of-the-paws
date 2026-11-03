@@ -7,7 +7,7 @@ signal closed
 
 var _list := VBoxContainer.new()
 var _scroll := ScrollContainer.new()
-var _input := LineEdit.new()
+var _input := Retro.typing(LineEdit.new())
 var _status := Label.new()
 var _chat: Node
 

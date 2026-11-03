@@ -98,7 +98,7 @@ func _show_zip() -> void:
 	_next_button = _nav(Callable(), "Next", _show_pet)
 	_on_zip_changed(_profile.zip)
 	if _profile.zip == "":
-		edit.call_deferred("grab_focus")
+		Retro.autofocus(edit)
 
 
 func _on_zip_changed(text: String) -> void:
@@ -145,7 +145,7 @@ func _show_pet() -> void:
 			_profile.pet_name = t.strip_edges()
 			_next_button.disabled = not _pet_ready())
 		if _profile.pet_name == "":
-			name_edit.call_deferred("grab_focus")
+			Retro.autofocus(name_edit)
 	_next_button = _nav(_show_home, "Next", _show_team)
 	_next_button.disabled = not _pet_ready()
 
@@ -257,7 +257,7 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 
 
 func _line_edit(text: String, placeholder: String) -> LineEdit:
-	var e := LineEdit.new()
+	var e := Retro.typing(LineEdit.new())
 	e.text = text
 	e.placeholder_text = placeholder
 	e.max_length = 24

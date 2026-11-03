@@ -7,9 +7,9 @@ signal closed
 
 var _content := VBoxContainer.new()
 var _status := Label.new()
-var _email := LineEdit.new()
-var _password := LineEdit.new()
-var _code := LineEdit.new()
+var _email := Retro.typing(LineEdit.new())
+var _password := Retro.typing(LineEdit.new())
+var _code := Retro.typing(LineEdit.new())
 var _team_status := Label.new()
 
 

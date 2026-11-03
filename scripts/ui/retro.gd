@@ -160,6 +160,25 @@ static func title(label: Label, font_size := 16, color := GOLD) -> Label:
 	return label
 
 
+## iPhone browsers open the keyboard only when a tap focuses a text box, so a box must never take
+## focus on its own there (see autofocus), and tapping a box that already has focus (its keyboard
+## was dismissed) opens the keyboard again.
+static func typing(edit: LineEdit) -> LineEdit:
+	edit.gui_input.connect(func(event: InputEvent) -> void:
+		var tap: bool = (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed
+		if tap and edit.has_focus() and DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+			DisplayServer.virtual_keyboard_show(edit.text, edit.get_global_rect(), int(edit.virtual_keyboard_type) as DisplayServer.VirtualKeyboardType,
+				edit.max_length, edit.caret_column, edit.caret_column))
+	return edit
+
+
+## Puts the cursor in a text box right away, except on touch screens: there the keyboard can only
+## open from a tap, and a box focused without one won't open it when tapped.
+static func autofocus(edit: LineEdit) -> void:
+	if not DisplayServer.is_touchscreen_available():
+		edit.call_deferred("grab_focus")
+
+
 ## A plain text label (the body font).
 static func text(label: Label, font_size := 22, color := MIST) -> Label:
 	label.add_theme_font_size_override("font_size", px(font_size))
