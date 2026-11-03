@@ -21,6 +21,10 @@ var profile: Profile
 var _map := MapView.new()
 var _status := Label.new()
 var _event := Label.new()
+## The latest news and the team feed scroll in a short box, so the map keeps its room.
+const NEWS_MAX_HEIGHT := 190.0
+var _news := ScrollContainer.new()
+var _news_box := VBoxContainer.new()
 var _info_title := Label.new()
 var _info_body := Label.new()
 var _action := Button.new()
@@ -129,12 +133,25 @@ func _refresh_status() -> void:
 		event = "Every territory is liberated. Your neighborhood is safe!"
 	_event.text = event
 	_event.visible = event != ""
+	_fit_news()
 
 
 ## A line under the latest event, e.g. auto mode saying what it's about to fight.
 func announce(text: String) -> void:
 	_event.text = (_event.text + "\n" + text) if _event.visible else text
 	_event.visible = true
+	_fit_news()
+
+
+## The news box is as tall as its text, up to NEWS_MAX_HEIGHT; past that it scrolls.
+func _fit_news() -> void:
+	await get_tree().process_frame  # labels know their wrapped height once laid out
+	if not is_inside_tree():
+		return
+	var tall := _news_box.get_combined_minimum_size().y
+	_news.custom_minimum_size.y = minf(tall, NEWS_MAX_HEIGHT)
+	_news.visible = tall > 1.0
+	_news.scroll_vertical = 0
 
 
 ## New team chat: unread count on the Chat button, pings outlined on the map.
@@ -157,6 +174,8 @@ func _on_ping() -> void:
 		return
 	_ping.disabled = false
 	_event.text = error if error != "" else "Pinged %s for your team." % t.full_name()
+	_event.visible = true
+	_fit_news()
 
 
 func _on_action() -> void:
@@ -329,7 +348,8 @@ func _build_ui() -> void:
 	if campaign.is_team():
 		var towns: PackedStringArray = []
 		for h in campaign.homes:
-			towns.append(campaign.territories[h].name)
+			if campaign.territories[h].name not in towns:  # teammates in the same town show it once
+				towns.append(campaign.territories[h].name)
 		title.text = "Team: " + " & ".join(towns)
 	Retro.title(title, 18)
 	title.clip_text = true
@@ -353,9 +373,16 @@ func _build_ui() -> void:
 		legends.text = "\n".join(lines)
 		legends.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(legends)
-	Retro.text(_event, 22, Retro.ORANGE)
+	_news.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	Retro.touch_scroll(_news)
+	col.add_child(_news)
+	_news_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_news_box.add_theme_constant_override("separation", 4)
+	_news.add_child(_news_box)
+	_news.resized.connect(_fit_news)  # rewrapped at a new width
+	Retro.text(_event, 20, Retro.ORANGE)
 	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_event)
+	_news_box.add_child(_event)
 	if campaign.is_team() and not campaign.feed.is_empty():
 		var recent: PackedStringArray = []
 		for k in range(campaign.feed.size() - 1, maxi(-1, campaign.feed.size() - 4), -1):
@@ -365,7 +392,7 @@ func _build_ui() -> void:
 		Retro.text(team_feed, 19, Retro.CYAN)
 		team_feed.text = "Team: " + "\n".join(recent)
 		team_feed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		col.add_child(team_feed)
+		_news_box.add_child(team_feed)
 
 	_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_map.clip_contents = true
