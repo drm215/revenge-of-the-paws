@@ -21,8 +21,12 @@ var profile: Profile
 var _map := MapView.new()
 var _status := Label.new()
 var _event := Label.new()
-## The latest news and the team feed scroll in a short box, so the map keeps its room.
-const NEWS_MAX_HEIGHT := 190.0
+## The map always keeps MAP_MIN_HEIGHT; the news (and team feed) above it and the territory info
+## below it are only as tall as their text, up to a cap, and scroll past that.
+const MAP_MIN_HEIGHT := 340.0
+const NEWS_MAX_HEIGHT := 135.0
+const INFO_MAX_HEIGHT := 200.0
+var _info_scroll := ScrollContainer.new()
 var _news := ScrollContainer.new()
 var _news_box := VBoxContainer.new()
 var _info_title := Label.new()
@@ -122,6 +126,7 @@ func _select(i: int) -> void:
 			var a: Dictionary = GameData.ANIMALS[survivor]
 			_info_body.text += "\nSurvivor here: %s (%s). Liberate it to recruit!" % [a.name, a.role]
 	_action.set_meta("territory", i)
+	_fit_info()
 
 
 func _refresh_status() -> void:
@@ -143,15 +148,31 @@ func announce(text: String) -> void:
 	_fit_news()
 
 
-## The news box is as tall as its text, up to NEWS_MAX_HEIGHT; past that it scrolls.
+## Text rewraps when a box gets narrower or wider; refit then (not on height changes, which the
+## fit itself causes).
+func _on_resized(scroll: ScrollContainer, fit: Callable) -> void:
+	if not is_equal_approx(scroll.get_meta("fit_width", -1.0), scroll.size.x):
+		scroll.set_meta("fit_width", scroll.size.x)
+		fit.call()
+
+
 func _fit_news() -> void:
+	_fit_scroll(_news, _news_box, NEWS_MAX_HEIGHT)
+
+
+func _fit_info() -> void:
+	_fit_scroll(_info_scroll, _info_body, INFO_MAX_HEIGHT)
+
+
+## Makes `scroll` as tall as `content`, up to `cap`; past that it scrolls (from the top).
+func _fit_scroll(scroll: ScrollContainer, content: Control, cap: float) -> void:
 	await get_tree().process_frame  # labels know their wrapped height once laid out
 	if not is_inside_tree():
 		return
-	var tall := _news_box.get_combined_minimum_size().y
-	_news.custom_minimum_size.y = minf(tall, NEWS_MAX_HEIGHT)
-	_news.visible = tall > 1.0
-	_news.scroll_vertical = 0
+	var tall := content.get_combined_minimum_size().y if content.visible else 0.0
+	scroll.custom_minimum_size.y = minf(tall, cap)
+	scroll.visible = tall > 1.0
+	scroll.scroll_vertical = 0
 
 
 ## New team chat: unread count on the Chat button, pings outlined on the map.
@@ -379,7 +400,7 @@ func _build_ui() -> void:
 	_news_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_news_box.add_theme_constant_override("separation", 4)
 	_news.add_child(_news_box)
-	_news.resized.connect(_fit_news)  # rewrapped at a new width
+	_news.resized.connect(_on_resized.bind(_news, _fit_news))
 	Retro.text(_event, 20, Retro.ORANGE)
 	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_news_box.add_child(_event)
@@ -395,6 +416,7 @@ func _build_ui() -> void:
 		_news_box.add_child(team_feed)
 
 	_map.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_map.custom_minimum_size.y = MAP_MIN_HEIGHT
 	_map.clip_contents = true
 	col.add_child(_map)
 
@@ -416,7 +438,12 @@ func _build_ui() -> void:
 	Retro.text(_info_body, 22)
 	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_body.custom_minimum_size = Vector2(0, 52)
-	info.add_child(_info_body)
+	_info_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_info_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	Retro.touch_scroll(_info_scroll)
+	info.add_child(_info_scroll)
+	_info_scroll.add_child(_info_body)
+	_info_scroll.resized.connect(_on_resized.bind(_info_scroll, _fit_info))
 	_action.custom_minimum_size = Vector2(0, 84)
 	_action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action.pressed.connect(_on_action)
