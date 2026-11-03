@@ -58,7 +58,7 @@ language sql stable security definer set search_path = public as $$
   order by r.created_at desc limit 1;
 $$;
 
--- Opens a raid lobby on a legend's lair; the opener is in it, ready, with their pack.
+-- Opens a raid lobby on a legend's lair; the opener is in it (ready once they've picked a pack).
 create or replace function public.open_raid(p_territory text, p_legend text, p_seed bigint, p_name text, p_pack text) returns json
 language plpgsql security definer set search_path = public as $$
 declare
@@ -73,7 +73,7 @@ begin
   end if;
   insert into raids (team_id, host, territory, legend, seed) values (t_id, auth.uid(), p_territory, p_legend, p_seed)
   returning id into r_id;
-  insert into raid_members (raid_id, user_id, name, pack, ready) values (r_id, auth.uid(), p_name, p_pack, true);
+  insert into raid_members (raid_id, user_id, name, pack, ready) values (r_id, auth.uid(), p_name, p_pack, p_pack <> '');
   return team_raid();
 end;
 $$;

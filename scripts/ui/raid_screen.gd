@@ -42,7 +42,7 @@ func _ready() -> void:
 	var r := _raid()
 	r.fast = true
 	r.changed.connect(_on_changed)
-	_picks.assign(_mine_from_raid() if r.is_member() else Array(profile.pack_ids()).slice(0, GameData.RAID_PICKS))
+	_picks.assign(_mine_from_raid() if r.is_member() else [])  # nobody starts out picked
 	_build()
 	if lair >= 0 and r.status() not in ["lobby", "fighting"]:
 		_open()
@@ -76,7 +76,8 @@ func _mine_from_raid() -> Array:
 func _open() -> void:
 	var t := campaign.territories[lair]
 	_status.text = "Opening the raid..."
-	var error: String = await _raid().open(t.id, t.boss, t.full_name(), get_node("/root/Team").name_for(profile), profile.snapshot(_picks))
+	var pack := profile.snapshot(_picks) if _picks.size() == GameData.RAID_PICKS else ""  # picked in the lobby
+	var error: String = await _raid().open(t.id, t.boss, t.full_name(), get_node("/root/Team").name_for(profile), pack)
 	_status.text = error
 
 
@@ -148,7 +149,7 @@ func _build() -> void:
 	if r.is_host():
 		var ready_count: int = r.members().filter(func(m: Dictionary) -> bool: return m.ready).size()
 		var start := _button("Start the raid (%d player%s)" % [ready_count, "" if ready_count == 1 else "s"], _start)
-		start.disabled = ready_count < 1 or _busy
+		start.disabled = not me_ready or _busy  # the opener fights too, so they pick first
 		_content.add_child(start)
 	else:
 		_label("Waiting for the player who opened it to start.", 18, Retro.FOG)

@@ -24,12 +24,20 @@ var stable_view := false
 var _list := VBoxContainer.new()
 var _count := Label.new()
 var _row_warning := Label.new()  # fewer than 2 in front: the back row would be exposed
+var _kept_team: Array[String] = []  # before a fight: the lineup to restore if the player backs out
+var _kept_duties := {}
 var _done := Button.new()
 var _bonds := Label.new()
 var _roster := HBoxContainer.new()  # "Your pack" strip: who is picked right now
 
 
 func _ready() -> void:
+	if not battle_config.is_empty():
+		# Before a fight nobody starts out picked: the player chooses who fights this one.
+		_kept_team = profile.team.duplicate()
+		_kept_duties = profile.duties.duplicate()
+		profile.team.clear()
+		profile.auto_fill_duties()
 	var bg := ColorRect.new()
 	bg.color = Retro.INK
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -104,7 +112,7 @@ func _ready() -> void:
 		var back := Button.new()
 		back.text = "Back"
 		back.custom_minimum_size = Vector2(200, 84)
-		back.pressed.connect(closed.emit)
+		back.pressed.connect(_back)
 		row.add_child(back)
 		row.add_child(_done)
 	else:
@@ -289,6 +297,14 @@ func _toggle(id: String) -> void:
 		profile.clear_duty(id)
 	profile.auto_fill_duties()  # a duty left behind passes to someone still on the bench
 	_refresh()
+
+
+## Leaving Ready the pack without fighting keeps the lineup the pack had before.
+func _back() -> void:
+	if profile.team.size() != profile.locals_needed():
+		profile.team = _kept_team
+		profile.duties = _kept_duties
+	closed.emit()
 
 
 ## Small sprites + names of the animals picked right now.

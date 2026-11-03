@@ -35,8 +35,6 @@ func _ready() -> void:
 		_profile.town = initial.town
 		_profile.pet_species = initial.pet_species
 		_profile.pet_name = initial.pet_name
-		_profile.team.assign(initial.team.filter(func(id: String) -> bool:
-			return id in GameData.REGIONS[initial.region].animals))
 		_profile.siege_claimed = initial.siege_claimed.duplicate()
 		_profile.team_xp = initial.team_xp.duplicate()
 		_profile.fixes = initial.fixes.duplicate()
