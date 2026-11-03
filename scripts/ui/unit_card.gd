@@ -131,8 +131,9 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	_hp_label.add_theme_constant_override("outline_size", 4)
 	_hp_bar.add_child(_hp_label)
 
-	Retro.text(_status_label, 18, Retro.YELLOW)
+	Retro.text(_status_label, 16, Retro.YELLOW)
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.max_lines_visible = 3  # a long list of statuses must not stretch the card
 	info.add_child(_status_label)
 
 	set_highlight(Highlight.NONE)
@@ -167,7 +168,7 @@ func refresh() -> void:
 	if GameData.ZOMBIE_WEAKNESS.has(unit.id) and unit.is_alive():
 		parts.append("Weak: " + GameData.tag_name(GameData.ZOMBIE_WEAKNESS[unit.id].tag))
 	if unit.row == "back" and unit.is_alive():
-		parts.append("BACK ROW EXPOSED" if battle and battle.exposed(unit) else "Back row")
+		parts.append("Exposed" if battle and battle.exposed(unit) else "Back row")
 	if unit.winding != "":
 		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
 	for status in unit.statuses:

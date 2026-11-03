@@ -156,7 +156,10 @@ func _select_skill(skill_id: String) -> void:
 		b.set_pressed_no_signal(b.get_meta("skill") == skill_id)
 	var s := _actor.skill_data(skill_id)
 	var combo := GameData.combo_hint(s)
-	_skill_desc.text = s.desc + "\n" + GameData.skill_stats(s) + (("\n" + combo) if combo != "" else "")
+	var bits: PackedStringArray = [s.desc, GameData.skill_stats(s)]
+	if combo != "":
+		bits.append(combo)
+	_skill_desc.text = " · ".join(bits)
 	_targets = battle.valid_targets(_actor, skill_id)
 	_set_active(_actor)
 
@@ -325,7 +328,7 @@ func _build_ui() -> void:
 	_order_label.fit_content = true
 	_order_label.scroll_active = false
 	_order_label.add_theme_font_size_override("normal_font_size", Retro.px(20))
-	_order_label.add_theme_font_size_override("bold_font_size", Retro.px(11))
+	_order_label.add_theme_font_size_override("bold_font_size", Retro.px(18))
 	col.add_child(_order_label)
 
 	# Battlefield: animals (left) vs. the horde (right).
@@ -351,11 +354,12 @@ func _build_ui() -> void:
 	_log.scroll_following = true
 	_log.custom_minimum_size = Vector2(0, 130)
 	_log.add_theme_font_size_override("normal_font_size", Retro.px(20))
-	_log.add_theme_font_size_override("bold_font_size", Retro.px(11))
+	_log.add_theme_font_size_override("bold_font_size", Retro.px(20))
 	log_panel.add_child(_log)
 
 	_skill_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	Retro.text(_skill_desc, 21)
+	Retro.text(_skill_desc, 19)
+	_skill_desc.max_lines_visible = 3  # the skill buttons below must stay on screen
 	_skill_desc.custom_minimum_size = Vector2(0, 46)
 	_skill_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # long stat lines must not widen the screen
 	col.add_child(_skill_desc)

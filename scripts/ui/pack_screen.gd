@@ -21,6 +21,7 @@ var stable_view := false
 
 var _list := VBoxContainer.new()
 var _count := Label.new()
+var _row_warning := Label.new()  # fewer than 2 in front: the back row would be exposed
 var _done := Button.new()
 var _bonds := Label.new()
 var _roster := HBoxContainer.new()  # "Your pack" strip: who is picked right now
@@ -61,6 +62,9 @@ func _ready() -> void:
 		rows.text = GameData.row_hint()
 		rows.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(rows)
+		Retro.text(_row_warning, 19, Retro.ORANGE)
+		_row_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(_row_warning)
 	_roster.add_theme_constant_override("separation", 8)
 	_roster.visible = not stable_view
 	col.add_child(_roster)
@@ -157,7 +161,21 @@ func _fight_summary() -> String:
 	return "\n".join(lines)
 
 
+## Warns when fewer than GameData.SCREEN_SIZE fighters stand in front: the back row would be exposed.
+func _update_row_warning() -> void:
+	var front := 0
+	var back := 0
+	for id in profile.pack_ids():
+		if profile.row_of(id) == "front":
+			front += 1
+		else:
+			back += 1
+	_row_warning.visible = back > 0 and front < GameData.SCREEN_SIZE
+	_row_warning.text = "Only %d of your fighters stand in front, so your back row starts the fight exposed (and hits 25%% softer). Tap Row to move one up." % front
+
+
 func _refresh() -> void:
+	_update_row_warning()
 	for child in _list.get_children():
 		child.queue_free()
 	if stable_view:
