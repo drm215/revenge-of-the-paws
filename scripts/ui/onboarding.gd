@@ -10,6 +10,9 @@ signal account_requested
 ## Setup was left without starting a new game.
 signal cancelled
 
+## A new game started from the save picker: its first step can go back to the picker.
+var cancellable := false
+
 const GOLD := Retro.GOLD
 
 ## The current profile when starting over: its home, pet and team are the starting suggestions.
@@ -315,7 +318,7 @@ func _nav(back: Callable, next_text: String, next: Callable) -> Button:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	_content.add_child(row)
-	var cancel := not back.is_valid() and initial != null
+	var cancel := not back.is_valid() and (initial != null or cancellable)
 	if cancel:
 		back = cancelled.emit  # the first step: leave setup and keep the current game
 	if back.is_valid():

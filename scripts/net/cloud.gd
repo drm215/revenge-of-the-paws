@@ -244,6 +244,10 @@ func _sync_once(retried := false) -> void:
 			await _upload(cloud.updated_at, retried)
 		else:
 			_set_status("Up to date.")
+	elif _slot_in(String(cloud.profile)) != Saves.slot_of(Profile.save_path):
+		_apply(cloud)  # another game's newer copy: it goes back to its own save, not this one
+		if _dirty and has_local:
+			await _upload(cloud.updated_at, retried)
 	elif not has_local or not _dirty:
 		_apply(cloud)  # newer save from another device
 	else:
@@ -278,15 +282,31 @@ func _upload(expected: String, retried := false) -> void:
 		_timer.start(RETRY_DELAY)
 
 
+## Writes a cloud copy into the save it came from. The game restarts (to the save picker) only if
+## that's the game being played, or none is yet.
 func _apply(cloud: Dictionary) -> void:
-	_write(Profile.save_path, cloud.profile)
+	var slot := _slot_in(String(cloud.profile))
+	var active := Saves.slot_of(Profile.save_path)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(Saves.DIR + "/" + slot))
+	_write(Saves.path(slot, Saves.PROFILE), cloud.profile)
 	if String(cloud.get("campaign", "")) != "":
-		_write(Campaign.save_path, cloud.campaign)
+		_write(Saves.path(slot, Saves.CAMPAIGN), cloud.campaign)
 	else:
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(Campaign.save_path))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Saves.path(slot, Saves.CAMPAIGN)))
 	_mark_synced(cloud.updated_at)
 	_set_status("Loaded your cloud save.")
-	downloaded.emit()
+	if active == "" or active == slot:
+		downloaded.emit()
+
+
+## The save a cloud copy belongs to; copies from before save slots get one of their own.
+static func _slot_in(profile_text: String) -> String:
+	var cfg := ConfigFile.new()
+	if cfg.parse(profile_text) == OK:
+		var slot := String(cfg.get_value("profile", "slot", ""))
+		if slot != "":
+			return slot
+	return "save_cloud"
 
 
 func _mark_synced(updated_at: String) -> void:

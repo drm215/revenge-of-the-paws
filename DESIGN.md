@@ -154,6 +154,12 @@ The apocalypse starts **where you actually live**.
   over. Polls every 10 s on a team; the server keeps 200 per team.
 - **Loading screen:** `art/splash.png` (drawn by `tools/make_splash.gd`) is the boot splash, and
   the web page matches it (dark background, gold progress bar, "Rallying the pack...").
+- **Saves** (`scripts/data/saves.gd`, `scripts/ui/save_screen.gd`): any number of games, each in
+  its own folder (`user://saves/<id>/`). After the loading screen the save picker lists them, newest
+  first (pet and town, level, territories held, turn, last played), with Play, Delete (asks twice)
+  and New game; there is no Setup button on the map any more. A save from before slots becomes the
+  first one. The cloud keeps the most recently played game: each copy records its save, and a
+  download goes back into that save (only the game being played restarts).
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the

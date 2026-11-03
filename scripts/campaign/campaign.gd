@@ -567,7 +567,7 @@ func save() -> void:
 	if is_team():
 		return  # team maps live on the server; Team keeps this device's moves until they're sent
 	_to_cfg().save(save_path)
-	if save_path == SAVE_PATH:
+	if Saves.is_slot(save_path):
 		SaveHooks.saved()
 
 

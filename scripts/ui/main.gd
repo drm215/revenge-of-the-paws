@@ -1,6 +1,7 @@
 extends Control
 
-## Root: first-launch setup if there's no saved profile, then the campaign map and its battles.
+## Root: the save picker after the loading screen (or first-launch setup for a new game), then the
+## campaign map and its battles.
 
 var _profile: Profile
 var _campaign: Campaign
@@ -20,11 +21,27 @@ func _ready() -> void:
 		if cloud.reset_pending:
 			_show_account()  # a cloud download reloaded the game mid-reset
 			return
-	var profile := Profile.load_saved()
-	if profile:
-		_show_map(profile)
-	else:
-		_show_onboarding(null)
+	Saves.migrate()
+	_show_saves()
+
+
+## Pick a saved game, start a new one, or log in to a cloud save.
+func _show_saves() -> void:
+	_profile = null
+	_campaign = null
+	var screen := SaveScreen.new()
+	screen.chosen.connect(func(id: String) -> void:
+		Saves.use(id)
+		var profile := Profile.load_saved()
+		if profile:
+			_show_map(profile)
+		else:
+			_show_onboarding(null))  # an unfinished save: finish setting it up
+	screen.new_game.connect(func() -> void:
+		Saves.use(Saves.new_slot())
+		_show_onboarding(null))
+	screen.account_requested.connect(_show_account)
+	_swap(screen)
 
 
 func _show_onboarding(existing: Profile) -> void:
@@ -35,6 +52,11 @@ func _show_onboarding(existing: Profile) -> void:
 		_show_map(profile))
 	if existing:
 		screen.cancelled.connect(func() -> void: _show_map(existing, false))
+	else:
+		screen.cancellable = true
+		screen.cancelled.connect(func() -> void:
+			Saves.delete(Saves.slot_of(Profile.save_path))  # the new game was never started
+			_show_saves())
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
 
@@ -59,7 +81,6 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_campaign.rest()
 		_profile.save()
 		_show_map(_profile))
-	screen.setup_requested.connect(_show_onboarding.bind(profile))
 	screen.pack_requested.connect(_show_pack)
 	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
@@ -167,11 +188,10 @@ func _on_team_changed() -> void:
 func _show_account() -> void:
 	var screen := AccountScreen.new()
 	screen.closed.connect(func() -> void:
-		var profile := Profile.load_saved()
-		if profile:
-			_show_map(profile)
+		if _profile:
+			_show_map(_profile)
 		else:
-			_show_onboarding(null))
+			_show_saves())
 	_swap(screen)
 
 

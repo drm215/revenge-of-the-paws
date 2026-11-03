@@ -7,7 +7,6 @@ extends Control
 signal battle_requested(index: int)
 signal patrol_requested(index: int)
 signal rest_requested
-signal setup_requested
 signal pack_requested
 signal stable_requested
 signal account_requested
@@ -512,7 +511,6 @@ func _build_ui() -> void:
 	Retro.text(credit, 13, Retro.STEEL)
 	credit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	credit.visible = credit.text != ""
-	var setup := Button.new()
 	var pack := Button.new()
 	pack.text = "Pack"
 	pack.add_theme_font_size_override("font_size", Retro.px(16))
@@ -545,10 +543,6 @@ func _build_ui() -> void:
 		auto.add_theme_font_size_override("font_size", Retro.px(16))
 		auto.pressed.connect(auto_toggled.emit)
 		footer.add_child(auto)
-	setup.text = "Setup"
-	setup.add_theme_font_size_override("font_size", Retro.px(16))
-	setup.pressed.connect(setup_requested.emit)
-	footer.add_child(setup)
 	for button in footer.get_children():
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2(0, 56)

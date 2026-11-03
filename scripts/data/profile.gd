@@ -470,8 +470,9 @@ func save() -> void:
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
+	cfg.set_value("profile", "slot", Saves.slot_of(save_path))  # so a cloud copy comes back to this game
 	cfg.save(save_path)
-	if save_path == SAVE_PATH:
+	if Saves.is_slot(save_path):
 		SaveHooks.saved()
 
 
