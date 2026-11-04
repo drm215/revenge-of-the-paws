@@ -2,6 +2,7 @@
 # Builds the web export and publishes it to the repo's gh-pages branch. A Render static site
 # (branch gh-pages, publish directory ".") redeploys on every push and serves it at
 # revengeofthepaws.com. Run from anywhere: tools/deploy_web.sh
+# The tests must pass first (SKIP_TESTS=1 skips them, for emergencies).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,6 +10,9 @@ DOMAIN="revengeofthepaws.com"
 GODOT="${GODOT:-$(command -v godot || ls /c/Users/*/AppData/Local/Microsoft/WinGet/Packages/GodotEngine*/Godot_v*_console.exe | head -1)}"
 
 cd "$ROOT"
+if [ -z "${SKIP_TESTS:-}" ]; then
+	GODOT="$GODOT" "${PYTHON:-python}" tests/run_all.py
+fi
 mkdir -p build/web
 touch build/.gdignore  # keep the Godot editor from importing the build output
 rm -f build/web/*.import

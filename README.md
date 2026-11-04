@@ -9,7 +9,15 @@ Built with [Godot 4.7](https://godotengine.org). Design notes: [DESIGN.md](DESIG
 
 ## Running locally
 
-Open the folder in Godot 4.7 and press F5. Balance check (plays simulated campaigns):
+Open the folder in Godot 4.7 and press F5. Tests (`tests/checks/*`, a fake Supabase server and a
+two-device raid; each check gets empty user data, so real saves are safe, and deploys run them):
+
+```
+python tests/run_all.py            # everything
+python tests/run_all.py syncnow    # one check
+```
+
+Balance check (plays simulated campaigns):
 
 ```
 godot --headless --path . --script res://tests/simulate.gd
