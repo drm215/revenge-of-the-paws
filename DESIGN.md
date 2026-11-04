@@ -325,6 +325,8 @@ versions of your recruits; a story beat).
 - Tap a skill, then tap a highlighted unit. Strong skill = longer, juicier animation.
 - Battle log for clarity; floating damage numbers; turn-order strip.
 - Sessions are pausable at any point (state lives in plain data, easy to save).
+- The map draws in layers (`MapView`): shapes stay drawn and just move when panned, what glows
+  redraws at 20 fps, labels when the view changes. Call `refresh()` after changing what it shows.
 
 ## Art (current)
 8-bit style sprites for every unit. Pipeline: `tools/make_sprites.py` draws vector portraits into

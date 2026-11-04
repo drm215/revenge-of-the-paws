@@ -61,7 +61,7 @@ func _ready() -> void:
 
 func _select(i: int) -> void:
 	_map.selected = i
-	_map.queue_redraw()
+	_map.refresh()
 	var t := campaign.territories[i]
 	_info_title.text = t.name + (("  " + t.id) if campaign.uses_zip_data else "")
 	_action.visible = campaign.is_actionable(i)
@@ -193,7 +193,7 @@ func _on_chat() -> void:
 	if _chat_button:
 		_chat_button.text = "Chat (%d)" % unread if unread > 0 else "Chat"
 	_map.pings = _live_pings(chat.recent_pings())
-	_map.queue_redraw()
+	_map.refresh()
 	if _map.selected >= 0:
 		_ping.text = "Unping" if _map.pings.has(campaign.territories[_map.selected].id) else "Ping"
 

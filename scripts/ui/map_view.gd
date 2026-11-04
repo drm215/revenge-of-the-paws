@@ -2,7 +2,9 @@ class_name MapView
 extends Control
 
 ## Draws the campaign map (territory cells, ownership, threat, lairs) and reports taps on territories.
-## Drag to pan; pinch or mouse wheel to zoom.
+## Drag to pan; pinch or mouse wheel to zoom. Three layers, so an idle map costs next to nothing:
+## _shapes keeps its drawing and just moves when panned, _pulse redraws at PULSE_INTERVAL while
+## anything glows, and _labels redraws when the view changes. Call refresh() after the game changes.
 
 signal territory_selected(index: int)
 
@@ -23,6 +25,8 @@ const MAX_ZOOM := 4.0
 const TAP_SLOP := 12.0
 const MIN_LABEL_PX := 64.0  # smaller areas only get a label once zoomed in
 const LABEL_GAP := 3.0  # px kept clear around each label; crowded labels wait for a closer zoom
+const LABEL_MARGIN := 120.0  # labels this far off screen can still reach into view; beyond it they're skipped
+const PULSE_INTERVAL := 0.05  # seconds between redraws of what glows
 
 var campaign: Campaign
 var selected := -1
@@ -40,18 +44,58 @@ var _draw_order: Array[int] = []  # biggest areas first, so enclaves inside them
 var _bboxes: Array[Rect2] = []  # per territory, map space
 var _full_bounds := Rect2()  # whole map, map space
 var _icons := {}  # animal id -> texture, for survivors waiting to be rescued
-var _fillable := {}  # Vector2i(territory, part) -> whether the ring triangulates cleanly
+var _parts: Array = []  # per territory: its rings as {closed (outline), points and tris (fill; no tris if it won't triangulate)}
+var _shapes := Node2D.new()  # fills and borders, in map space
+var _pulse := Node2D.new()  # glowing outlines and nest marks
+var _labels := Node2D.new()  # names, threat, markers, in screen space
+var _shapes_scale := 0.0  # the scale _shapes was drawn at; its borders are redrawn to keep their width
+var _pulse_wait := 0.0
+var _fills_pulse := false  # a counterattack or cut-off land glows
+var _outlines_pulse := false  # lairs, pings or nests glow
+
+
+func _init() -> void:
+	for layer: Node2D in [_shapes, _pulse, _labels]:
+		add_child(layer)
+	_shapes.draw.connect(_draw_shapes)
+	_pulse.draw.connect(_draw_pulse)
+	_labels.draw.connect(_draw_labels)
 
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel survivor icons
 	resized.connect(_fit)
 	_fit()
+	refresh()
 
 
 func _process(delta: float) -> void:
 	_time += delta
-	queue_redraw()  # pulsing counterattack + lair glow
+	_pulse_wait -= delta
+	if _pulse_wait > 0.0:
+		return
+	_pulse_wait = PULSE_INTERVAL
+	if _outlines_pulse:
+		_pulse.queue_redraw()
+	if _fills_pulse:
+		_shapes.queue_redraw()
+
+
+## The game changed (ownership, selection, pings): draw it all again.
+func refresh() -> void:
+	_fills_pulse = false
+	_outlines_pulse = not pings.is_empty()
+	if campaign:
+		_fills_pulse = campaign.under_attack >= 0
+		for i in campaign.territories.size():
+			_fills_pulse = _fills_pulse or campaign.is_cut_off(i)
+			_outlines_pulse = _outlines_pulse or campaign.is_nest(i) or _is_lair(i)
+	for layer: Node2D in [_shapes, _pulse, _labels]:
+		layer.queue_redraw()
+
+
+func _is_lair(i: int) -> bool:
+	return campaign.territories[i].boss != "" and not campaign.territories[i].owned
 
 
 ## Centers the view on a territory (used when something needs the player's attention).
@@ -64,34 +108,43 @@ func focus(i: int) -> void:
 func _fit() -> void:
 	if campaign == null or size.x <= 0:
 		return
+	_build_geometry()
 	# Frame the front line (what you hold and can attack); zoom out to see the whole map.
 	var bounds := Rect2(campaign.territories[0].site, Vector2.ZERO)
-	_full_bounds = bounds
 	for i in campaign.territories.size():
-		var t := campaign.territories[i]
-		var active := t.owned or campaign.can_attack(i)
-		for ring in t.parts:
-			for p in ring:
-				_full_bounds = _full_bounds.expand(p)
-				if active:
-					bounds = bounds.expand(p)
-	_draw_order.assign(range(campaign.territories.size()))
-	_draw_order.sort_custom(func(a: int, b: int) -> bool:
-		return campaign.territories[a].area > campaign.territories[b].area)
-	_fillable.clear()
-	_bboxes.clear()
-	for t in campaign.territories:
-		var box := Rect2(t.site, Vector2.ZERO)
-		for ring in t.parts:
-			for p in ring:
-				box = box.expand(p)
-		_bboxes.append(box)
-	for i in campaign.territories.size():
-		for k in campaign.territories[i].parts.size():
-			_fillable[Vector2i(i, k)] = not Geometry2D.triangulate_polygon(campaign.territories[i].parts[k]).is_empty()
+		if campaign.territories[i].owned or campaign.can_attack(i):
+			bounds = bounds.merge(_bboxes[i])
 	_fit_scale = minf(size.x / bounds.size.x, size.y / bounds.size.y) * 0.96
 	_fit_offset = size / 2.0 - bounds.get_center() * _fit_scale
 	_clamp_pan()
+
+
+## What never changes during a game's map screen: bounds, draw order, and every ring ready to draw.
+func _build_geometry() -> void:
+	if _parts.size() == campaign.territories.size():
+		return
+	_parts.clear()
+	_bboxes.clear()
+	_full_bounds = Rect2(campaign.territories[0].site, Vector2.ZERO)
+	for t in campaign.territories:
+		var box := Rect2(t.site, Vector2.ZERO)
+		var rings: Array = []
+		for ring in t.parts:
+			for p in ring:
+				box = box.expand(p)
+			var closed := ring.duplicate()
+			closed.append(ring[0])
+			rings.append({"closed": closed, "points": ring, "tris": Geometry2D.triangulate_polygon(ring)})
+		_parts.append(rings)
+		_bboxes.append(box)
+		_full_bounds = _full_bounds.merge(box)
+	_draw_order.assign(range(campaign.territories.size()))
+	_draw_order.sort_custom(func(a: int, b: int) -> bool:
+		return campaign.territories[a].area > campaign.territories[b].area)
+
+
+func _view_scale() -> float:
+	return _fit_scale * _zoom
 
 
 func _to_screen(p: Vector2) -> Vector2:
@@ -117,45 +170,77 @@ func _clamp_pan() -> void:
 	_pan = saved
 	var mid := size / 2.0
 	_pan = _pan.clamp(mid - r.end, mid - r.position)
-	queue_redraw()
+	_view_changed()
 
 
-func _draw() -> void:
-	if campaign == null:
+## Panning only moves the shapes; zooming redraws them too, so their borders keep their width.
+func _view_changed() -> void:
+	_shapes.position = _to_screen(Vector2.ZERO)
+	_shapes.scale = Vector2.ONE * _view_scale()
+	if not is_equal_approx(_shapes_scale, _view_scale()):
+		_shapes_scale = _view_scale()
+		_shapes.queue_redraw()
+	_pulse.queue_redraw()
+	_labels.queue_redraw()
+
+
+func _draw_shapes() -> void:
+	if campaign == null or _parts.is_empty():
 		return
-	var font := Retro.pixel_font()
+	var item := _shapes.get_canvas_item()
+	var width := 2.0 / _view_scale()
 	for i in _draw_order:
-		for k in campaign.territories[i].parts.size():
-			var poly := _screen_ring(i, k)
-			if _fillable.get(Vector2i(i, k), false):
-				draw_colored_polygon(poly, _fill(i))
-			poly.append(poly[0])
-			draw_polyline(poly, BORDER, 2.0, false)
+		var color := PackedColorArray([_fill(i)])
+		for part: Dictionary in _parts[i]:
+			if not part.tris.is_empty():
+				RenderingServer.canvas_item_add_triangle_array(item, part.tris, part.points, color)
+			_shapes.draw_polyline(part.closed, BORDER, width, false)
 
+
+func _draw_pulse() -> void:
+	if campaign == null or _parts.is_empty():
+		return
+	_pulse.draw_set_transform(_shapes.position, 0.0, _shapes.scale)
 	for i in campaign.territories.size():
-		if campaign.territories[i].boss != "" and not campaign.territories[i].owned:
+		if _is_lair(i):
 			_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
 	for i in campaign.territories.size():
 		if pings.has(campaign.territories[i].id):
 			_outline(i, Retro.CYAN.lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0)), 5.0)
 	if selected >= 0:
 		_outline(selected, SELECTED, 4.0)
+	_pulse.draw_set_transform(Vector2.ZERO)
+	for i in campaign.territories.size():
+		if campaign.is_nest(i):
+			# A pulsing red blot marks a nest the horde spreads from.
+			var at := _to_screen(campaign.territories[i].site) + Vector2(-34, -22)
+			_pulse.draw_circle(at, 11, BORDER)
+			_pulse.draw_circle(at, 8, NEST.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 4.0)))
+			_pulse.draw_circle(at, 3, BORDER)
 
+
+func _draw_labels() -> void:
+	if campaign == null or _parts.is_empty():
+		return
+	var font := Retro.pixel_font()
+	var view := Rect2(Vector2.ZERO, size).grow(LABEL_MARGIN)
 	var font_size := Retro.px(clampf(16 * sqrt(_zoom), 16, 26))
 	var placed: Array[Rect2] = []  # labels already drawn; one that would overlap them is skipped
 	for i in _label_order():
 		var t := campaign.territories[i]
 		var c := _to_screen(t.site)
-		var is_lair := t.boss != "" and not t.owned
+		if not view.has_point(c):
+			continue
+		var is_lair := _is_lair(i)
 		var label := t.label if t.label.length() <= 13 else t.label.left(12) + "…"
 		var color := Color.WHITE
 		if i == campaign.home:
-			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), SELECTED)
-			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
+			_labels.draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), SELECTED)
+			_labels.draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
 			label = "HOME"
 		elif campaign.home_owner(i) != "":
-			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), Retro.CYAN)
-			draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
+			_labels.draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), Retro.CYAN)
+			_labels.draw_rect(Rect2(c + Vector2(-8, -26), Vector2(16, 16)), BORDER, false, 3.0)
 			label = campaign.home_owner(i).to_upper()
 			color = Retro.CYAN
 		elif is_lair:
@@ -170,25 +255,19 @@ func _draw() -> void:
 		if t.cache != "" and campaign.loot_at(i) != "":
 			# A little treasure chest marks a trinket cache.
 			var box := Rect2(c + Vector2(26, -30), Vector2(18, 14))
-			draw_rect(box.grow(2), BORDER)
-			draw_rect(box, Retro.GOLD)
-			draw_rect(Rect2(box.position + Vector2(0, 5), Vector2(18, 3)), Color("b86f50"))
+			_labels.draw_rect(box.grow(2), BORDER)
+			_labels.draw_rect(box, Retro.GOLD)
+			_labels.draw_rect(Rect2(box.position + Vector2(0, 5), Vector2(18, 3)), Color("b86f50"))
 		var survivor := campaign.pending_recruit(i)
 		if survivor != "":
-			draw_texture_rect(_icon(survivor), Rect2(c + Vector2(-20, -48), Vector2(40, 40)), false)
-		if campaign.is_nest(i):
-			# A pulsing red blot marks a nest the horde spreads from.
-			var at := c + Vector2(-34, -22)
-			draw_circle(at, 11, BORDER)
-			draw_circle(at, 8, NEST.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 4.0)))
-			draw_circle(at, 3, BORDER)
+			_labels.draw_texture_rect(_icon(survivor), Rect2(c + Vector2(-20, -48), Vector2(40, 40)), false)
 		if not t.owned:
 			if t.threat > GameData.MAX_THREAT:
 				_text(font, c + Vector2(0, 36), "+%d" % (t.threat - GameData.MAX_THREAT), Retro.px(12), THREAT_PIP)
 			for k in mini(t.threat, GameData.MAX_THREAT):
 				var pip := c + Vector2((k - (mini(t.threat, GameData.MAX_THREAT) - 1) / 2.0) * 10 - 3, 10)
-				draw_rect(Rect2(pip - Vector2(1, 1), Vector2(8, 8)), BORDER)
-				draw_rect(Rect2(pip, Vector2(6, 6)), THREAT_PIP)
+				_labels.draw_rect(Rect2(pip - Vector2(1, 1), Vector2(8, 8)), BORDER)
+				_labels.draw_rect(Rect2(pip, Vector2(6, 6)), THREAT_PIP)
 
 
 ## Territories big enough on screen to label, most important first: home and the selection, lairs,
@@ -199,7 +278,7 @@ func _label_order() -> Array[int]:
 	var order: Array[int] = []
 	for i in campaign.territories.size():
 		var t := campaign.territories[i]
-		var is_lair := t.boss != "" and not t.owned
+		var is_lair := _is_lair(i)
 		var on_screen := _bboxes[i].size * _fit_scale * _zoom
 		if i in campaign.homes or i == selected:
 			rank[i] = 0
@@ -227,22 +306,14 @@ func _icon(id: String) -> Texture2D:
 func _text(font: Font, center: Vector2, text: String, font_size: int, color: Color) -> void:
 	var w := 220.0
 	var pos := center + Vector2(-w / 2, 0)
-	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, font_size, 6, Color.BLACK)
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, font_size, color)
+	_labels.draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, font_size, 6, Color.BLACK)
+	_labels.draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, font_size, color)
 
 
-func _screen_ring(i: int, k: int) -> PackedVector2Array:
-	var out := PackedVector2Array()
-	for p in campaign.territories[i].parts[k]:
-		out.append(_to_screen(p))
-	return out
-
-
+## A territory's outline, `width` px wide on screen. _draw_pulse has set the map-space transform.
 func _outline(i: int, color: Color, width: float) -> void:
-	for k in campaign.territories[i].parts.size():
-		var poly := _screen_ring(i, k)
-		poly.append(poly[0])
-		draw_polyline(poly, color, width, false)
+	for part: Dictionary in _parts[i]:
+		_pulse.draw_polyline(part.closed, color, width / _view_scale(), false)
 
 
 func _fill(i: int) -> Color:
@@ -310,6 +381,6 @@ func _select_at(screen_pos: Vector2) -> void:
 		for ring in campaign.territories[i].parts:
 			if Geometry2D.is_point_in_polygon(p, ring):
 				selected = i
-				queue_redraw()
+				refresh()
 				territory_selected.emit(i)
 				return
