@@ -93,14 +93,14 @@ func _select(i: int) -> void:
 		_action.set_meta("mode", "patrol")
 	else:
 		var cfg := campaign.battle_config(i)
-		var tougher := roundi((campaign.zombie_strength(t.threat) - 1.0) * 100)
+		var tougher := roundi((campaign.zombie_strength(i, t.threat) - 1.0) * 100)
 		_info_body.text = "Lv %d · threat %d · %d wave%s%s" % [
 			campaign.territory_level(i), t.threat, cfg.waves.size(), "" if cfg.waves.size() == 1 else "s",
 			(" · zombies +%d%%" % tougher) if tougher > 0 else ""]
 		if t.failed_attacks > 0:
 			_info_body.text += " · horde thinned to %d%%" % roundi(t.horde_strength() * 100)
 		if campaign.territory_level(i) > campaign.base_level(i):
-			_info_body.text += "\nThe horde has grown to match your pack (Lv %d here before)." % campaign.base_level(i)
+			_info_body.text += "\nThis horde matched your pack when you found it (usually Lv %d)." % campaign.base_level(i)
 		if campaign.under_attack >= 0:
 			_info_body.text += "\nDeal with the counterattack first."
 		elif not campaign.can_attack(i):

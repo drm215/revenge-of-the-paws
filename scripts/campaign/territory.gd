@@ -28,6 +28,11 @@ func _init(territory_id: String, territory_name: String, position: Vector2) -> v
 	site = position
 
 
+## The strongest pack level when this territory was first discovered: its zombies stay matched to
+## that, however strong the pack gets later (Campaign.zombie_strength).
+var met_level := 1
+
+
 ## How much of the horde is left after the pack's failed attacks (1.0 = untouched).
 func horde_strength() -> float:
 	return maxf(GameData.MIN_ATTRITION, 1.0 - failed_attacks * GameData.ATTRITION_PER_LOSS)

@@ -74,7 +74,7 @@ func _run() -> void:
 	c.territories[lair].boss = "woodbooger"
 	var t: Territory = c.territories[lair]
 	_check(await raid.open(t.id, "woodbooger", t.full_name(), "Jack", p.snapshot()) == "", "open a raid")
-	_check(await raid.start(c.raid_config(lair, 5)) == "", "start it")
+	_check(await raid.start(c.raid_config(lair)) == "", "start it")
 
 	# The fight ends with the connection gone.
 	var screen := BattleScreen.new()

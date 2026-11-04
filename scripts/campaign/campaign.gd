@@ -81,6 +81,8 @@ static func create(profile: Profile, team := {}) -> Campaign:
 		MapBuilder.spread(c.territories, c.home)
 		MapBuilder.build(c.territories)
 	c._assign_threat()
+	for t in c.territories:
+		t.met_level = profile.strongest_pack_level()
 	c._place_lairs(profile)
 	c._place_nests()
 	c._place_recruits(profile)
@@ -297,21 +299,24 @@ func is_actionable(i: int) -> bool:
 	return i == under_attack if under_attack >= 0 else can_attack(i)
 
 
-## The level the zombies here fight at: the territory's own, or the pack's if it has outgrown it.
+## The level the zombies here fight at: set when the territory was discovered. Only the horde's
+## spreading, a lost counter defense (both raise its threat) or failed attacks change it.
 func territory_level(i: int) -> int:
-	return GameData.territory_level(zombie_strength(territories[i].threat) * territories[i].horde_strength())
+	return GameData.territory_level(zombie_strength(i, territories[i].threat) * territories[i].horde_strength())
 
 
-## The territory's own level, from threat and attrition alone (what auto mode measures).
+## The level from threat and attrition alone, whatever the pack was when it was found (what auto
+## mode measures).
 func base_level(i: int) -> int:
 	return GameData.territory_level(GameData.zombie_mult(territories[i].threat) * territories[i].horde_strength())
 
 
-## Zombie stat multiplier at `threat`: the threat's own, or caught up with the pack's strongest
-## lineup (PACK_LEVEL_GAP levels below it at threat 1, one level closer per threat), whichever is higher.
-func zombie_strength(threat: int) -> float:
-	var caught_up := profile.strongest_pack_level() - GameData.PACK_LEVEL_GAP + threat - 1
-	return maxf(GameData.zombie_mult(threat), GameData.level_strength(caught_up))
+## Zombie stat multiplier in territory `i` at `threat`: the threat's own, or matched to the pack as
+## it was when the territory was discovered (PACK_LEVEL_GAP levels below it at threat 1, one level
+## closer per threat), whichever is higher.
+func zombie_strength(i: int, threat: int) -> float:
+	var matched := territories[i].met_level - GameData.PACK_LEVEL_GAP + threat - 1
+	return maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
 
 
 ## The next fight auto mode takes on its own: a counterattack or neighbor whose own level is at
@@ -337,7 +342,7 @@ func battle_config(i: int) -> Dictionary:
 	return {
 		"waves": GameData.generate_waves(threat, rng, t.boss),
 		"threat": threat,
-		"zombie_mult": zombie_strength(threat) * t.horde_strength(),
+		"zombie_mult": zombie_strength(i, threat) * t.horde_strength(),
 		"xp_mult": GameData.zombie_mult(threat) * t.horde_strength(),
 		"party_mult": 1.0 + held_bonus(),
 		"place": territories[i].full_name(),
@@ -348,13 +353,10 @@ func battle_config(i: int) -> Dictionary:
 	}
 
 
-## A legend raid on lair `i`: the lair's waves, with zombies caught up to the strongest critter any
-## raider brings (`max_level`) rather than to this player's pack alone. Fixed for every device.
-func raid_config(i: int, max_level: int) -> Dictionary:
+## A legend raid on lair `i`: the lair's own fight (raiders bring their own strength, and the legend
+## grows with them: GameData.legend_growth). Fixed for every device.
+func raid_config(i: int) -> Dictionary:
 	var cfg := battle_config(i)
-	var t := territories[i]
-	var caught_up := GameData.level_strength(max_level - GameData.PACK_LEVEL_GAP + t.threat - 1)
-	cfg.zombie_mult = maxf(GameData.zombie_mult(t.threat), caught_up) * t.horde_strength()
 	cfg.erase("party_mult")
 	return cfg
 
@@ -369,7 +371,7 @@ func patrol_config(i: int) -> Dictionary:
 	return {
 		"waves": GameData.generate_waves(threat, rng),
 		"threat": threat,
-		"zombie_mult": zombie_strength(threat),
+		"zombie_mult": zombie_strength(i, threat),
 		"xp_mult": GameData.zombie_mult(threat),
 		"party_mult": 1.0 + held_bonus(),
 		"place": "Patrol: " + t.full_name(),
@@ -526,7 +528,10 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 		else:
 			t.owned = false
 			_ownership_changed()
-			last_event = "%s was overrun. Take it back!" % t.full_name()
+			# The horde digs in where it beat the pack back.
+			t.threat += 1
+			spread[t.id] = int(spread.get(t.id, 0)) + 1
+			last_event = "%s was overrun (threat %d to %d). Take it back!" % [t.full_name(), t.threat - 1, t.threat]
 	elif won:
 		t.owned = true
 		_ownership_changed()
@@ -592,6 +597,10 @@ func _to_cfg() -> ConfigFile:
 	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
 	cfg.set_value("campaign", "feed", feed)
 	cfg.set_value("campaign", "shared_xp", shared_xp)
+	var met := {}
+	for t in territories:
+		met[t.id] = t.met_level
+	cfg.set_value("campaign", "met_levels", met)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	return cfg
@@ -637,6 +646,10 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	spread = cfg.get_value("campaign", "spread", {})
 	for t in territories:
 		t.threat += int(spread.get(t.id, 0))
+	# Territories a save doesn't date (saves from before this, a new teammate's ground) start from now.
+	var met: Dictionary = cfg.get_value("campaign", "met_levels", {})
+	for t in territories:
+		t.met_level = int(met.get(t.id, t.met_level))
 	cut_off = cfg.get_value("campaign", "cut_off", {})
 	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
 	feed = cfg.get_value("campaign", "feed", [])
@@ -994,6 +1007,7 @@ func _apply_batch(codes: Array) -> Array[String]:
 	_relabel()
 	for i in range(first_new, territories.size()):
 		territories[i].threat = _threat_at(territories[i].site)
+		territories[i].met_level = profile.strongest_pack_level()
 	var new_legends := _place_frontier_lairs(first_new)
 	_place_frontier_extras(first_new)
 	return new_legends

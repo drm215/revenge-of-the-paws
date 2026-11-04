@@ -58,7 +58,11 @@ The apocalypse starts **where you actually live**.
   doesn't fool them): 2 levels below it at threat 1, one level closer per threat (even at threat 3,
   2 above at threat 5). XP still comes from the territory's own strength. Levels convert to zombie
   strength with `GameData.LEVEL_STRENGTH`, measured with the simulator (the zombie strength a pack
-  of each level beats ~85% of the time); the map notes when a horde has grown to match the pack.
+  of each level beats ~85% of the time); the map notes when a horde was matched to the pack.
+  A territory's threat and level are fixed when it's first discovered (`Territory.met_level`, saved
+  in the shared map, so teammates see the same numbers). Only the horde changes them: a nest
+  spreading into it, or losing a counter defense there (+1 threat, so +1 level); failed attacks
+  thin it.
 - **Reinforcements:** every territory held beyond home gives the pack +2.5% HP/ATK (max +40%).
 - **Counterattacks:** every 3 map turns the horde attacks one of your border territories. You
   must defend it before attacking elsewhere; lose and it falls back to the dead.
@@ -140,7 +144,7 @@ The apocalypse starts **where you actually live**.
   a chat ping); teammates join from the map's "Join the raid" button. Each player picks the 3
   critters they bring and readies up; the opener starts with everyone ready (up to 4 players, 12
   critters). Each player controls their own critters, live: every device runs the same battle
-  from the raid's seed and config (zombies caught up to the strongest critter brought), and only
+  from the raid's seed and config (the lair's own level; the legend grows with the raiders), and only
   moves travel, numbered in order; the first move posted for a number stands, so if a player
   doesn't move within 45 s any device plays that turn with the AI. Each pack keeps its own
   leader aura, bonds, terrain and home-turf bonuses, injuries and fatigue; knockouts injure their
