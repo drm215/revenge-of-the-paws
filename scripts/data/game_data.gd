@@ -1365,16 +1365,6 @@ static func bond_lines(ids: Array[String], name_of: Callable) -> PackedStringArr
 	return out
 
 
-## Bonds this lineup hasn't formed, with what each needs: "Pack Hunters (2+ canines)".
-static func missing_bonds(ids: Array[String]) -> PackedStringArray:
-	var formed := active_bonds(ids).map(func(b: Dictionary) -> String: return b.name)
-	var out: PackedStringArray = []
-	for bond: Dictionary in BONDS:
-		if bond.name not in formed:
-			out.append("%s (%s)" % [bond.name, bond.desc])
-	return out
-
-
 ## What `count` bonds give one critter together (each multiplies ATK and DEF): 1 -> 8, 2 -> 17.
 static func bond_total(count: int) -> int:
 	return roundi((pow(1.0 + BOND_BONUS, count) - 1.0) * 100)

@@ -150,7 +150,8 @@ The apocalypse starts **where you actually live**.
   between the players; every player gets the legend's trinket on a win. The first device to
   report the end stores the outcome and records the territory on the team map; each player
   collects their own share once (`Profile.claim_raid`), even if they closed the game. Big raids
-  draw two compact cards per row.
+  draw two compact cards per row. A fight everyone left can't be picked up again: anyone can call it off,
+  a raid whose lair has fallen is called off by itself, and unfinished raids lapse after 2 hours.
 - **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
   maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
   10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on
@@ -174,6 +175,8 @@ The apocalypse starts **where you actually live**.
   each pack animal (last week's stays claimable for a week). Damage queues on the device (also
   while logged out) and is sent with the cloud sync; the leaderboard shows the pet and region,
   never the town. Server side: `server/siege.sql`.
+- **Sync**: every save goes to the cloud at once (`Cloud.SYNC_DELAY` only gathers one action's
+  saves), and a save made while a sync is running goes up right after it.
 - **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
   setup, each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
   legend's stats and HP left, rounds per wave) with the cloud sync, queued while offline (newest

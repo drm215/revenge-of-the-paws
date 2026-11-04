@@ -97,6 +97,12 @@ func _build() -> void:
 	_label("Up to %d teammates fight together, %d critters each, each player controlling their own. The legend grows with every player: HP x%.1f / x%.1f / x%.1f for 2 / 3 / 4 players. XP is split; everyone gets the legend's trinket. A player who takes too long has that turn played by the AI." % [
 		GameData.RAID_MAX_PLAYERS, GameData.RAID_PICKS, GameData.legend_growth(2).x, GameData.legend_growth(3).x, GameData.legend_growth(4).x], 18, Retro.FOG)
 
+	if r.status() == "fighting":
+		_label("This raid is still marked as fighting, but a fight can't be picked up again once it's left. If everyone has left it, call it off so the team can start a new one.", 19, Retro.MIST)
+		_content.add_child(_status)
+		_content.add_child(_button("Call off this raid", _call_off))
+		_content.add_child(_button("Back", closed.emit))
+		return
 	if r.status() != "lobby":
 		_content.add_child(_status)
 		if _status.text == "":
@@ -261,6 +267,14 @@ func _start() -> void:
 	var error: String = await r.start(campaign.raid_config(i, max_level))
 	_busy = false
 	_status.text = error
+
+
+func _call_off() -> void:
+	_status.text = "Calling it off..."
+	var error: String = await _raid().cancel()
+	_status.text = error
+	if error == "":
+		closed.emit()
 
 
 func _leave() -> void:

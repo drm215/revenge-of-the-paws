@@ -47,7 +47,8 @@ drop function if exists public.leave_raid();
 drop function if exists public.start_raid(text);
 drop function if exists public.raid_my_team();
 
--- The team's latest raid (open, fighting, or finished in the last day), with its members; or null.
+-- The team's latest raid (open or fighting in the last 2 hours, or finished in the last day), with
+-- its members; or null.
 create or replace function public.team_raid(p_team uuid) returns json
 language sql stable security definer set search_path = public as $$
   select json_build_object(
@@ -58,6 +59,7 @@ language sql stable security definer set search_path = public as $$
                 from raid_members m where m.raid_id = r.id))
   from raids r
   where r.team_id = p_team and is_team_member(p_team) and r.status <> 'cancelled' and r.created_at > now() - interval '1 day'
+    and (r.status = 'done' or r.created_at > now() - interval '2 hours')
   order by r.created_at desc limit 1;
 $$;
 
@@ -114,6 +116,13 @@ begin
     delete from raid_members where raid_id = r.id and user_id = auth.uid();
   end if;
 end;
+$$;
+
+-- Calls off a raid nobody can finish (everyone left the fight, or the legend has already fallen).
+create or replace function public.cancel_raid(p_raid uuid) returns void
+language sql security definer set search_path = public as $$
+  update raids set status = 'cancelled'
+  where id = p_raid and status in ('lobby', 'fighting') and is_team_member(team_id);
 $$;
 
 -- The opener starts the fight with everyone who is ready, fixing the battle config.
@@ -174,6 +183,7 @@ revoke all on function public.open_raid(uuid, text, text, bigint, text, text) fr
 revoke all on function public.join_raid(uuid, text, text, boolean) from public, anon;
 revoke all on function public.leave_raid(uuid) from public, anon;
 revoke all on function public.start_raid(uuid, text) from public, anon;
+revoke all on function public.cancel_raid(uuid) from public, anon;
 revoke all on function public.post_raid_action(uuid, int, text) from public, anon;
 revoke all on function public.raid_actions_after(uuid, int) from public, anon;
 revoke all on function public.finish_raid(uuid, text) from public, anon;
@@ -182,6 +192,7 @@ grant execute on function public.open_raid(uuid, text, text, bigint, text, text)
 grant execute on function public.join_raid(uuid, text, text, boolean) to authenticated;
 grant execute on function public.leave_raid(uuid) to authenticated;
 grant execute on function public.start_raid(uuid, text) to authenticated;
+grant execute on function public.cancel_raid(uuid) to authenticated;
 grant execute on function public.post_raid_action(uuid, int, text) to authenticated;
 grant execute on function public.raid_actions_after(uuid, int) to authenticated;
 grant execute on function public.finish_raid(uuid, text) to authenticated;

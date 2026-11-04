@@ -59,6 +59,11 @@ func _ready() -> void:
 	_new_game()
 
 
+func _exit_tree() -> void:
+	if raid:
+		_raid().holding = false
+
+
 # --- Flow -------------------------------------------------------------------------------------
 
 func _new_game() -> void:
@@ -256,6 +261,7 @@ func _raid() -> Node:
 ## same battle; the legend grows with the number of players.
 func _raid_battle() -> Battle:
 	var r := _raid()
+	r.holding = true
 	var cfg: Dictionary = r.config()
 	var packs := []
 	for m: Dictionary in r.members():

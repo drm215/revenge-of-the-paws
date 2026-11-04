@@ -15,7 +15,8 @@ signal signed_out
 ## The player opened a link from a Supabase email: show the account screen (new password, or why it failed).
 signal reset_requested
 
-const UPLOAD_DELAY := 3.0
+## Every save syncs right away; this tiny wait gathers the saves of one action into one sync.
+const SYNC_DELAY := 0.1
 const BATTLE_LOG_KEEP := 30
 const RETRY_DELAY := 30.0
 
@@ -37,6 +38,7 @@ var _synced := {}  # saved game (slot) -> server updated_at of the cloud copy th
 var _dirty := {}  # saved games changed here since they last synced
 var _deleted: Array = []  # saved games deleted here whose cloud copy still has to go
 var _busy := false
+var _again := false  # something changed during a sync: go round once more
 var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
 var _siege_pending := {}  # siege week (as text) -> damage not yet sent
@@ -80,7 +82,7 @@ func mark_dirty() -> void:
 	_dirty[slot] = true
 	_store_state()
 	if signed_in():
-		_timer.start(UPLOAD_DELAY)
+		_timer.start(SYNC_DELAY)
 
 
 ## A saved game was deleted here: delete its cloud copy too (now, or once back online).
@@ -91,7 +93,7 @@ func forget(slot: String) -> void:
 		_deleted.append(slot)
 	_store_state()
 	if signed_in():
-		_timer.start(UPLOAD_DELAY)
+		_timer.start(SYNC_DELAY)
 
 
 # --- Accounts -------------------------------------------------------------------------------
@@ -225,12 +227,20 @@ func _ensure_token() -> bool:
 # --- Sync -----------------------------------------------------------------------------------
 
 func sync() -> void:
-	if _busy or not signed_in() or not enabled():
+	if not signed_in() or not enabled() or not _pending.is_empty():
+		return  # (a waiting conflict syncs again once it's answered)
+	if _busy:
+		_again = true
+		while _busy:
+			await get_tree().process_frame
 		return
 	_busy = true
-	await _sync_once()
-	await _send_siege()
-	await _send_battle_logs()
+	_again = true
+	while _again and _pending.is_empty():
+		_again = false
+		await _sync_once()
+		await _send_siege()
+		await _send_battle_logs()
 	_busy = false
 
 
@@ -317,6 +327,9 @@ func _upload(slot: String, expected: String, retried := false) -> void:
 	if r.ok and r.data is Array and not r.data.is_empty():
 		_mark_synced(slot, String(r.data[0].updated_at))
 		_set_status("Saved to the cloud.")
+		if body.profile != FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)) or body.campaign != _local_campaign(slot):
+			_dirty[slot] = true  # saved again while this was on its way
+			_store_state()
 	elif not retried and (r.code == 409 or (r.ok and r.data is Array)):
 		await _sync_once(true)  # another device saved first (insert clashed, or the update matched nothing)
 	else:
@@ -513,19 +526,18 @@ func siege_add(points: int, pack_name: String) -> void:
 	_siege_name = pack_name
 	_store_state()
 	if signed_in():
-		_timer.start(UPLOAD_DELAY)
+		_timer.start(SYNC_DELAY)
 
 
-## Queues a battle report (Battle.report() plus the fight's setup) for the battle log; it's sent
-## with the next sync. Only the newest BATTLE_LOG_KEEP wait offline.
+## Queues a battle report (Battle.report() plus the fight's setup) for the battle log; it goes with
+## the sync after the fight is saved, so no download can reload the game on the results screen.
+## Only the newest BATTLE_LOG_KEEP wait offline.
 func log_battle(report: Dictionary) -> void:
 	report["at"] = Time.get_datetime_string_from_system(true)
 	_battle_logs.append(report)
 	if _battle_logs.size() > BATTLE_LOG_KEEP:
 		_battle_logs = _battle_logs.slice(-BATTLE_LOG_KEEP)
 	_store_state()
-	if signed_in():
-		_timer.start(UPLOAD_DELAY)
 
 
 func _send_battle_logs() -> void:

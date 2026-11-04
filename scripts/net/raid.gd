@@ -14,6 +14,7 @@ var turn_timeout := 45.0  # a player who doesn't move in time has that turn play
 
 var info := {}  # team_raid(): {id, host, territory, legend, seed, config, status, result, members}
 var fast := false  # a raid screen is open: check often
+var holding := false  # a raid battle is on screen: it plays on even if the raid gets called off
 
 var _busy := false
 var _waited := 0.0
@@ -81,7 +82,7 @@ func refresh() -> void:
 
 func _take(row: Variant) -> void:
 	var fresh: Dictionary = row if row is Dictionary else {}
-	if fresh == info:
+	if fresh == info or (holding and fresh.is_empty()):
 		return
 	info = fresh
 	changed.emit()
@@ -142,6 +143,17 @@ func join(player_name: String, pack: String, ready: bool) -> String:
 ## Leaves the lobby (the opener leaving calls the raid off).
 func leave() -> String:
 	var r := await _api("leave_raid", {})
+	if not r.ok:
+		return _error(r)
+	await refresh()
+	return ""
+
+
+## Calls off the team's raid: nobody can finish it (everyone left, or the legend has fallen).
+func cancel() -> String:
+	if not info.has("id"):
+		return ""
+	var r := await _api("cancel_raid", {"p_raid": info.id})
 	if not r.ok:
 		return _error(r)
 	await refresh()

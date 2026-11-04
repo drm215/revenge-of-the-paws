@@ -67,12 +67,6 @@ func _ready() -> void:
 			profile.locals_needed(), (" beside " + profile.pet_name) if profile.has_pet() else "", GameData.PACK_LIMIT]
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(intro)
-	if prep:
-		var guide := Button.new()
-		guide.text = "Zombie guide"
-		guide.custom_minimum_size = Vector2(0, 60)
-		guide.pressed.connect(ZombieGuide.open.bind(self))
-		col.add_child(guide)
 	if prep and battle_config.get("raidable", false):
 		var raid := Button.new()
 		raid.text = "Start a raid with your team"
@@ -223,10 +217,8 @@ func _refresh() -> void:
 		open.pressed.connect(open_stable.emit)
 		_list.add_child(open)
 	var lines := GameData.bond_lines(profile.pack_ids(), profile.unit_name)
-	var missing := GameData.missing_bonds(profile.pack_ids())
-	_bonds.text = ("Bonds (a critter in two gets both):\n"
-		+ ("\n".join(lines) if not lines.is_empty() else "None yet.")
-		+ ("\nNot formed: " + ", ".join(missing) if not missing.is_empty() else ""))
+	_bonds.text = "\n".join(lines)
+	_bonds.visible = not stable_view and not lines.is_empty()
 	_count.text = "Fighting: %d / %d  ·  Pack: %d / %d" % [profile.team.size(), profile.locals_needed(),
 		_pack_count(), GameData.PACK_LIMIT]
 	_count.add_theme_color_override("font_color", Retro.GOLD)

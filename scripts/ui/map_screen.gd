@@ -198,16 +198,29 @@ func _on_chat() -> void:
 		_ping.text = "Unping" if _map.pings.has(campaign.territories[_map.selected].id) else "Ping"
 
 
-## The team's raid: a button to join an open lobby, or to go back to a fight this player is in.
+## The team's raid: a button to join an open lobby, or to deal with a fight this player left. A raid
+## on a lair that's already free (a teammate beat the legend another way) is over: it's called off.
 func _on_raid() -> void:
 	var raid := get_node("/root/Raid")
 	var legend: Dictionary = GameData.LEGENDS.get(String(raid.info.get("legend", "")), {})
 	var lobby: bool = raid.status() == "lobby"
 	var fighting: bool = raid.status() == "fighting" and raid.is_member()
-	_raid_button.visible = not legend.is_empty() and (lobby or fighting)
+	var live: bool = raid.status() in ["lobby", "fighting"]
+	var over: bool = live and _lair_is_free(String(raid.info.get("territory", "")))
+	if over:
+		raid.cancel()
+	_raid_button.visible = not legend.is_empty() and (lobby or fighting) and not over
 	if _raid_button.visible:
-		_raid_button.text = ("Back to the raid on the %s" if fighting or raid.is_member() else "Join the raid on the %s") % legend.name
+		var text := "Raid on the %s was interrupted" if fighting else "Back to the raid on the %s" if raid.is_member() else "Join the raid on the %s"
+		_raid_button.text = text % legend.name
 	_fit_news()
+
+
+func _lair_is_free(territory: String) -> bool:
+	for t in campaign.territories:
+		if t.id == territory:
+			return t.owned
+	return false
 
 
 ## Pings whose job is done clear themselves: horde land once it's liberated, a counterattack once
