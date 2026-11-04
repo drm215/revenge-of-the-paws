@@ -89,8 +89,9 @@ func refresh() -> void:
 		_take(null)
 		return
 	_busy = true
+	var asked: String = get_node("/root/Team").team_id
 	var r := await _api("team_raid", {})
-	if r.ok:
+	if r.ok and asked == get_node("/root/Team").team_id:
 		_take(r.data)
 	_busy = false
 	_idle.emit()

@@ -85,16 +85,19 @@ func poll() -> void:
 	if not _on_team():
 		return
 	_busy = true
+	var asked: String = _team().team_id
 	var after: float = messages[-1].id if not messages.is_empty() else 0.0
 	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/team_messages_since",
-		{"p_team": _team().team_id, "p_after": int(after)})
-	if r.ok and r.data is Array and not (r.data as Array).is_empty():
+		{"p_team": asked, "p_after": int(after)})
+	# (An answer about the team the player has just left stays out of this one's chat.)
+	var fresh: bool = r.ok and r.data is Array and not (r.data as Array).is_empty() and asked == _team().team_id
+	if fresh:
 		messages.append_array(r.data)
 		messages = messages.slice(-KEEP)
 		_store_state()
 	_busy = false
 	_idle.emit()  # after storing, so a waiting poll asks only for what's newer
-	if r.ok and r.data is Array and not (r.data as Array).is_empty():
+	if fresh:
 		received.emit()
 
 

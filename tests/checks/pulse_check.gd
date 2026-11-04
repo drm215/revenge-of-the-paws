@@ -160,6 +160,28 @@ func _run() -> void:
 		waited += 1
 	_check(team.pending.is_empty(), "a queued move is sent")
 
+	# An answer on its way when the player switches games belongs to the old team: it's dropped.
+	var switched: String = team.team_id
+	await _post("/_teammate_says", {"team": switched, "body": "For the old team"})
+	var open_raid: String = await raid.open("24211", "woodbooger", "Lair", "Jack", p.snapshot())
+	_check(open_raid == "", "a raid to be asked about")
+	raid.info = {}
+	chat.poll()
+	raid.refresh()
+	team.use("")
+	_check(chat.messages.is_empty(), "switching clears the chat")
+	var waiting := 0
+	while (chat._busy or raid._busy) and waiting < 300:
+		await process_frame
+		waiting += 1
+	_check(chat.messages.is_empty(), "the old team's chat doesn't land in the new game's")
+	_check(raid.info.is_empty(), "nor its raid")
+	team.use(switched)
+	await chat.poll()
+	_check(chat.messages.any(func(m: Dictionary) -> bool: return String(m.body) == "For the old team"), "back on that team, the message is there")
+	await raid.refresh()
+	await raid.leave()
+
 	# A server without team_pulse yet: the old requests carry on, moves and chat still arrive.
 	await _post("/_slow", {"no_pulse": true})
 	await pulse.check()
