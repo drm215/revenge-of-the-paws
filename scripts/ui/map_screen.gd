@@ -434,10 +434,11 @@ func _build_ui() -> void:
 	Retro.text(_status, 22)
 	col.add_child(_status)
 	var lines: PackedStringArray = []
-	if not campaign.legends.is_empty():
-		var names: PackedStringArray = []
-		for id in campaign.legends:
-			names.append(GameData.LEGENDS[id].name)
+	var names: PackedStringArray = []
+	for t in campaign.territories:
+		if t.boss != "" and not t.owned:  # a beaten legend's lair is just held land now
+			names.append(GameData.LEGENDS[t.boss].name)
+	if not names.is_empty():
 		lines.append("Lairs in sight: " + ", ".join(names))
 	var rumors: PackedStringArray = []
 	for r in campaign.rumors():
