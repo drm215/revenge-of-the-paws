@@ -12,6 +12,7 @@ signal status_changed(text: String)
 signal downloaded
 ## The player logged out (teams forget the account's team).
 signal signed_out
+signal _refreshed(ok: bool)
 ## The player opened a link from a Supabase email: show the account screen (new password, or why it failed).
 signal reset_requested
 
@@ -38,6 +39,7 @@ var _synced := {}  # saved game (slot) -> server updated_at of the cloud copy th
 var _dirty := {}  # saved games changed here since they last synced
 var _deleted: Array = []  # saved games deleted here whose cloud copy still has to go
 var _busy := false
+var _refreshing := false  # a login refresh is on its way; everyone else waits for its answer
 var _again := false  # something changed during a sync: go round once more
 var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
@@ -213,7 +215,20 @@ func _take_session(d: Dictionary) -> void:
 func _ensure_token() -> bool:
 	if _access != "" and Time.get_unix_time_from_system() < _expires_at:
 		return true
-	var r := await _request(HTTPClient.METHOD_POST, "/auth/v1/token?grant_type=refresh_token", {"refresh_token": _refresh}, false)
+	if _refreshing:
+		return await _refreshed  # each refresh replaces the token, so only one may run at a time
+	_refreshing = true
+	var ok := await _refresh_login()
+	_refreshing = false
+	_refreshed.emit(ok)
+	return ok
+
+
+func _refresh_login() -> bool:
+	var token := _refresh
+	var r := await _request(HTTPClient.METHOD_POST, "/auth/v1/token?grant_type=refresh_token", {"refresh_token": token}, false)
+	if _refresh != token:
+		return _access != ""  # logged out or in meanwhile: this answer is about the old login
 	if r.ok:
 		_take_session(r.data)
 		return true

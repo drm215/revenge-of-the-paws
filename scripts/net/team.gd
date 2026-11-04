@@ -173,6 +173,7 @@ func flush() -> void:
 		var c := Campaign.create(profile, row)
 		c.me = my_name(profile)
 		c.my_id = _cloud().user_id()
+		var sending := pending.size()  # moves made while this is on its way wait for the next send
 		for action: Dictionary in pending:
 			c.apply(action)
 		var text := c.to_text()
@@ -181,7 +182,7 @@ func flush() -> void:
 		if w.ok and w.data != null and int(w.data) >= 0:
 			row.state = text
 			row.version = float(w.data)
-			pending.clear()
+			pending = pending.slice(sending)
 			info = {}  # so _take sees the change
 			_take(row)
 			break

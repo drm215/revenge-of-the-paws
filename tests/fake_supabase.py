@@ -24,7 +24,8 @@ def stamp():  # server-made timestamps, with a "+" that must survive the URL
     return "2026-11-01T00:00:%02d.123456+00:00" % _n[0]
 
 
-state = {"hits": [], "password": "oldpass", "token": "tok-recovery", "recover": [], "saves": []}
+state = {"hits": [], "password": "oldpass", "token": "tok-recovery", "recover": [], "saves": [], "refreshes": 0}
+slow = {}  # POST /_slow: seconds to hold requests open ("save_team_state", "refresh"); "refresh_fails"
 
 
 class H(BaseHTTPRequestHandler):
@@ -193,6 +194,7 @@ class H(BaseHTTPRequestHandler):
             members[:] = [m for m in members if not (m["user_id"] == uid and m["team_id"] == body.get("p_team"))]
             return self._send(200, None)
         if name == "save_team_state":
+            time.sleep(slow.get("save_team_state", 0))
             mine = self._team_of(uid, body.get("p_team"))
             if not mine:
                 return self._send(200, -1)
@@ -220,7 +222,14 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith("/auth/v1/recover"):
             state["recover"].append({"email": body["email"], "path": self.path})
             return self._send(200, {})
+        if self.path == "/_slow":
+            slow.update(body)
+            return self._send(200, {})
         if self.path.startswith("/auth/v1/token?grant_type=refresh_token"):
+            state["refreshes"] += 1
+            time.sleep(slow.get("refresh", 0))
+            if slow.get("refresh_fails"):
+                return self._send(400, {"error_description": "Invalid Refresh Token"})
             return self._send(200, {"access_token": state["token"], "refresh_token": "r3", "expires_in": 3600, "user": USER})
         if self.path.startswith("/auth/v1/token?grant_type=password"):
             if body["email"] == "b@b.co":
