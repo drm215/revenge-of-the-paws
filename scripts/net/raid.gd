@@ -7,10 +7,16 @@ extends Node
 
 ## The team's raid (lobby, members, status) changed.
 signal changed
+## A result that couldn't be sent at the end of the fight (finish_later) got through. `late`:
+## {id, outcome, brought, raiders, team}; `stored`: {result, mine}.
+signal late_finish(late: Dictionary, stored: Dictionary)
+signal _idle
 
 const IDLE_POLL := 15.0
 const FAST_POLL := 1.5
 var turn_timeout := 45.0  # a player who doesn't move in time has that turn played by the AI
+var state_path := "user://raid.cfg"
+var listening := false  # the game is ready to take a late result (Main, once a map is up)
 
 var info := {}  # team_raid(): {id, host, territory, legend, seed, config, status, result, members}
 var fast := false  # a raid screen is open: check often
@@ -18,6 +24,8 @@ var holding := false  # a raid battle is on screen: it plays on even if the raid
 
 var _busy := false
 var _waited := 0.0
+var _late := {}  # see late_finish; kept on disk until it's sent
+var _sending_late := false
 var _timer := Timer.new()
 
 
@@ -29,6 +37,9 @@ func _ready() -> void:
 	var team := get_node_or_null("/root/Team")
 	if team:
 		team.changed.connect(refresh)
+	var cfg := ConfigFile.new()
+	if cfg.load(state_path) == OK:
+		_late = cfg.get_value("raid", "late", {})
 	refresh()
 
 
@@ -36,7 +47,9 @@ func _tick() -> void:
 	_waited += _timer.wait_time
 	if _waited >= (FAST_POLL if fast else IDLE_POLL):
 		_waited = 0.0
-		refresh()
+		send_late()
+		if not _busy:  # a slow connection doesn't pile up checks
+			refresh()
 
 
 func _cloud() -> Node:
@@ -67,17 +80,19 @@ func _error(r: Dictionary) -> String:
 
 # --- The team's raid --------------------------------------------------------------------------
 
+## A call while a check is on its way waits for it, then asks again.
 func refresh() -> void:
-	if _busy:
-		return
+	while _busy:
+		await _idle
 	if not _on_team():
 		_take(null)
 		return
 	_busy = true
 	var r := await _api("team_raid", {})
-	_busy = false
 	if r.ok:
 		_take(r.data)
+	_busy = false
+	_idle.emit()
 
 
 func _take(row: Variant) -> void:
@@ -198,6 +213,45 @@ func finish(outcome: Dictionary) -> Dictionary:
 	var r := await _api("finish_raid", {"p_raid": info.id, "p_result": JSON.stringify(outcome)})
 	if not r.ok or not r.data is Dictionary:
 		return {}
-	var stored: Variant = JSON.parse_string(String(r.data.get("result", "")))
 	await refresh()
-	return {"result": stored if stored is Dictionary else outcome, "mine": bool(r.data.get("mine", false))}
+	return _stored(r.data, outcome)
+
+
+static func _stored(row: Dictionary, outcome: Dictionary) -> Dictionary:
+	var stored: Variant = JSON.parse_string(String(row.get("result", "")))
+	return {"result": stored if stored is Dictionary else outcome, "mine": bool(row.get("mine", false))}
+
+
+## The fight is over but the result can't be sent right now: keep it, and send it once back online.
+func finish_later(outcome: Dictionary, brought: Array) -> void:
+	_late = {"id": String(info.id), "outcome": outcome, "brought": brought, "team": get_node("/root/Team").team_id,
+		"raiders": members().map(func(m: Dictionary) -> String: return String(m.user_id))}
+	_store_late()
+
+
+func has_late() -> bool:
+	return not _late.is_empty()
+
+
+## Tries to send a kept result, on the team it belongs to. The server turning it down (rather than
+## not answering) means it can never go, so it's dropped.
+func send_late() -> void:
+	if _late.is_empty() or not listening or _sending_late or not _on_team() or get_node("/root/Team").team_id != String(_late.team):
+		return
+	_sending_late = true
+	var late := _late
+	var r := await _api("finish_raid", {"p_raid": late.id, "p_result": JSON.stringify(late.outcome)})
+	_sending_late = false
+	if r.code == 0:
+		return
+	_late = {}
+	_store_late()
+	if r.ok and r.data is Dictionary:
+		await refresh()
+		late_finish.emit(late, _stored(r.data, late.outcome))
+
+
+func _store_late() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("raid", "late", _late)
+	cfg.save(state_path)

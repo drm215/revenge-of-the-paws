@@ -28,6 +28,9 @@ var _kept_team: Array[String] = []  # before a fight: the lineup to restore if t
 var _kept_duties := {}
 var _done := Button.new()
 var _bonds := Label.new()
+var _roster_grid: GridContainer  # the pack's tiles (not in stable view)
+var _stable_button := Button.new()
+var _cards := {}  # id -> {key (see _card_key), node}: tiles are kept until something on them changes
 var _roster := HBoxContainer.new()  # "Your pack" strip: who is picked right now
 
 
@@ -168,9 +171,9 @@ func _update_row_warning() -> void:
 
 func _refresh() -> void:
 	_update_row_warning()
-	for child in _list.get_children():
-		child.queue_free()
 	if stable_view:
+		for child in _list.get_children():
+			child.queue_free()
 		_section("In the Stable (%d)" % profile.stable.size(),
 			"Nobody yet. Rescued animals wait here when the pack is full." if profile.stable.is_empty() else "")
 		var stabled := _grid()
@@ -204,18 +207,32 @@ func _refresh() -> void:
 				if (0 if _perks_here(id).strong else 1) == pass_index:
 					by_perk.append(id)
 		order = by_perk
-	var grid := _grid()
+	if _roster_grid == null:
+		_roster_grid = _grid()
+		if battle_config.is_empty():
+			_stable_button.custom_minimum_size = Vector2(0, 72)
+			_stable_button.add_theme_font_size_override("font_size", Retro.px(15))
+			_stable_button.pressed.connect(open_stable.emit)
+			_list.add_child(_stable_button)
+	_stable_button.text = "Stable (%d)  >" % profile.stable.size()
+	var shown: Array[String] = []
 	if profile.has_pet():
-		grid.add_child(_card(profile.pet_species, GameData.PETS[profile.pet_species], true, true, Callable()))
-	for id in order:
-		grid.add_child(_card(id, GameData.ANIMALS[id], id in profile.team, false, _toggle.bind(id)))
-	if battle_config.is_empty():
-		var open := Button.new()
-		open.text = "Stable (%d)  >" % profile.stable.size()
-		open.custom_minimum_size = Vector2(0, 72)
-		open.add_theme_font_size_override("font_size", Retro.px(15))
-		open.pressed.connect(open_stable.emit)
-		_list.add_child(open)
+		shown.append(profile.pet_species)
+	shown.append_array(order)
+	for id: String in _cards.keys():
+		if id not in shown:
+			_drop_card(id)
+	for k in shown.size():
+		var id := shown[k]
+		var key := _card_key(id)
+		if _cards.has(id) and _cards[id].key != key:
+			_drop_card(id)
+		if not _cards.has(id):
+			var is_pet := id == profile.pet_species
+			var card := _card(id, GameData.PETS[id] if is_pet else GameData.ANIMALS[id], is_pet or id in profile.team, is_pet, Callable() if is_pet else _toggle.bind(id))
+			_roster_grid.add_child(card)
+			_cards[id] = {"key": key, "node": card}
+		_roster_grid.move_child(_cards[id].node, k)
 	var lines := GameData.bond_lines(profile.pack_ids(), profile.unit_name)
 	_bonds.text = "\n".join(lines)
 	_bonds.visible = not stable_view and not lines.is_empty()
@@ -224,6 +241,21 @@ func _refresh() -> void:
 	_count.add_theme_color_override("font_color", Retro.GOLD)
 	_done.disabled = profile.team.size() != profile.locals_needed()
 	_build_roster()
+
+
+## Everything a tile shows that can change on this screen: a tile with the same key stays as it is.
+func _card_key(id: String) -> String:
+	var unit := profile.build_unit(id)
+	return str([id in profile.team, profile.level_of(id), profile.xp.get(id, 0), profile.points_left(id), profile.tree.get(id, {}),
+		profile.equipped.get(id, ""), profile.trinkets.is_empty(), profile.injuries.get(id, 0), profile.fatigue_penalty(id),
+		profile.row_of(id), profile.duty_of(id), unit.max_hp, unit.atk, unit.def, unit.spd, unit.skills])
+
+
+func _drop_card(id: String) -> void:
+	var node: Control = _cards[id].node
+	_roster_grid.remove_child(node)
+	node.queue_free()
+	_cards.erase(id)
 
 
 func _pack_count() -> int:

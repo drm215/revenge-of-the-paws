@@ -152,6 +152,8 @@ The apocalypse starts **where you actually live**.
   collects their own share once (`Profile.claim_raid`), even if they closed the game. Big raids
   draw two compact cards per row. A fight everyone left can't be picked up again: anyone can call it off,
   a raid whose lair has fallen is called off by itself, and unfinished raids lapse after 2 hours.
+  With no connection at the end of a fight the player can still leave: the result is kept on the
+  device and sent once back online, and the map and their rewards catch up (`Raid.finish_later`).
 - **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
   maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
   10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on

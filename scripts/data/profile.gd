@@ -517,14 +517,6 @@ static func load_saved() -> Profile:
 	p.unlock(GameData.REGIONS[p.region].animals)
 	p.unlock(p.team)
 	p.normalize_roster()
-	# One-off: recruits used to join near the pack's level; now they start at Lv 1. Send the
-	# Alligator recruited under the old rule back to Lv 1 too.
-	if "recruit_lv1" not in p.fixes:
-		p.fixes.append("recruit_lv1")
-		if "alligator" in p.unlocked and "alligator" not in GameData.REGIONS[p.region].animals:
-			p.xp["alligator"] = 0
-			p.tree.erase("alligator")
-		p.save()
 	return p
 
 

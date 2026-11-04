@@ -94,7 +94,7 @@ func _show_messages() -> void:
 		_list.add_child(hint)
 	var mine: String = get_node("/root/Cloud").user_id()
 	for m: Dictionary in _chat.messages:
-		var who := String(m.name).get_slice(" · ", 0)
+		var who := String(m.name).get_slice(" · ", 0).replace("[", "[lb]")
 		var line := RichTextLabel.new()
 		line.bbcode_enabled = true
 		line.fit_content = true

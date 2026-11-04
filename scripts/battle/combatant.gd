@@ -76,7 +76,7 @@ static func from_data(unit_id: String, data: Dictionary, player: bool) -> Combat
 
 ## Turns this unit into the player's pet: their name, buffed stats, and the leadership aura.
 func make_leader(pet_name: String) -> void:
-	display_name = pet_name
+	display_name = pet_name.replace("[", "(").replace("]", ")")  # the battle log reads markup
 	is_leader = true
 	scale_stats(GameData.PET_STAT_MULT, GameData.PET_STAT_MULT, GameData.PET_STAT_MULT)
 

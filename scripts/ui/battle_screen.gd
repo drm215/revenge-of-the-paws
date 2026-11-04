@@ -336,19 +336,24 @@ func _finish_raid() -> void:
 	var xp := battle.xp_earned if won else roundi(battle.xp_earned * GameData.DEFEAT_XP_SHARE)
 	var outcome := {"won": won, "xp": roundi(xp / float(players)), "knocked": battle.knocked_out,
 		"legend": String(r.config().get("legend", "")), "territory": String(r.config().get("territory", ""))}
+	var brought: Array = []
+	for m: Dictionary in r.members():
+		if String(m.user_id) == r.my_id():
+			var mine := Profile.from_snapshot(String(m.pack))
+			brought = Array(mine.pack_ids()) if mine else []
 	_show_overlay("Raid over", "Reporting back to the team...", "Back to map", Callable())
 	_overlay_button.disabled = true
 	var stored := {}
 	while stored.is_empty():
 		stored = await r.finish(outcome)
 		if stored.is_empty():
+			# Nobody has to wait on the network: the result can follow once back online.
+			_show_overlay("Raid over", "Can't reach the team right now. Still trying.\n\nYou can head back: your rewards will arrive once you're online.", "Back to map", func() -> void:
+				r.finish_later(outcome, brought)
+				finished.emit(false))
+			_overlay_button.disabled = false
 			await get_tree().create_timer(2.0).timeout
 	var result: Dictionary = stored.result
-	var brought: Array = []
-	for m: Dictionary in r.members():
-		if String(m.user_id) == r.my_id():
-			var mine := Profile.from_snapshot(String(m.pack))
-			brought = Array(mine.pack_ids()) if mine else []
 	if bool(stored.mine):
 		_log_battle(r.members().size())
 	var lines := profile.claim_raid(String(r.info.id), result, brought, r.my_id())

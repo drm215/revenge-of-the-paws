@@ -18,6 +18,7 @@ func _ready() -> void:
 	var team := get_node_or_null("/root/Team")
 	if team:
 		team.changed.connect(_on_team_changed)
+		get_node("/root/Raid").late_finish.connect(_on_late_raid)
 		if cloud.reset_pending:
 			_show_account()  # a cloud download reloaded the game mid-reset
 			return
@@ -29,6 +30,9 @@ func _ready() -> void:
 func _show_saves() -> void:
 	_profile = null
 	_campaign = null
+	var raid := get_node_or_null("/root/Raid")
+	if raid:
+		raid.listening = false  # a late raid result needs a game to land in
 	var screen := SaveScreen.new()
 	screen.chosen.connect(func(id: String) -> void:
 		Saves.use(id)
@@ -64,6 +68,9 @@ func _show_onboarding(existing: Profile) -> void:
 
 
 func _show_map(profile: Profile, allow_auto := true) -> void:
+	var raid_node := get_node_or_null("/root/Raid")
+	if raid_node:
+		raid_node.listening = true
 	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key() or _campaign_stale:
 		var message := _campaign.last_event if _campaign and _campaign_stale else ""
 		_campaign = _make_campaign(profile)
@@ -155,10 +162,7 @@ func _start_raid_battle() -> void:
 	screen.raid_done.connect(func(outcome: Dictionary, recorded_here: bool) -> void:
 		if not recorded_here:
 			return  # the device that reported the result first records it on the team map
-		var raiders: Array = raid.members().map(func(m: Dictionary) -> String: return String(m.user_id))
-		for i in _campaign.territories.size():
-			if _campaign.territories[i].id == String(outcome.get("territory", "")):
-				_campaign.resolve_battle(i, bool(outcome.won), int(outcome.xp), raiders, false))
+		_record_raid(outcome, raid.members().map(func(m: Dictionary) -> String: return String(m.user_id))))
 	screen.finished.connect(func(_won: bool) -> void:
 		_profile.save()
 		if not _profile.units_with_new_points().is_empty():
@@ -166,6 +170,37 @@ func _start_raid_battle() -> void:
 		else:
 			_show_map(_profile))
 	_swap(screen)
+
+
+## Records a raid's result on the team map.
+func _record_raid(outcome: Dictionary, raiders: Array) -> void:
+	var i := _lair_of(outcome)
+	if i >= 0:
+		_campaign.resolve_battle(i, bool(outcome.won), int(outcome.xp), raiders, false)
+
+
+func _lair_of(outcome: Dictionary) -> int:
+	for i in _campaign.territories.size():
+		if _campaign.territories[i].id == String(outcome.get("territory", "")):
+			return i
+	return -1
+
+
+## A result that couldn't be sent when the fight ended has got through: the map and this player's
+## rewards catch up. (A send cut off on leaving may have recorded it first, so a win is also
+## recorded if the lair isn't free yet.)
+func _on_late_raid(late: Dictionary, stored: Dictionary) -> void:
+	if _profile == null or _campaign == null:
+		return
+	var result: Dictionary = stored.result
+	var i := _lair_of(result)
+	if bool(stored.mine) or (bool(result.get("won", false)) and i >= 0 and not _campaign.territories[i].owned):
+		_record_raid(result, late.raiders)
+	var lines := _profile.claim_raid(String(late.id), result, late.brought, get_node("/root/Raid").my_id())
+	if not lines.is_empty():
+		_campaign.last_event += "\nYour raid result got through: " + " ".join(lines)
+	if get_child_count() > 0 and get_child(-1) is MapScreen:
+		_show_map(_profile, false)
 
 
 ## A raid this player fought in ended without them (they closed the game): collect their share.
