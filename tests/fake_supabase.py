@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import time
@@ -74,7 +75,34 @@ class H(BaseHTTPRequestHandler):
         out["members"] = [{"user_id": m["user_id"], "name": m["name"], "pack": m["pack"], "ready": m["ready"]} for m in ms]
         return out
 
+    def _pulse(self, body):
+        """Mirrors server/pulse.sql."""
+        if slow.get("no_pulse"):
+            return self._send(404, {"message": "Could not find the function"})
+        uid = self._user()
+        if uid is None:
+            return self._send(401, {"message": "JWT invalid"})
+        state["pulses"] = state.get("pulses", 0) + 1
+        tid = body.get("p_team")
+        team = self._team_of(uid, tid)
+        if not team:
+            return self._send(200, None)
+        mine = [r for r in raids if r["team_id"] == tid and r["status"] != "cancelled"]
+        raid = self._raid_row(mine[-1]) if mine else None
+        team_tag = hashlib.md5(json.dumps(team, sort_keys=True).encode()).hexdigest()
+        raid_tag = hashlib.md5(json.dumps(raid, sort_keys=True).encode()).hexdigest() if raid else ""
+        send_team = team_tag != body.get("p_team_tag")
+        send_raid = raid_tag != body.get("p_raid_tag")
+        state["pulse_team_rows"] = state.get("pulse_team_rows", 0) + (1 if send_team else 0)
+        state["pulse_raid_rows"] = state.get("pulse_raid_rows", 0) + (1 if send_raid and raid else 0)
+        messages = [{k: v for k, v in m.items() if k not in ("t", "team_id")} for m in chat
+                    if m["team_id"] == tid and m["id"] > body.get("p_after", 0)]
+        return self._send(200, {"team_tag": team_tag, "team": team if send_team else None, "raid_tag": raid_tag,
+                                "raid_changed": send_raid, "raid": raid if send_raid else None, "messages": messages[-100:]})
+
     def _raid_rpc(self, name, body):
+        if name in ("team_raid",):
+            state["old_polls"] = state.get("old_polls", 0) + 1
         uid = self._user()
         if uid is None:
             return self._send(401, {"message": "JWT invalid"})
@@ -151,6 +179,8 @@ class H(BaseHTTPRequestHandler):
         return self._send(404, {})
 
     def _team_rpc(self, name, body):
+        if name in ("team_info", "team_messages_since"):
+            state["old_polls"] = state.get("old_polls", 0) + 1
         uid = self._user()
         if uid is None:
             return self._send(401, {"message": "JWT invalid"})
@@ -255,9 +285,24 @@ class H(BaseHTTPRequestHandler):
             if body["password"] == state["password"]:
                 return self._send(200, {"access_token": state["token"], "refresh_token": "r2", "expires_in": 3600, "user": USER})
             return self._send(400, {"error_description": "Invalid login credentials"})
+        if self.path == "/_teammate_move":
+            teams[body["team"]]["version"] += 1
+            return self._send(200, {})
+        if self.path == "/_teammate_says":
+            chat.append({"id": len(chat) + 1, "team_id": body["team"], "user_id": "u2", "name": "Biscuit", "body": body["body"],
+                         "ping": "", "created_at": "now", "t": time.time()})
+            return self._send(200, {})
+        if self.path == "/_remove_member":
+            uid = self._user() or "u1"
+            members[:] = [m for m in members if m["team_id"] != body["team"]]
+            return self._send(200, {})
+        if self.path == "/rest/v1/rpc/team_pulse":
+            return self._pulse(body or {})
         if self.path == "/rest/v1/battle_logs":
             if not self._authed():
                 return self._send(401, {"message": "new row violates row-level security policy"})
+            if slow.get("battle_status"):
+                return self._send(slow["battle_status"], {"message": "no"})
             state.setdefault("battles", []).append(body)
             self.send_response(201)
             self.send_header("Content-Length", "0")

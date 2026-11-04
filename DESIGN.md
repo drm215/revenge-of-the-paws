@@ -184,7 +184,11 @@ The apocalypse starts **where you actually live**.
   setup, each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
   legend's stats and HP left, rounds per wave) with the cloud sync, queued while offline (newest
   30). Raids log once. Reports carry no names; `tools/battle_report.py` reads them back.
-  Server side: `server/battle_logs.sql`.
+  Server side: `server/battle_logs.sql`, which also limits them (120 an hour and the newest 500 per
+  player, 180 days); the siege caps each player at 5000 damage an hour, and the rest waits.
+- **Team check-in** (`Pulse`, `server/pulse.sql`): teammates' moves, chat and the raid in one
+  request, every 12 s while playing, every 60 s after 2 idle minutes, none while the page is hidden.
+  The map and raid only come back when they changed.
 - **Why the lineup matters** (data in `GameData`, bookkeeping in `Profile.after_battle`):
   - *Injuries:* animals knocked out in a battle you win fight the next 2 battles at -25% HP/ATK
     (a retreat carries its wounded home, so losses don't snowball).

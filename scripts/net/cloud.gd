@@ -565,7 +565,10 @@ func _send_battle_logs() -> void:
 			"players": int(report.get("players", 1)), "report": report}, true, ["Prefer: return=minimal"])
 		if not r.ok:
 			_note_error("battle log", r)
-			return
+			# Too many for now, signed out or no answer: try later. Anything else, the server will
+			# never take this one, and it mustn't hold up the rest.
+			if r.code == 0 or r.code == 401 or r.code == 403 or r.code == 429 or r.code >= 500:
+				return
 		_battle_logs.pop_front()
 		_store_state()
 

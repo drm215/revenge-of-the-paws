@@ -12,6 +12,26 @@ create table if not exists public.siege_hits (
 );
 
 create index if not exists siege_hits_week on public.siege_hits (week, user_id);
+create index if not exists siege_hits_recent on public.siege_hits (user_id, created_at desc);
+
+-- No pack can really do more than this in an hour; damage over it waits on the device (PT429 answers
+-- HTTP 429) and goes up later. The server's clock decides when a hit arrived.
+create or replace function public.siege_hits_limits() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.created_at := now();
+  if new.points + coalesce((select sum(points) from siege_hits where user_id = new.user_id and created_at > now() - interval '1 hour'), 0) > 5000 then
+    raise exception 'Too much damage this hour. Try again later.' using errcode = 'PT429';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.siege_hits_limits() from public, anon, authenticated;
+
+drop trigger if exists siege_hits_limits on public.siege_hits;
+create trigger siege_hits_limits before insert on public.siege_hits
+  for each row execute function public.siege_hits_limits();
 
 alter table public.siege_hits enable row level security;
 

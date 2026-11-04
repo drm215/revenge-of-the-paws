@@ -2,8 +2,9 @@ extends Node
 
 ## Legend raids (autoload "Raid", server/raids.sql): up to 4 teammates fight a legend live, each
 ## controlling the 3 critters they bring. Every device runs the same battle from the raid's seed and
-## config; only moves travel, numbered in order (the first posted for a number stands). Checks the
-## team's raid every IDLE_POLL seconds on a team, and every FAST_POLL while a raid screen is open.
+## config; only moves travel, numbered in order (the first posted for a number stands). The team's
+## raid comes with Pulse's check-ins, and is checked every FAST_POLL seconds while a raid screen is
+## open.
 
 ## The team's raid (lobby, members, status) changed.
 signal changed
@@ -12,7 +13,7 @@ signal changed
 signal late_finish(late: Dictionary, stored: Dictionary)
 signal _idle
 
-const IDLE_POLL := 15.0
+const LATE_RETRY := 15.0  # how often a result that couldn't be sent tries again
 const FAST_POLL := 1.5
 var turn_timeout := 45.0  # a player who doesn't move in time has that turn played by the AI
 var state_path := "user://raid.cfg"
@@ -45,10 +46,10 @@ func _ready() -> void:
 
 func _tick() -> void:
 	_waited += _timer.wait_time
-	if _waited >= (FAST_POLL if fast else IDLE_POLL):
+	if _waited >= (FAST_POLL if fast else LATE_RETRY):
 		_waited = 0.0
 		send_late()
-		if not _busy:  # a slow connection doesn't pile up checks
+		if fast and not _busy:  # a slow connection doesn't pile up checks
 			refresh()
 
 
@@ -93,6 +94,14 @@ func refresh() -> void:
 		_take(r.data)
 	_busy = false
 	_idle.emit()
+
+
+## The team's raid from a check-in (Pulse). False if a check of its own is under way.
+func take_pulse(row: Variant) -> bool:
+	if _busy:
+		return false
+	_take(row)
+	return true
 
 
 func _take(row: Variant) -> void:

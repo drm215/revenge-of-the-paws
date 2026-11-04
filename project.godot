@@ -18,6 +18,7 @@ Cloud="*res://scripts/net/cloud.gd"
 Team="*res://scripts/net/team.gd"
 Chat="*res://scripts/net/chat.gd"
 Raid="*res://scripts/net/raid.gd"
+Pulse="*res://scripts/net/pulse.gd"
 
 [display]
 

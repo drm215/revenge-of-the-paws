@@ -1,14 +1,13 @@
 extends Node
 
 ## Team chat (autoload "Chat", server/chat.sql): quick-chat phrases, map pings and typed messages
-## between teammates. Polls every POLL_DELAY seconds while on a team and keeps the last KEEP.
+## between teammates. New messages come with Pulse's check-ins; keeps the last KEEP.
 
 ## New messages arrived, or what's been read changed.
 signal received
 ## A poll finished (callers waiting their turn go next).
 signal _idle
 
-const POLL_DELAY := 10.0
 const MAX_LENGTH := 200
 const KEEP := 100
 const PING_MINUTES := 10  # a ping marks the map this long
@@ -21,15 +20,10 @@ var last_read := 0.0  # id of the newest message this player has seen
 
 var _team_id := ""
 var _busy := false
-var _timer := Timer.new()
 
 
 func _ready() -> void:
 	_load_state()
-	_timer.wait_time = POLL_DELAY
-	_timer.timeout.connect(poll)
-	add_child(_timer)
-	_timer.start()
 	var team := _team()
 	if team:
 		team.changed.connect(_on_team_changed)
@@ -62,6 +56,25 @@ func _on_team_changed() -> void:
 	_store_state()
 	received.emit()
 	poll()
+
+
+## The id of the newest message here.
+func last_id() -> int:
+	return int(messages[-1].id) if not messages.is_empty() else 0
+
+
+## Messages from a check-in (Pulse), newer than the last one here.
+func take_pulse(fresh: Array) -> void:
+	if _busy:
+		return  # a poll is fetching them too
+	var last := last_id()
+	fresh = fresh.filter(func(m: Dictionary) -> bool: return int(m.id) > last)
+	if fresh.is_empty():
+		return
+	messages.append_array(fresh)
+	messages = messages.slice(-KEEP)
+	_store_state()
+	received.emit()
 
 
 ## Fetches messages newer than the last one we have.

@@ -12,7 +12,6 @@ signal changed
 signal _idle
 
 const MAX_MEMBERS := 4
-const POLL_DELAY := 20.0
 const RETRIES := 4
 
 ## Tests point this elsewhere.
@@ -22,18 +21,11 @@ var info := {}  # team_info(): {id, code, state, version, members: [{user_id, na
 var pending: Array = []  # this device's moves on team_id's map not yet on the server
 
 var _busy := false
-var _timer := Timer.new()
 var _cache := {}  # team id -> {info, pending}, so switching games keeps unsent moves
 
 
 func _ready() -> void:
 	_load_state()
-	_timer.wait_time = POLL_DELAY
-	_timer.timeout.connect(func() -> void:
-		if on_team() or not pending.is_empty():
-			refresh())
-	add_child(_timer)
-	_timer.start()
 	var cloud := _cloud()
 	if cloud:
 		cloud.signed_out.connect(_forget)
@@ -149,6 +141,15 @@ func refresh() -> void:
 	_done()
 	if r.ok and asked == team_id:
 		_take(r.data)
+
+
+## The team's row from a check-in (Pulse; null = no longer on it). False if it can't be used now: a
+## save is under way, or it's older than what's here.
+func take_pulse(row: Variant) -> bool:
+	if _busy or (row is Dictionary and float(row.version) < float(info.get("version", -1))):
+		return false
+	_take(row)
+	return true
 
 
 ## Replays the queued moves on the newest shared map and saves it if nobody saved in between.
