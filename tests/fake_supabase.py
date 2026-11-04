@@ -2,6 +2,7 @@ import json
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -208,7 +209,22 @@ class H(BaseHTTPRequestHandler):
             t["version"] += 1
             return self._send(200, t["version"])
 
+    def _zcta(self):
+        state["zcta_gets"] = state.get("zcta_gets", 0) + 1
+        if slow.get("zcta_fails"):
+            return self._send(500, {})
+        if slow.get("zcta_garbage"):
+            raw = b"<html>not it</html>"
+        else:
+            raw = (Path(__file__).resolve().parent.parent / "data" / "zcta" / self.path.split("/")[-1]).read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def do_GET(self):
+        if self.path.startswith("/zcta/"):
+            return self._zcta()
         if self.path.startswith("/auth/v1/user"):
             return self._send(200, USER) if self._authed() else self._send(401, {"msg": "bad jwt"})
         if self.path.startswith("/rest/v1/saves"):

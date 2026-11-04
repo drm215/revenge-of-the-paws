@@ -52,7 +52,7 @@ Free projects pause after about a week without activity; un-pause them from the 
 
 ## Tools
 
-- `tools/build_zcta.py` builds `data/us_zcta.bin` (ZIP area boundaries) from the Census shapefile.
+- `tools/build_zcta.py` builds `data/us_zcta_core.bin` and `data/zcta/` (ZIP area boundaries) from the Census shapefile.
 - `tools/make_sprites.py` draws the unit portraits (`art/units/*.svg`).
 - `tools/pixelate.gd` turns them into the 8-bit sprites in `art/pixel/`.
 - `tools/battle_report.py` prints the latest fights from the cloud battle log, for balancing.

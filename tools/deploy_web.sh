@@ -17,6 +17,9 @@ mkdir -p build/web
 touch build/.gdignore  # keep the Godot editor from importing the build output
 rm -f build/web/*.import
 "$GODOT" --headless --path "$ROOT" --export-release "Web" build/web/index.html
+# ZIP area outlines aren't in the game file: each is fetched the first time a map needs it.
+rm -rf build/web/zcta
+cp -r data/zcta build/web/zcta
 
 # Publish build/web as the only content of gh-pages, in a throwaway work tree.
 SITE="$(mktemp -d)"

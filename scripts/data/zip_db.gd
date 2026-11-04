@@ -3,7 +3,7 @@ extends RefCounted
 
 ## Offline US ZIP code lookup (GeoNames data, CC BY 4.0). Loaded once on first use.
 
-const PATH := "res://data/us_zips.csv"
+const PATH := "res://data/us_zips.gz"
 const ATTRIBUTION := "ZIP code data © GeoNames (geonames.org), CC BY 4.0"
 
 const STATE_REGIONS := {
@@ -35,12 +35,12 @@ static var _index := {}  # zip -> row
 static func _ensure_loaded() -> void:
 	if not _index.is_empty():
 		return
-	var f := FileAccess.open(PATH, FileAccess.READ)
-	if f == null:
+	var packed := FileAccess.get_file_as_bytes(PATH)
+	if packed.is_empty():
 		push_error("ZIP data missing: " + PATH)
 		return
-	while not f.eof_reached():
-		var line := f.get_line()
+	var text := packed.decompress_dynamic(-1, FileAccess.COMPRESSION_GZIP).get_string_from_utf8()
+	for line in text.split("\n"):
 		if line.is_empty() or line.begins_with("#"):
 			continue
 		var p := line.split(",")

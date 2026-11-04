@@ -915,14 +915,7 @@ func _add_areas(indices: Array[int]) -> void:
 		var t := Territory.new(code, row.place, (at - _origin) * _scale)
 		t.lonlat = at
 		t.region = row.region
-		for ring in ZctaDB.parts(idx):
-			var projected := PackedVector2Array()
-			for p in ring:
-				var q := (p - _origin) * _scale
-				if projected.is_empty() or not projected[-1].is_equal_approx(q):
-					projected.append(q)
-			if projected.size() >= 3:
-				t.parts.append(projected)
+		_read_outline(t, idx)
 		t.area = ZctaDB.area(idx)
 		t.condition = Campaign.condition_for(t, t.area * KM_PER_DEG_LON * KM_PER_DEG_LAT * cos(deg_to_rad(at.y)))
 		_slot[idx] = territories.size()
@@ -932,6 +925,33 @@ func _add_areas(indices: Array[int]) -> void:
 		for n in ZctaDB.neighbors(idx):
 			if _slot.has(n):
 				_link(_slot[idx], _slot[n])
+
+
+func _read_outline(t: Territory, idx: int) -> void:
+	for ring in ZctaDB.parts(idx):
+		var projected := PackedVector2Array()
+		for p in ring:
+			var q := (p - _origin) * _scale
+			if projected.is_empty() or not projected[-1].is_equal_approx(q):
+				projected.append(q)
+		if projected.size() >= 3:
+			t.parts.append(projected)
+
+
+## The outline files this map is still waiting for (only its drawing needs them).
+func missing_outlines() -> PackedStringArray:
+	var out: PackedStringArray = []
+	for idx: int in _area_of:
+		if not ZctaDB.has_parts(idx) and ZctaDB.shard_of(idx) not in out:
+			out.append(ZctaDB.shard_of(idx))
+	return out
+
+
+## Reads in the outlines that have arrived.
+func fill_outlines() -> void:
+	for i in _area_of.size():
+		if territories[i].parts.is_empty():
+			_read_outline(territories[i], _area_of[i])
 
 
 ## Big cities have many ZIPs with the same town name; label those by ZIP instead.

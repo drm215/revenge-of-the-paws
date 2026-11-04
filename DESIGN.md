@@ -10,7 +10,7 @@ band together to scavenge, survive, and push back the undead horde one ruined to
 ## Your world, your pet
 The apocalypse starts **where you actually live**.
 - **ZIP code (US):** first launch asks for your ZIP. It's looked up offline (bundled GeoNames data,
-  `data/us_zips.csv`, CC BY 4.0, credited on the map screen) to get your town, state and US region.
+  `data/us_zips.gz`, CC BY 4.0, credited on the map screen) to get your town, state and US region.
   Outside the US: pick a world region (pre-selected from device locale/time zone) + optional town.
 - **Starting animals are native to your region.** Each region has a pool of 4 local animals
   (tank, striker, support, wildcard); you pick your crew from it.
@@ -39,7 +39,8 @@ The apocalypse starts **where you actually live**.
 
 ## The map: Risk-style liberation
 - **Territories are your real neighborhood, drawn with real borders.** Your ZIP's actual area
-  (US Census ZIP Code Tabulation Areas, `data/us_zcta.bin`, built by `tools/build_zcta.py`) plus
+  (US Census ZIP Code Tabulation Areas, `data/us_zcta_core.bin` plus an outline file per ZIP prefix in `data/zcta/`, fetched
+  on the web the first time a map needs it and then kept on the device, built by `tools/build_zcta.py`) plus
   the 40 nearest connected ZIP areas, grown outward along real shared borders. Rivers/water that
   cut the region get a bridge/ferry link to the nearest area. Areas too small to read only get a
   label when zoomed in. Outside the US: generated Voronoi districts around your town.

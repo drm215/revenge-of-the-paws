@@ -27,6 +27,7 @@ const MIN_LABEL_PX := 64.0  # smaller areas only get a label once zoomed in
 const LABEL_GAP := 3.0  # px kept clear around each label; crowded labels wait for a closer zoom
 const LABEL_MARGIN := 120.0  # labels this far off screen can still reach into view; beyond it they're skipped
 const PULSE_INTERVAL := 0.05  # seconds between redraws of what glows
+const OUTLINE_RETRY := 5.0  # seconds before asking again for outlines that didn't arrive
 
 var campaign: Campaign
 var selected := -1
@@ -52,6 +53,7 @@ var _shapes_scale := 0.0  # the scale _shapes was drawn at; its borders are redr
 var _pulse_wait := 0.0
 var _fills_pulse := false  # a counterattack or cut-off land glows
 var _outlines_pulse := false  # lairs, pings or nests glow
+var _loading := Label.new()  # shown while this map's outlines are being fetched
 
 
 func _init() -> void:
@@ -60,6 +62,10 @@ func _init() -> void:
 	_shapes.draw.connect(_draw_shapes)
 	_pulse.draw.connect(_draw_pulse)
 	_labels.draw.connect(_draw_labels)
+	Retro.text(_loading, 19, Retro.MIST)
+	_loading.position = Vector2(12, 6)
+	_loading.visible = false
+	add_child(_loading)
 
 
 func _ready() -> void:
@@ -67,6 +73,34 @@ func _ready() -> void:
 	resized.connect(_fit)
 	_fit()
 	refresh()
+	_load_outlines()
+
+
+## First time on this ground: fetch the outlines. Names and markers show until they arrive.
+func _load_outlines() -> void:
+	if campaign == null:
+		return
+	var missing := campaign.missing_outlines()
+	while not missing.is_empty():
+		_loading.text = "Loading the map..."
+		_loading.visible = true
+		var waiting := [missing.size()]
+		for shard in missing:
+			var fetch := func() -> void:
+				await ZctaDB.download(shard, self)
+				waiting[0] -= 1
+			fetch.call()
+		while waiting[0] > 0:
+			await get_tree().process_frame
+		campaign.fill_outlines()
+		_parts.clear()
+		_fit()
+		refresh()
+		missing = campaign.missing_outlines()
+		if not missing.is_empty():
+			_loading.text = "Can't load the map right now. Trying again..."
+			await get_tree().create_timer(OUTLINE_RETRY).timeout
+	_loading.visible = false
 
 
 func _process(delta: float) -> void:
