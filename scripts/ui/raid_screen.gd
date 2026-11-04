@@ -115,12 +115,8 @@ func _build() -> void:
 		_label("%s %s%s: %s" % ["READY" if m.ready else "picking", String(m.name).get_slice(" · ", 0), host, ", ".join(names)],
 			19, Retro.GREEN if m.ready else Retro.MIST)
 
-	_label("Bring %d critters" % GameData.RAID_PICKS, 13, Retro.GOLD, true)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 8)
-	grid.add_theme_constant_override("v_separation", 8)
-	_content.add_child(grid)
+	_label("Bring %d critters (%d / %d)" % [GameData.RAID_PICKS, _picks.size(), GameData.RAID_PICKS], 13, Retro.GOLD, true)
+	var cfg := _lair_config()
 	var options: Array[String] = []
 	if profile.has_pet():
 		options.append(profile.pet_species)
@@ -128,16 +124,12 @@ func _build() -> void:
 		if id not in options:
 			options.append(id)
 	for id in options:
-		var b := Button.new()
-		var on := id in _picks
-		b.text = "%s Lv %d" % [profile.unit_name(id), profile.level_of(id)]
-		b.toggle_mode = true
-		b.button_pressed = on
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.custom_minimum_size = Vector2(0, 64)
-		b.add_theme_font_size_override("font_size", Retro.px(16))
-		b.toggled.connect(func(_pressed: bool) -> void: _toggle(id))
-		grid.add_child(b)
+		_content.add_child(_pick_tile(id, cfg))
+	var bonds: PackedStringArray = []
+	for bond in GameData.active_bonds(_picks):
+		bonds.append(bond.name)
+	if not bonds.is_empty():
+		_label("Bonds: %s (+%d%% ATK/DEF)" % [", ".join(bonds), roundi(GameData.BOND_BONUS * 100)], 18, Retro.GOLD)
 
 	_content.add_child(_status)
 	var me_in: bool = r.is_member()
@@ -154,6 +146,85 @@ func _build() -> void:
 	else:
 		_label("Waiting for the player who opened it to start.", 18, Retro.FOG)
 	_content.add_child(_button("Leave the raid" if me_in else "Back", _leave))
+
+
+## The lair's battle config on this player's map (terrain, region, the waves), for the tiles.
+func _lair_config() -> Dictionary:
+	var territory := String(_raid().info.get("territory", ""))
+	for k in campaign.territories.size():
+		if campaign.territories[k].id == territory or (territory == "" and k == lair):
+			return campaign.battle_config(k)
+	return {}
+
+
+## One critter that could come: stats, what helps or hurts it in this lair, the zombies it counters,
+## and buttons to bring it and to set its row.
+func _pick_tile(id: String, cfg: Dictionary) -> Control:
+	var on := id in _picks
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.GOLD if on else Retro.SLATE, Retro.BORDER, 0, 10))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	panel.add_child(row)
+	var sprite := TextureRect.new()
+	sprite.texture = load("res://art/pixel/%s.png" % id)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sprite.custom_minimum_size = Vector2(72, 72)
+	sprite.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(sprite)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 3)
+	row.add_child(text)
+	var unit := profile.build_unit(id)
+	var data: Dictionary = GameData.PETS.get(id, GameData.ANIMALS.get(id, {}))
+	text.add_child(_line("%s · Lv %d · %s" % [profile.unit_name(id), profile.level_of(id), data.get("role", "")], 12, Retro.GOLD if on else Retro.WHITE, true))
+	text.add_child(_line("HP %d  ATK %d  DEF %d  SPD %d" % [unit.max_hp, unit.atk, unit.def, unit.spd], 17, Retro.FOG))
+	var perks := GameData.fight_perks(id, cfg)
+	if not perks.good.is_empty():
+		text.add_child(_line("Here: " + " · ".join(perks.good), 17, Retro.GREEN))
+	if not perks.bad.is_empty():
+		text.add_child(_line(" · ".join(perks.bad), 17, Retro.PINK))
+	var counters := GameData.counters_in(id, cfg.get("waves", []))
+	if not counters.is_empty():
+		text.add_child(_line("Hits weak spots: " + ", ".join(counters), 17, Retro.CYAN))
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
+	text.add_child(buttons)
+	var bring := Button.new()
+	bring.text = "BRINGING" if on else "+ Bring"
+	bring.custom_minimum_size = Vector2(0, 52)
+	bring.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if on:
+		bring.add_theme_color_override("font_color", Retro.YELLOW)
+	bring.pressed.connect(_toggle.bind(id))
+	buttons.add_child(bring)
+	var row_button := Button.new()
+	row_button.text = "Row: " + profile.row_of(id).capitalize()
+	row_button.custom_minimum_size = Vector2(0, 52)
+	row_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_button.pressed.connect(_switch_row.bind(id))
+	buttons.add_child(row_button)
+	return panel
+
+
+## Front or back row for a critter; if this player already readied up, the raid gets the change.
+func _switch_row(id: String) -> void:
+	profile.toggle_row(id)
+	profile.save()
+	if _raid().is_member() and _picks.size() == GameData.RAID_PICKS:
+		var me_ready: bool = _raid().members().any(func(m: Dictionary) -> bool: return String(m.user_id) == _raid().my_id() and m.ready)
+		await _raid().join(get_node("/root/Team").name_for(profile), profile.snapshot(_picks), me_ready)
+	_build()
+
+
+func _line(text: String, font_size: int, color: Color, is_title := false) -> Label:
+	var label := Retro.title(Label.new(), font_size, color) if is_title else Retro.text(Label.new(), font_size, color)
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
 
 
 func _toggle(id: String) -> void:

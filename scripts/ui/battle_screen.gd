@@ -85,8 +85,8 @@ func _new_game() -> void:
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 
 	# Big raids: two cards per row, and the pack's side of the field gets more room.
-	var big := battle.party.size() > 6
-	_party_col.size_flags_stretch_ratio = 1.6 if big else 1.0
+	var big := battle.party.size() > 4  # raids of 2+ players: compact cards, two per row
+	_party_col.size_flags_stretch_ratio = 1.3 if big else 1.0
 	var row: HBoxContainer
 	for k in battle.party.size():
 		var holder: Container = _party_col
@@ -96,7 +96,8 @@ func _new_game() -> void:
 				row.add_theme_constant_override("separation", 4)
 				_party_col.add_child(row)
 			holder = row
-		_add_card(battle.party[k], holder, PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], 8 if big else ROW_SHIFT, big)
+		var sprite: float = minf(PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], 56.0) if big else PARTY_SPRITE[clampi(battle.party.size(), 3, 12)]
+		_add_card(battle.party[k], holder, sprite, 8 if big else ROW_SHIFT, big)
 	if auto:
 		was_auto = true
 		_show_take_control()
@@ -122,7 +123,7 @@ func _start_wave() -> void:
 		cards.erase(c)
 	battle.start_next_wave()
 	for c in battle.enemies:
-		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 6 else 1.0)
+		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 4 else 1.0)
 		_add_card(c, _enemy_col, enemy_sprite, ROW_SHIFT)
 	var cond: String = config.get("condition", "")
 	_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),

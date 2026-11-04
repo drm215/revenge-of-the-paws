@@ -722,6 +722,49 @@ const ZOMBIE_WEAKNESS := {
 }
 
 
+## What animal `id` gets in a fight (`cfg`: a Campaign battle config): {good, bad, strong} lines for
+## terrain, home turf and a legend's weak spot or resistance; `strong` marks a perk worth leading with.
+static func fight_perks(id: String, cfg: Dictionary) -> Dictionary:
+	var good: PackedStringArray = []
+	var bad: PackedStringArray = []
+	if cfg.is_empty():
+		return {"good": good, "bad": bad, "strong": false}
+	var strong := false
+	var tags := tags_of(id)
+	var cond: String = cfg.get("condition", "")
+	if cond != "" and cond in tags:
+		good.append("%s +%d%%" % [CONDITIONS[cond].name, roundi(CONDITION_BONUS * 100)])
+		strong = true
+	if cfg.get("region", "") in native_regions(id):
+		good.append("Home turf +%d%%" % roundi(HOME_TURF_BONUS * 100))
+	for wave: Array in cfg.get("waves", []):
+		for enemy_id: String in wave:
+			if not LEGENDS.has(enemy_id):
+				continue
+			var legend: Dictionary = LEGENDS[enemy_id]
+			var weak: Dictionary = LEGEND_WEAKNESS[legend.build]
+			if weak.weak in tags:
+				good.append("vs %s +%d%%" % [legend.name, roundi((LEGEND_WEAK_MULT - 1.0) * 100)])
+				strong = true
+			elif weak.resist in tags:
+				bad.append("%s resists it (-%d%%)" % [legend.name, roundi((1.0 - LEGEND_RESIST_MULT) * 100)])
+	return {"good": good, "bad": bad, "strong": strong}
+
+
+## Zombie types in `waves` that animal `id` hits at their weak point, by name.
+static func counters_in(id: String, waves: Array) -> PackedStringArray:
+	var here := {}
+	for wave: Array in waves:
+		for enemy_id: String in wave:
+			here[enemy_id] = true
+	var out: PackedStringArray = []
+	var tags := tags_of(id)
+	for zombie_id in ZOMBIE_WEAKNESS:
+		if here.has(zombie_id) and ZOMBIE_WEAKNESS[zombie_id].tag in tags:
+			out.append(ZOMBIES[zombie_id].name)
+	return out
+
+
 ## The tag a weak point names, for people: "canine" -> "Canine", "bruiser" -> "Bruiser".
 static func tag_name(tag: String) -> String:
 	return tag.capitalize()

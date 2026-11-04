@@ -130,30 +130,7 @@ func _ready() -> void:
 ## plus the legend resisting it ({bad}). `strong` (terrain or legend, not just home turf, which
 ## most early animals share) decides the highlight. Empty outside battle prep.
 func _perks_here(id: String) -> Dictionary:
-	var good: PackedStringArray = []
-	var bad: PackedStringArray = []
-	if battle_config.is_empty():
-		return {"good": good, "bad": bad, "strong": false}
-	var strong := false
-	var tags := GameData.tags_of(id)
-	var cond: String = battle_config.get("condition", "")
-	if cond != "" and cond in tags:
-		good.append("%s +%d%%" % [GameData.CONDITIONS[cond].name, roundi(GameData.CONDITION_BONUS * 100)])
-		strong = true
-	if battle_config.get("region", "") in GameData.native_regions(id):
-		good.append("Home turf +%d%%" % roundi(GameData.HOME_TURF_BONUS * 100))
-	for wave: Array in battle_config.waves:
-		for enemy_id: String in wave:
-			if not GameData.LEGENDS.has(enemy_id):
-				continue
-			var legend: Dictionary = GameData.LEGENDS[enemy_id]
-			var weak: Dictionary = GameData.LEGEND_WEAKNESS[legend.build]
-			if weak.weak in tags:
-				good.append("vs %s +%d%%" % [legend.name, roundi((GameData.LEGEND_WEAK_MULT - 1.0) * 100)])
-				strong = true
-			elif weak.resist in tags:
-				bad.append("%s resists it (-%d%%)" % [legend.name, roundi((1.0 - GameData.LEGEND_RESIST_MULT) * 100)])
-	return {"good": good, "bad": bad, "strong": strong}
+	return GameData.fight_perks(id, battle_config)
 
 
 ## What the pack is walking into: place, terrain, home turf, and the waves if a scout is out.
