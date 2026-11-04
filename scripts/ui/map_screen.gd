@@ -42,8 +42,8 @@ var _briefing: Control
 
 
 func _ready() -> void:
+	_map.campaign = campaign  # before it joins the tree: it starts fetching outlines as it does
 	_build_ui()
-	_map.campaign = campaign
 	var chat := get_node_or_null("/root/Chat")
 	if chat and campaign.is_team():
 		chat.received.connect(_on_chat)

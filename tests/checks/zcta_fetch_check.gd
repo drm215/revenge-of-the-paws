@@ -63,6 +63,23 @@ func _map(c: Campaign) -> MapView:
 	return view
 
 
+func _screen(c: Campaign) -> MapScreen:
+	var screen := MapScreen.new()
+	screen.campaign = c
+	screen.profile = c.profile
+	screen.size = Vector2(720, 1280)
+	root.add_child(screen)
+	return screen
+
+
+## As on a device that has never fetched any.
+func _forget_outlines() -> void:
+	ZctaDB._shards.clear()
+	var folder := "user://zcta/%d" % ZctaDB.VERSION
+	for f in DirAccess.get_files_at(folder):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(folder + "/" + f))
+
+
 func _wait_loaded(view: MapView, seconds := 10.0) -> void:
 	var waited := 0.0
 	while view.campaign.missing_outlines().size() > 0 and waited < seconds:
@@ -146,5 +163,38 @@ func _run() -> void:
 	var damaged := Campaign.create(_profile())
 	_check(wanted[0] in damaged.missing_outlines(), "a damaged copy counts as missing")
 	_check(await ZctaDB.download(wanted[0], root), "and is fetched again")
+	# All of it through the real map screen, the way players get there.
+	await _post("/_slow", {"zcta_fails": false})
+	_forget_outlines()
+	var fresh := Campaign.create(_profile())
+	_check(_outlined(fresh) == 0, "map screen: a new map starts without outlines")
+	var screen := _screen(fresh)
+	await process_frame
+	await process_frame
+	var seen_loading: bool = screen._map._loading.visible
+	await _wait_loaded(screen._map)
+	await create_timer(0.3).timeout
+	_check(seen_loading, "map screen: it says it's loading")
+	_check(_outlined(fresh) == _outlined(whole), "map screen: the outlines arrive (%d)" % _outlined(fresh))
+	_check(not screen._map._parts[fresh.home].is_empty(), "map screen: and are drawn")
+	_check(not screen._map._loading.visible, "map screen: the message goes away")
+	screen.free()
+
+	# Leaving a map mid-fetch and coming back to the same one, with every file here by then.
+	_forget_outlines()
+	var left := Campaign.create(_profile())
+	screen = _screen(left)
+	await process_frame
+	screen.free()
+	for shard in left.missing_outlines():
+		await ZctaDB.download(shard, root)
+	_check(left.missing_outlines().is_empty() and _outlined(left) == 0, "back again: the files are here, the map hasn't read them")
+	screen = _screen(left)
+	await process_frame
+	await process_frame
+	await create_timer(0.1).timeout
+	_check(_outlined(left) == _outlined(whole), "back again: the map reads them (%d)" % _outlined(left))
+	_check(not screen._map._parts[left.home].is_empty(), "back again: and draws them")
+	screen.free()
 	print("%d failure(s)" % _fails)
 	quit()

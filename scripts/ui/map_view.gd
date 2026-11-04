@@ -71,6 +71,8 @@ func _init() -> void:
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crisp pixel survivor icons
 	resized.connect(_fit)
+	if campaign:
+		campaign.fill_outlines()  # files that arrived since this map was last on screen
 	_fit()
 	refresh()
 	_load_outlines()
