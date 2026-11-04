@@ -43,6 +43,12 @@ var condition := ""
 var boss_hp_mult := 1.0  # team maps: legends grow with the team
 var boss_atk_mult := 1.0
 var _perk_log: PackedStringArray = []  # lineup effects, announced as the first wave starts
+## For the battle log (report()): what each unit dealt, took and used, and how long each wave ran.
+var _dealt := {}  # Combatant -> damage
+var _taken := {}  # Combatant -> damage
+var _uses := {}  # Combatant -> {skill id: times}
+var _wave_rounds: Array[int] = []
+var _legends: Array[Combatant] = []
 var rng := RandomNumberGenerator.new()
 
 var _waves: Array
@@ -152,6 +158,36 @@ func _apply_lineup(profile: Profile, region: String, units: Array[Combatant]) ->
 		_perk_log.append("[color=#feae34]Bond %s: %s +%d%% ATK/DEF[/color]" % [bond.name, ", ".join(names), roundi(GameData.BOND_BONUS * 100)])
 
 
+## A summary of the fight for the battle log: the setup, every critter's stats and what it did,
+## each legend's stats and how far it was worn down, and how many rounds each wave took.
+func report() -> Dictionary:
+	var rounds := _wave_rounds.duplicate()
+	rounds.append(round_number)
+	var pack: Array = []
+	var owners: Array[String] = []  # raids: which player's critter it is, by number (no names in the log)
+	for c in party:
+		if c.owner not in owners:
+			owners.append(c.owner)
+		pack.append(_unit_report(c).merged({"player": owners.find(c.owner) + 1}))
+	var legends: Array = []
+	for z in _legends:
+		legends.append(_unit_report(z))
+	return {"outcome": Outcome.keys()[outcome()].to_lower(), "wave": wave_index + 1, "waves": wave_count(),
+		"rounds": rounds, "zombie_mult": snappedf(_zombie_mult, 0.01), "boss_hp": boss_hp_mult,
+		"boss_atk": boss_atk_mult, "condition": condition, "pack": pack, "legends": legends,
+		"zombies": _waves, "xp": xp_earned, "kills": kills}
+
+
+func _unit_report(c: Combatant) -> Dictionary:
+	var out := {"id": c.id, "lvl": c.level, "row": c.row, "hp": c.hp, "max_hp": c.max_hp, "atk": c.atk,
+		"def": c.def, "spd": c.spd, "crit": snappedf(c.crit, 0.01), "dealt": _dealt.get(c, 0),
+		"taken": _taken.get(c, 0), "uses": _uses.get(c, {})}
+	if c.is_player:
+		out.merge({"trinket": c.trinket, "leader": c.is_leader, "mods": c.skill_mods,
+			"notes": c.notes, "down": c.id in knocked_out.get(c.owner, [])})
+	return out
+
+
 func wave_count() -> int:
 	return _waves.size()
 
@@ -178,7 +214,10 @@ func start_next_wave() -> void:
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
 		if z.is_boss:
 			z.scale_stats(boss_hp_mult, boss_atk_mult, 1.0)
+			_legends.append(z)
 		enemies.append(z)
+	if wave_index > 0:
+		_wave_rounds.append(round_number)
 	round_number = 0
 	_turn_queue.clear()
 	current = null
@@ -287,6 +326,8 @@ func valid_targets(actor: Combatant, skill_id: String) -> Array[Combatant]:
 func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 	var skill := actor.skill_data(skill_id)
 	acting.emit(actor)
+	var used: Dictionary = _uses.get_or_add(actor, {})
+	used[skill_id] = int(used.get(skill_id, 0)) + 1
 	if skill.get("windup", false) and actor.winding != skill_id:
 		# Telegraphed: this turn only winds up. It lands on the zombie's next turn unless stunned.
 		actor.winding = skill_id
@@ -576,6 +617,7 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 				src.display_name, dst.display_name, GameData.ZOMBIE_WEAKNESS[dst.id].why])
 	_defusing = trick == "defuse"
 	_apply_damage(dst, amount, crit)
+	_dealt[src] = int(_dealt.get(src, 0)) + amount
 	_defusing = false
 	var knockdown := src.is_player and single and power >= GameData.KNOCKDOWN_POWER
 	if knockdown and dst.is_alive() and dst.has_status("weakened") and "stunned" not in dst.immune:
@@ -595,6 +637,7 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 
 
 func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
+	_taken[dst] = int(_taken.get(dst, 0)) + mini(amount, dst.hp)
 	dst.hp = maxi(0, dst.hp - amount)
 	damaged.emit(dst, amount, crit)
 	if dst.is_alive():

@@ -793,10 +793,10 @@ static func counters(unit_id: String) -> PackedStringArray:
 ## hometown and appear when the player's ZIP is within `range_km`; others appear by world region.
 ## Kept to folklore cryptids, not figures sacred to living Indigenous traditions.
 const BOSS_BUILDS := {
-	"giant": {"hp": 340, "atk": 21, "def": 12, "spd": 6, "crit": 0.05, "xp": 120},
-	"stalker": {"hp": 270, "atk": 20, "def": 8, "spd": 12, "crit": 0.15, "xp": 120},
-	"flyer": {"hp": 250, "atk": 18, "def": 7, "spd": 14, "crit": 0.1, "xp": 120},
-	"lurker": {"hp": 310, "atk": 19, "def": 11, "spd": 7, "crit": 0.05, "xp": 120},
+	"giant": {"hp": 425, "atk": 23, "def": 12, "spd": 6, "crit": 0.05, "xp": 150},
+	"stalker": {"hp": 340, "atk": 22, "def": 8, "spd": 12, "crit": 0.15, "xp": 150},
+	"flyer": {"hp": 315, "atk": 20, "def": 7, "spd": 14, "crit": 0.1, "xp": 150},
+	"lurker": {"hp": 390, "atk": 21, "def": 11, "spd": 7, "crit": 0.05, "xp": 150},
 }
 
 const LEGENDS := {
@@ -1324,7 +1324,7 @@ const TEAM_XP_SHARE := 0.1
 ## by simulation so every raid size wins about as often as one pack does alone (~60% at Lv 5-6).
 const RAID_MAX_PLAYERS := 4
 const RAID_PICKS := 3
-const LEGEND_GROWTH := {1: Vector2(1.0, 1.0), 2: Vector2(3.1, 1.65), 3: Vector2(4.8, 2.2), 4: Vector2(6.6, 2.7)}
+const LEGEND_GROWTH := {1: Vector2(1.0, 1.0), 2: Vector2(2.9, 1.6), 3: Vector2(4.8, 2.2), 4: Vector2(6.6, 2.7)}
 
 
 static func legend_growth(players: int) -> Vector2:
@@ -1351,6 +1351,33 @@ static func native_regions(unit_id: String) -> Array[String]:
 		if unit_id in r.animals or unit_id in r.get("recruits", []):
 			out.append(region_id)
 	return out
+
+
+## The lineup's bonds for people, one line each: who's in it and what it gives, e.g.
+## "Odd Couple (a canine and a feline): Rex, Bobcat · +8% ATK/DEF". `name_of` maps an id to a name.
+static func bond_lines(ids: Array[String], name_of: Callable) -> PackedStringArray:
+	var out: PackedStringArray = []
+	for bond in active_bonds(ids):
+		var names: PackedStringArray = []
+		for id: String in bond.members:
+			names.append(name_of.call(id))
+		out.append("%s (%s): %s · +%d%% ATK/DEF" % [bond.name, bond.desc, ", ".join(names), roundi(BOND_BONUS * 100)])
+	return out
+
+
+## Bonds this lineup hasn't formed, with what each needs: "Pack Hunters (2+ canines)".
+static func missing_bonds(ids: Array[String]) -> PackedStringArray:
+	var formed := active_bonds(ids).map(func(b: Dictionary) -> String: return b.name)
+	var out: PackedStringArray = []
+	for bond: Dictionary in BONDS:
+		if bond.name not in formed:
+			out.append("%s (%s)" % [bond.name, bond.desc])
+	return out
+
+
+## What `count` bonds give one critter together (each multiplies ATK and DEF): 1 -> 8, 2 -> 17.
+static func bond_total(count: int) -> int:
+	return roundi((pow(1.0 + BOND_BONUS, count) - 1.0) * 100)
 
 
 ## Bonds active for a lineup: [{name, desc, members}].

@@ -125,11 +125,8 @@ func _build() -> void:
 			options.append(id)
 	for id in options:
 		_content.add_child(_pick_tile(id, cfg))
-	var bonds: PackedStringArray = []
-	for bond in GameData.active_bonds(_picks):
-		bonds.append(bond.name)
-	if not bonds.is_empty():
-		_label("Bonds: %s (+%d%% ATK/DEF)" % [", ".join(bonds), roundi(GameData.BOND_BONUS * 100)], 18, Retro.GOLD)
+	for line in GameData.bond_lines(_picks, profile.unit_name):
+		_label("Bond " + line, 18, Retro.GOLD)
 
 	_content.add_child(_status)
 	var me_in: bool = r.is_member()

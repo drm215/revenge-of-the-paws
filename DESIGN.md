@@ -143,9 +143,10 @@ The apocalypse starts **where you actually live**.
   moves travel, numbered in order; the first move posted for a number stands, so if a player
   doesn't move within 45 s any device plays that turn with the AI. Each pack keeps its own
   leader aura, bonds, terrain and home-turf bonuses, injuries and fatigue; knockouts injure their
-  owner's critters. The legend grows with the players who fight (`GameData.LEGEND_GROWTH`: HP x3.1
-  / x4.8 / x6.6, ATK x1.65 / x2.2 / x2.7 for 2 / 3 / 4), tuned so every raid size wins about as
-  often as one pack alone (~60% at Lv 5-6); a raid of one is a normal legend fight. XP is split
+  owner's critters. The legend grows with the players who fight (`GameData.LEGEND_GROWTH`: HP x2.9
+  / x4.8 / x6.6, ATK x1.6 / x2.2 / x2.7 for 2 / 3 / 4), tuned so every raid size wins about as
+  often as one pack alone (the simulator's AI wins ~20%; real players, who play better, should
+  find legends a real fight); a raid of one is a normal legend fight. XP is split
   between the players; every player gets the legend's trinket on a win. The first device to
   report the end stores the outcome and records the territory on the team map; each player
   collects their own share once (`Profile.claim_raid`), even if they closed the game. Big raids
@@ -173,6 +174,11 @@ The apocalypse starts **where you actually live**.
   each pack animal (last week's stays claimable for a week). Damage queues on the device (also
   while logged out) and is sent with the cloud sync; the leaderboard shows the pet and region,
   never the town. Server side: `server/siege.sql`.
+- **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
+  setup, each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
+  legend's stats and HP left, rounds per wave) with the cloud sync, queued while offline (newest
+  30). Raids log once. Reports carry no names; `tools/battle_report.py` reads them back.
+  Server side: `server/battle_logs.sql`.
 - **Why the lineup matters** (data in `GameData`, bookkeeping in `Profile.after_battle`):
   - *Injuries:* animals knocked out in a battle you win fight the next 2 battles at -25% HP/ATK
     (a retreat carries its wounded home, so losses don't snowball).

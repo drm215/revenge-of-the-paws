@@ -33,7 +33,7 @@ Accounts and saves live in a Supabase project (`scripts/net/cloud.gd`). Cloud sa
 
 1. Create a free project at https://supabase.com and run `server/supabase.sql`, then
    `server/siege.sql` (the weekly siege), `server/teams.sql` (teams), `server/chat.sql` (team
-   chat) and `server/raids.sql` (legend raids), in its SQL Editor.
+   chat) and `server/raids.sql` (legend raids) and `server/battle_logs.sql` (battle log), in its SQL Editor.
 2. Authentication → URL Configuration: set **Site URL** to `https://revengeofthepaws.com` and add
    it under **Redirect URLs**, so confirm and reset emails open the game.
 3. Optionally turn **Confirm email** off (Authentication → Sign In / Providers → Email).
@@ -47,6 +47,7 @@ Free projects pause after about a week without activity; un-pause them from the 
 - `tools/build_zcta.py` builds `data/us_zcta.bin` (ZIP area boundaries) from the Census shapefile.
 - `tools/make_sprites.py` draws the unit portraits (`art/units/*.svg`).
 - `tools/pixelate.gd` turns them into the 8-bit sprites in `art/pixel/`.
+- `tools/battle_report.py` prints the latest fights from the cloud battle log, for balancing.
 - `tools/make_splash.gd` draws the loading-screen splash (`art/splash.png`) from those sprites.
 
 ## Credits

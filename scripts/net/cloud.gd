@@ -16,6 +16,7 @@ signal signed_out
 signal reset_requested
 
 const UPLOAD_DELAY := 3.0
+const BATTLE_LOG_KEEP := 30
 const RETRY_DELAY := 30.0
 
 ## Supabase project; tests point this at a fake server (and Profile/Campaign.save_path elsewhere).
@@ -40,6 +41,7 @@ var _timer := Timer.new()
 var _pending := {}  # the cloud save waiting on a conflict decision
 var _siege_pending := {}  # siege week (as text) -> damage not yet sent
 var _siege_name := ""
+var _battle_logs: Array = []  # battle reports not yet sent (see log_battle)
 var _last_error := ""  # why the last request failed, shown after "Offline" so problems can be traced
 var _conflict_ui: CanvasLayer
 
@@ -228,6 +230,7 @@ func sync() -> void:
 	_busy = true
 	await _sync_once()
 	await _send_siege()
+	await _send_battle_logs()
 	_busy = false
 
 
@@ -513,6 +516,33 @@ func siege_add(points: int, pack_name: String) -> void:
 		_timer.start(UPLOAD_DELAY)
 
 
+## Queues a battle report (Battle.report() plus the fight's setup) for the battle log; it's sent
+## with the next sync. Only the newest BATTLE_LOG_KEEP wait offline.
+func log_battle(report: Dictionary) -> void:
+	report["at"] = Time.get_datetime_string_from_system(true)
+	_battle_logs.append(report)
+	if _battle_logs.size() > BATTLE_LOG_KEEP:
+		_battle_logs = _battle_logs.slice(-BATTLE_LOG_KEEP)
+	_store_state()
+	if signed_in():
+		_timer.start(UPLOAD_DELAY)
+
+
+func _send_battle_logs() -> void:
+	if _battle_logs.is_empty() or not await _ensure_token():
+		return
+	while not _battle_logs.is_empty():
+		var report: Dictionary = _battle_logs[0]
+		var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/battle_logs",
+			{"legend": String(report.get("legend", "")), "outcome": String(report.get("outcome", "")),
+			"players": int(report.get("players", 1)), "report": report}, true, ["Prefer: return=minimal"])
+		if not r.ok:
+			_note_error("battle log", r)
+			return
+		_battle_logs.pop_front()
+		_store_state()
+
+
 ## Damage waiting to be sent for `week`.
 func siege_pending(week: int) -> int:
 	return int(_siege_pending.get(str(week), 0))
@@ -564,6 +594,7 @@ func _store_state() -> void:
 	cfg.set_value("cloud", "deleted", _deleted)
 	cfg.set_value("cloud", "siege_pending", _siege_pending)
 	cfg.set_value("cloud", "siege_name", _siege_name)
+	cfg.set_value("cloud", "battle_logs", _battle_logs)
 	cfg.save(state_path)
 
 
@@ -580,3 +611,4 @@ func _load_state() -> void:
 	_deleted = cfg.get_value("cloud", "deleted", [])
 	_siege_pending = cfg.get_value("cloud", "siege_pending", {})
 	_siege_name = cfg.get_value("cloud", "siege_name", "")
+	_battle_logs = cfg.get_value("cloud", "battle_logs", [])

@@ -222,11 +222,11 @@ func _refresh() -> void:
 		open.add_theme_font_size_override("font_size", Retro.px(15))
 		open.pressed.connect(open_stable.emit)
 		_list.add_child(open)
-	var names: PackedStringArray = []
-	for bond in GameData.active_bonds(profile.pack_ids()):
-		names.append("%s (%s)" % [bond.name, bond.desc])
-	_bonds.text = ("Bonds: " + ", ".join(names) + " +%d%% ATK/DEF" % roundi(GameData.BOND_BONUS * 100)) if not names.is_empty() \
-		else "No bonds. Try 2 canines, 2 birds, 2 night animals, a dog + a cat, or neighbors from one region."
+	var lines := GameData.bond_lines(profile.pack_ids(), profile.unit_name)
+	var missing := GameData.missing_bonds(profile.pack_ids())
+	_bonds.text = ("Bonds (a critter in two gets both):\n"
+		+ ("\n".join(lines) if not lines.is_empty() else "None yet.")
+		+ ("\nNot formed: " + ", ".join(missing) if not missing.is_empty() else ""))
 	_count.text = "Fighting: %d / %d  ·  Pack: %d / %d" % [profile.team.size(), profile.locals_needed(),
 		_pack_count(), GameData.PACK_LIMIT]
 	_count.add_theme_color_override("font_color", Retro.GOLD)
@@ -617,7 +617,7 @@ func _show_details(unit_id: String) -> void:
 			if unit_id in bond.members:
 				bonds.append("%s (%s)" % [bond.name, bond.desc])
 		if not bonds.is_empty():
-			col.add_child(_tile_text("Bonds: " + ", ".join(bonds), 19, Retro.GOLD))
+			col.add_child(_tile_text("Bonds: %s · +%d%% ATK/DEF" % [", ".join(bonds), GameData.bond_total(bonds.size())], 19, Retro.GOLD))
 
 	var close := Button.new()
 	close.text = "Close"

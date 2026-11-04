@@ -239,8 +239,10 @@ func _show_outcome() -> void:
 				if auto and _overlay.visible:
 					_start_wave()
 		Battle.Outcome.VICTORY:
+			_log_battle()
 			_show_overlay("Liberated!", "%s is free of the dead.\n\n%s" % [battle.place, _award_xp(true)], "Back to map", finished.emit.bind(true))
 		Battle.Outcome.DEFEAT:
+			_log_battle()
 			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s" % _award_xp(false), "Back to map", finished.emit.bind(false))
 
 
@@ -341,6 +343,8 @@ func _finish_raid() -> void:
 		if String(m.user_id) == r.my_id():
 			var mine := Profile.from_snapshot(String(m.pack))
 			brought = Array(mine.pack_ids()) if mine else []
+	if bool(stored.mine):
+		_log_battle(r.members().size())
 	var lines := profile.claim_raid(String(r.info.id), result, brought, r.my_id())
 	raid_done.emit(result, bool(stored.mine))
 	won = bool(result.get("won", false))
@@ -348,6 +352,17 @@ func _finish_raid() -> void:
 	_show_overlay("The legend falls!" if won else "The raid falls back",
 		("%s is free.\n\n" % battle.place if won else "The legend was too much this time.\n\n") + "\n".join(lines),
 		"Back to map", finished.emit.bind(won))
+
+
+## Sends the finished fight to the battle log (Cloud), for balancing. Raids log once, from the
+## device that recorded the result.
+func _log_battle(players := 1) -> void:
+	var report := battle.report()
+	for key in ["legend", "threat", "region", "party_mult", "territory"]:
+		if config.has(key):
+			report[key] = config[key]
+	report.merge({"players": players, "raid": raid, "auto": was_auto, "patrol": not config.has("territory")})
+	get_node("/root/Cloud").log_battle(report)
 
 
 ## XP (half on a retreat, half again in auto mode), bench XP, injuries, fatigue and foraging.
