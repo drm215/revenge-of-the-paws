@@ -28,7 +28,7 @@ var _event := Label.new()
 ## below it are only as tall as their text, up to a cap, and scroll past that.
 const MAP_MIN_HEIGHT := 340.0
 const NEWS_MAX_HEIGHT := 135.0
-const INFO_MAX_HEIGHT := 200.0
+const INFO_MAX_HEIGHT := 125.0
 var _info_scroll := ScrollContainer.new()
 var _news := ScrollContainer.new()
 var _news_box := VBoxContainer.new()
@@ -73,7 +73,7 @@ func _select(i: int) -> void:
 		_info_body.text = "%s's home: your teammate's pack began here.\nIt links your shared land like your own home does." % campaign.home_owner(i)
 		_action.visible = false
 	elif i == campaign.home:
-		_info_body.text = "Home. Where %s began.\nRest here to heal injuries and clear fatigue (takes a turn)." % _pack_name()
+		_info_body.text = "Home. Rest here to heal injuries and clear fatigue (takes a turn)."
 		_action.text = "Rest"
 		_action.visible = true
 		_action.set_meta("mode", "rest")
@@ -400,10 +400,6 @@ func _show_briefing(i: int) -> void:
 	buttons.add_child(go)
 
 
-func _pack_name() -> String:
-	return profile.pet_name + "'s pack" if profile.has_pet() else "your pack"
-
-
 func _build_ui() -> void:
 	var bg := ColorRect.new()
 	bg.color = Retro.INK
@@ -499,24 +495,24 @@ func _build_ui() -> void:
 	legend_row.add_child(guide)
 
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.STEEL, Retro.BORDER, 0, 14))
+	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.STEEL, Retro.BORDER, 0, 8))
 	col.add_child(panel)
 	var info := VBoxContainer.new()
-	info.add_theme_constant_override("separation", 6)
+	info.add_theme_constant_override("separation", 4)
 	panel.add_child(info)
 	Retro.title(_info_title, 16, Retro.WHITE)
 	_info_title.clip_text = true
 	info.add_child(_info_title)
-	Retro.text(_info_body, 22)
+	Retro.text(_info_body, 19)
 	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_info_body.custom_minimum_size = Vector2(0, 52)
+	_info_body.custom_minimum_size = Vector2(0, 26)
 	_info_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_info_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	Retro.touch_scroll(_info_scroll)
 	info.add_child(_info_scroll)
 	_info_scroll.add_child(_info_body)
 	_info_scroll.resized.connect(_on_resized.bind(_info_scroll, _fit_info))
-	_action.custom_minimum_size = Vector2(0, 84)
+	_action.custom_minimum_size = Vector2(0, 60)
 	_action.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_action.pressed.connect(_on_action)
 	var actions := HBoxContainer.new()
@@ -524,7 +520,7 @@ func _build_ui() -> void:
 	info.add_child(actions)
 	actions.add_child(_action)
 	_ping.text = "Ping"
-	_ping.custom_minimum_size = Vector2(140, 84)
+	_ping.custom_minimum_size = Vector2(120, 60)
 	_ping.visible = campaign.is_team()
 	_ping.pressed.connect(_on_ping)
 	actions.add_child(_ping)
