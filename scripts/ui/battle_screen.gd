@@ -139,7 +139,7 @@ func _start_wave() -> void:
 	_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
 		(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
 	_overlay.hide()
-	_fx.wave_started()
+	await _fx.wave_started()
 	_run_turns()
 
 
@@ -236,6 +236,8 @@ func _execute(target: Combatant) -> void:
 func _show_outcome() -> void:
 	_set_active(null)
 	_fx.outcome(battle.outcome())
+	if battle.outcome() == Battle.Outcome.VICTORY and _legend_drop() != "":
+		await _fx.legend_loot(_legend_drop())
 	match battle.outcome():
 		Battle.Outcome.WAVE_CLEARED when raid:
 			_show_overlay("Wave cleared!", "The raid pushes on...", "Next wave", _start_wave)
@@ -256,6 +258,15 @@ func _show_outcome() -> void:
 		Battle.Outcome.DEFEAT:
 			_log_battle()
 			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s" % _award_xp(false), "Back to map", finished.emit.bind(false))
+
+
+## What the legend just beaten drops for this player: raiders always get its trinket; alone, it's
+## only there the first time ("" otherwise, or if there's no legend here).
+func _legend_drop() -> String:
+	var legend := String(config.get("legend", ""))
+	if legend == "" or not GameData.LEGENDS.has(legend):
+		return ""
+	return GameData.LEGENDS[legend].drop if raid else String(config.get("loot", ""))
 
 
 # --- Raids -----------------------------------------------------------------------------------

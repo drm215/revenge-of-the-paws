@@ -206,6 +206,14 @@ func lunge() -> void:
 	tween.tween_property(_sprite, "position:x", 0.0, 0.18).set_ease(Tween.EASE_IN)
 
 
+## A legend's rage shows: it swells and burns red, for the rest of the fight.
+func enrage() -> void:
+	_sprite.pivot_offset = _sprite.size / 2.0
+	var tween := create_tween()
+	tween.tween_property(_sprite, "scale", Vector2.ONE * 1.25, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_sprite.modulate = Color(1.7, 0.55, 0.5)
+
+
 func _draw_ring() -> void:
 	# A stepped "pixel" ellipse: stacked bars snapped to a 4px grid.
 	var s := _stage.size

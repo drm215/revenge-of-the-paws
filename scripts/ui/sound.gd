@@ -61,6 +61,7 @@ func music(song: String) -> void:
 	if song == current_music:
 		return
 	current_music = song
+	_music.pitch_scale = 1.0
 	if _music_fade:
 		_music_fade.kill()
 	if song == "":
@@ -84,6 +85,11 @@ func music(song: String) -> void:
 func _song_ended() -> void:
 	if current_music != "":
 		_music.play()
+
+
+## Speeds the current song up (a legend's enrage). Any new song starts at normal speed.
+func music_speed(speed: float) -> void:
+	_music.pitch_scale = speed
 
 
 func set_muted(on: bool) -> void:

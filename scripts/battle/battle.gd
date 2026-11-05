@@ -12,6 +12,8 @@ signal status_changed(target: Combatant)
 signal died(target: Combatant)
 signal combo(target: Combatant, name: String)
 signal weak_hit(target: Combatant)
+## A legend reached the next part of its fight: 1 = called for help, 2 = enraged.
+signal legend_phase(legend: Combatant, phase: int)
 ## A legend called `fresh` to the fight, in the place of the fallen `replaced` (or null).
 signal reinforced(fresh: Combatant, replaced: Combatant)
 
@@ -685,12 +687,14 @@ func _advance_legend(legend: Combatant) -> void:
 		log_message.emit("[color=#c99bff][b]%s calls for help![/b][/color]" % legend.display_name)
 		for zombie_id: String in GameData.LEGEND_ADDS:
 			_call_add(zombie_id)
+		legend_phase.emit(legend, 1)
 	if phase < 2 and legend.hp_ratio() <= GameData.LEGEND_ENRAGE_AT:
 		phase = 2
 		legend.atk = roundi(legend.atk * GameData.LEGEND_ENRAGE_ATK)  # (scale_stats would refill its HP)
 		log_message.emit("[color=#f77622][b]%s is enraged![/b] It hits %d%% harder from now on.[/color]" % [
 			legend.display_name, roundi((GameData.LEGEND_ENRAGE_ATK - 1.0) * 100)])
 		status_changed.emit(legend)
+		legend_phase.emit(legend, 2)
 	_legend_phase[legend] = phase
 
 

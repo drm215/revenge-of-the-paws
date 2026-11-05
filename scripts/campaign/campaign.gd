@@ -353,6 +353,7 @@ func battle_config(i: int) -> Dictionary:
 		"condition": t.condition,
 		"region": t.region,
 		"legend": t.boss,
+		"loot": loot_at(i) if t.boss != "" else "",  # what beating this legend drops ("" if it's been taken)
 		"territory": t.id,
 	}
 

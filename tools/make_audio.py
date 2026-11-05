@@ -177,6 +177,19 @@ def sfx():
     t.noise(0, 0.88, 0.14, period=2)
     t.write("windup", 0.8)
 
+    t = Track(0.55)  # a heavy footfall, in a legend's entrance
+    t.tone(0, 0.5, 70, triangle, 0.9, slide=-50, decay=0.16)
+    t.tone(0, 0.2, 95, square, 0.4, slide=-180)
+    t.noise(0, 0.14, 0.45, period=8)
+    t.write("thud", 1.0)
+
+    t = Track(1.3)  # treasure: a run of coins and a shining chord
+    for k, m in enumerate([76, 79, 84, 88, 91, 96]):
+        t.tone(k * 0.07, 0.22, note(m), square, 0.3, duty=0.125)
+    for m in (84, 88, 91):
+        t.tone(0.45, 0.8, note(m), triangle, 0.4, vibrato=6, decay=0.45)
+    t.write("loot", 0.8)
+
     t = Track(0.8)  # the last blow of a battle
     t.tone(0, 0.7, 150, square, 0.7, slide=-180, decay=0.25)
     t.tone(0, 0.5, 75, triangle, 0.8, decay=0.3)

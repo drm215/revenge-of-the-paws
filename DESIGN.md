@@ -341,6 +341,10 @@ versions of your recruits; a story beat).
   beat's freeze on crits and big hits, flying bits, slow motion and a push-in on the last blow,
   combos slammed across the screen. `Sound` plays original chiptune effects and music from
   `tools/make_audio.py` (map, battle and legend themes), with a mute button on the map.
+- Legend fights are events: a dark entrance with footfalls, roar, portrait and name (a tap skips
+  it); "REINFORCEMENTS!" and "ENRAGED!" moments, with the legend swelling, the screen's edges pulsing
+  red and the music speeding up; a banner and dimmed screen while Cataclysm winds up, then
+  "INTERRUPTED!" or a red blast and "SURVIVED!"; and a chest bursting with its trinket.
 
 ## Mobile UX
 - Portrait 9:16 (720×1280 base, stretches to taller phones).
