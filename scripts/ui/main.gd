@@ -68,6 +68,9 @@ func _show_onboarding(existing: Profile) -> void:
 
 
 func _show_map(profile: Profile, allow_auto := true) -> void:
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		sound.music("map")
 	var raid_node := get_node_or_null("/root/Raid")
 	if raid_node:
 		raid_node.listening = true

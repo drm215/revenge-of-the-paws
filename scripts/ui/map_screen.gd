@@ -496,6 +496,16 @@ func _build_ui() -> void:
 	guide.add_theme_font_size_override("font_size", Retro.px(15))
 	guide.pressed.connect(ZombieGuide.open.bind(self))
 	legend_row.add_child(guide)
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		var mute := Button.new()
+		mute.text = "Sound off" if sound.muted else "Sound on"
+		mute.custom_minimum_size = Vector2(130, 52)
+		mute.add_theme_font_size_override("font_size", Retro.px(15))
+		mute.pressed.connect(func() -> void:
+			sound.set_muted(not sound.muted)
+			mute.text = "Sound off" if sound.muted else "Sound on")
+		legend_row.add_child(mute)
 
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.STEEL, Retro.BORDER, 0, 8))

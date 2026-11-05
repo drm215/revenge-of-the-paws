@@ -57,6 +57,7 @@ Free projects pause after about a week without activity; un-pause them from the 
 - `tools/make_sprites.py` draws the unit portraits (`art/units/*.svg`).
 - `tools/pixelate.gd` turns them into the 8-bit sprites in `art/pixel/`.
 - `tools/battle_report.py` prints the latest fights from the cloud battle log, for balancing.
+- `tools/make_audio.py` synthesizes the sound effects and music (`audio/`).
 - `tools/make_splash.gd` draws the loading-screen splash (`art/splash.png`) from those sprites.
 
 ## Credits

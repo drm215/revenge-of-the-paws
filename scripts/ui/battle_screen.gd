@@ -35,6 +35,7 @@ var xp_awarded := 0  # what each fighter earned (teammates get a share of it)
 var raid := false
 var _seq := 0  # the next move number in a raid
 var cards := {}  # Combatant -> UnitCard
+var _fx: BattleFx
 
 var _actor: Combatant
 var _selected_skill := ""
@@ -86,9 +87,12 @@ func _new_game() -> void:
 	battle.healed.connect(_on_healed)
 	battle.status_changed.connect(func(c: Combatant) -> void: _card(c).refresh())
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
-	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 	battle.reinforced.connect(_on_reinforced)
+
+	_fx = BattleFx.new()
+	add_child(_fx)
+	_fx.watch(self)
 
 	# Big raids: two cards per row, and the pack's side of the field gets more room.
 	var big := battle.party.size() > 4  # raids of 2+ players: compact cards, two per row
@@ -135,6 +139,7 @@ func _start_wave() -> void:
 	_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
 		(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
 	_overlay.hide()
+	_fx.wave_started()
 	_run_turns()
 
 
@@ -230,6 +235,7 @@ func _execute(target: Combatant) -> void:
 
 func _show_outcome() -> void:
 	_set_active(null)
+	_fx.outcome(battle.outcome())
 	match battle.outcome():
 		Battle.Outcome.WAVE_CLEARED when raid:
 			_show_overlay("Wave cleared!", "The raid pushes on...", "Next wave", _start_wave)
@@ -411,7 +417,7 @@ func _on_damaged(target: Combatant, amount: int, crit: bool) -> void:
 	var card := _card(target)
 	card.refresh()
 	card.flash(Color(1.6, 0.5, 0.5))
-	_float_text(card, ("CRIT %d!" if crit else "%d") % amount, Retro.YELLOW if crit else Retro.PINK, 22 if crit else 18)
+	_float_text(card, ("CRIT %d!" if crit else "%d") % amount, Retro.YELLOW if crit else Retro.PINK, 34 if crit else 18)
 
 
 func _on_healed(target: Combatant, amount: int) -> void:
@@ -430,7 +436,11 @@ func _float_text(card: UnitCard, text: String, color: Color, font_size: int) -> 
 	label.z_index = 10
 	add_child(label)
 	var start := card.global_position + Vector2(card.size.x / 2.0 - 24, 10)
+	start.x = maxf(card.global_position.x, minf(start.x, card.get_global_rect().end.x - label.get_combined_minimum_size().x))  # stays on screen
 	label.global_position = start
+	if font_size >= 30:  # a crit pops
+		label.scale = Vector2.ONE * 1.8
+		label.create_tween().set_ignore_time_scale(true).tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var tween := label.create_tween().set_parallel()
 	tween.tween_property(label, "global_position:y", start.y - 70, 0.9).set_ease(Tween.EASE_OUT)
 	tween.tween_property(label, "modulate:a", 0.0, 0.9).set_delay(0.3)
@@ -497,6 +507,13 @@ func _build_ui() -> void:
 	var bg := ColorRect.new()
 	bg.color = Retro.INK
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	bg.grow_vertical = Control.GROW_DIRECTION_BOTH
+	# Bigger than the screen, so a shake or a push-in never shows what's behind it.
+	bg.offset_left = -120
+	bg.offset_top = -120
+	bg.offset_right = 120
+	bg.offset_bottom = 120
 	add_child(bg)
 
 	var margin := MarginContainer.new()

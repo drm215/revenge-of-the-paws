@@ -336,6 +336,12 @@ versions of your recruits; a story beat).
 - **World map:** zones (Suburbs → Mall → Hospital → Downtown → Military Base), each with a boss.
 - **Recruitment:** rescue caged animals during runs to unlock them.
 
+## Feel
+- `BattleFx` watches a battle and changes nothing in it, so raid devices can't drift apart: shake, a
+  beat's freeze on crits and big hits, flying bits, slow motion and a push-in on the last blow,
+  combos slammed across the screen. `Sound` plays original chiptune effects and music from
+  `tools/make_audio.py` (map, battle and legend themes), with a mute button on the map.
+
 ## Mobile UX
 - Portrait 9:16 (720×1280 base, stretches to taller phones).
 - Tap a skill, then tap a highlighted unit. Strong skill = longer, juicier animation.
