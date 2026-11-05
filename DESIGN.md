@@ -351,6 +351,9 @@ versions of your recruits; a story beat).
   rescued animal run across, and "ABINGDON IS FREE!" across the map, with what it means under it:
   a new state reached, a legend dead, a round number of territories, or the count so far. Nothing
   waits for it; a teammate's move arriving meanwhile rebuilds the map when it ends.
+- The horde is seen moving (`Campaign.horde_news`, by comparing with what the map last showed, so a
+  teammate's turn counts too): the view swings over, zombies march in from next door, a red tide
+  washes over land it spreads into or takes, and a siren and red flash mark a counterattack.
 
 ## Mobile UX
 - Portrait 9:16 (720×1280 base, stretches to taller phones).

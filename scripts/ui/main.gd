@@ -26,10 +26,14 @@ func _ready() -> void:
 	_show_saves()
 
 
+var _horde_seen := {}  # Campaign.horde_snapshot() as the map last showed it
+
+
 ## Pick a saved game, start a new one, or log in to a cloud save.
 func _show_saves() -> void:
 	_profile = null
 	_campaign = null
+	_horde_seen = {}
 	var raid := get_node_or_null("/root/Raid")
 	if raid:
 		raid.listening = false  # a late raid result needs a game to land in
@@ -75,6 +79,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	if raid_node:
 		raid_node.listening = true
 	var moment: Dictionary = _campaign.take_liberation() if _campaign else {}
+	var seen := _horde_seen
 	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key() or _campaign_stale:
 		var message := _campaign.last_event if _campaign and _campaign_stale else ""
 		_campaign = _make_campaign(profile)
@@ -89,6 +94,8 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.campaign = _campaign
 	screen.profile = profile
 	screen.liberation = moment
+	screen.horde_news = _campaign.horde_news(seen)
+	_horde_seen = _campaign.horde_snapshot()
 	screen.liberation_done.connect(func() -> void:
 		if _campaign_stale:
 			_show_map(_profile, false))

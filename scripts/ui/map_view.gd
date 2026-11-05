@@ -31,6 +31,9 @@ const OUTLINE_RETRY := 5.0  # seconds before asking again for outlines that didn
 const LIBERATION_SEC := 3.2  # how long a liberation plays
 const WAVE_SEC := 1.1  # of that, how long the green takes to cross the territory
 const WAVE_POINTS := 36
+const HORDE_FRONT := Color("e8324a")  # the horde's tide: a bright edge, dark behind it
+const HORDE_BODY := Color("5a1626")
+const MARCHERS := ["shambler", "runner", "shambler", "brute"]
 const FIREWORK_COLORS: Array[Color] = [Retro.GOLD, Retro.GREEN, Retro.CYAN, Retro.PINK, Retro.YELLOW]
 
 var campaign: Campaign
@@ -63,6 +66,10 @@ var _wave_time := 0.0
 var _wave_from := Vector2.ZERO
 var _wave_near := 0.0  # distance from the wave's start to the territory's nearest and farthest points
 var _wave_far := 0.0
+var _wave_front := HOME
+var _wave_body := OWNED
+var _wave_was := ATTACKABLE  # how the territory looks until the tide reaches it
+var _pan_tween: Tween
 
 
 func _init() -> void:
@@ -90,19 +97,7 @@ func _ready() -> void:
 ## Plays a territory being freed: green rolls over it from `from` (a map point), fireworks go off
 ## over it, and the pet (with anyone just rescued) runs across.
 func play_liberation(i: int, from: Vector2, rescued: String) -> void:
-	_wave_at = i
-	_wave_time = 0.0
-	_wave_from = from
-	_wave_near = INF
-	_wave_far = 0.0
-	for ring in campaign.territories[i].parts:
-		for p in ring:
-			var d := p.distance_to(from)
-			_wave_near = minf(_wave_near, d)
-			_wave_far = maxf(_wave_far, d)
-	if _wave_far <= 0.0:
-		_wave_at = -1  # no outline here yet: the rest of the moment still plays
-	_shapes.queue_redraw()
+	_start_wave(i, from, HOME, OWNED, ATTACKABLE)
 	var runners: Array[String] = []
 	if campaign.profile and campaign.profile.has_pet():
 		runners.append(campaign.profile.pet_species)
@@ -115,13 +110,106 @@ func play_liberation(i: int, from: Vector2, rescued: String) -> void:
 		_firework(site, 0.5 + k * 0.5, k)
 
 
-## The green so far: everything of the territory within the wave's reach, with a bright front.
+## A colored tide rolling over territory `i` from `from` (a map point), over how it looked before.
+func _start_wave(i: int, from: Vector2, front: Color, body: Color, was: Color) -> void:
+	_wave_at = i
+	_wave_time = 0.0
+	_wave_from = from
+	_wave_front = front
+	_wave_body = body
+	_wave_was = was
+	_wave_near = INF
+	_wave_far = 0.0
+	for ring in campaign.territories[i].parts:
+		for p in ring:
+			var d := p.distance_to(from)
+			_wave_near = minf(_wave_near, d)
+			_wave_far = maxf(_wave_far, d)
+	if _wave_far <= 0.0:
+		_wave_at = -1  # no outline here yet: the rest of the moment still plays
+	_shapes.queue_redraw()
+
+
+## The horde's move on territory `i`: zombies march in from `from`. Land it spreads into or takes
+## is washed over in red; land it attacks flashes, and goes on pulsing as usual.
+func play_horde(i: int, from: Vector2, kind: String) -> void:
+	if kind == "fell":
+		_start_wave(i, from, HORDE_FRONT, HORDE_BODY, OWNED)
+	elif kind == "spread":
+		_start_wave(i, from, HORDE_FRONT, HORDE_BODY, _fill(i))
+	else:
+		_edge_flash()
+	var start := _to_screen(from)
+	var end := _to_screen(campaign.territories[i].site)
+	for k in MARCHERS.size():
+		_march(MARCHERS[k], start, end, k)
+
+
+## An alarm's red flash over the map.
+func _edge_flash() -> void:
+	var flash := ColorRect.new()
+	flash.color = Color(HORDE_FRONT, 0.5)
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.z_index = 2
+	add_child(flash)
+	var fade := flash.create_tween().set_loops(2)
+	fade.tween_property(flash, "color:a", 0.05, 0.3)
+	fade.tween_property(flash, "color:a", 0.5, 0.2)
+	flash.create_tween().tween_interval(1.0)
+	var end := flash.create_tween()
+	end.tween_interval(1.0)
+	end.tween_callback(flash.queue_free)
+
+
+## One zombie staggering from `start` to `end`, a little behind the one before it.
+func _march(id: String, start: Vector2, end: Vector2, order: int) -> void:
+	var path := "res://art/pixel/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return
+	var sprite := TextureRect.new()
+	sprite.texture = load(path)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sprite.size = Vector2(44, 44)
+	sprite.flip_h = end.x < start.x
+	sprite.z_index = 3
+	sprite.modulate.a = 0.0
+	add_child(sprite)
+	var spot := Vector2([-16, 18, 2, -24][order % 4], [10, -12, 20, -18][order % 4]) - sprite.size / 2.0
+	sprite.position = start + spot
+	var walk := sprite.create_tween()
+	walk.tween_interval(order * 0.13)
+	walk.tween_property(sprite, "modulate:a", 1.0, 0.1)
+	walk.tween_method(func(t: float) -> void:
+		sprite.position = start.lerp(end, t) + spot + Vector2(0, -absf(sin(t * TAU * 2.5)) * 8.0), 0.0, 1.0, 1.15)
+	walk.tween_property(sprite, "modulate:a", 0.0, 0.2)
+	walk.tween_callback(sprite.queue_free)
+
+
+## The view glides over until territory `i` is in the middle.
+func pan_to(i: int, seconds: float) -> void:
+	if _pan_tween:
+		_pan_tween.kill()
+	var held := _pan
+	_pan = Vector2.ZERO
+	var target := size / 2.0 - _to_screen(campaign.territories[i].site)
+	_pan = held
+	_pan_tween = create_tween()
+	_pan_tween.tween_method(func(p: Vector2) -> void:
+		_pan = p
+		_clamp_pan(), held, target, seconds).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+
+
+## The tide so far: everything of the territory within its reach, with a bright front.
 func _draw_wave() -> void:
 	var reach: float = lerpf(_wave_near, _wave_far, clampf(_wave_time / WAVE_SEC, 0.0, 1.0))
 	var band := (_wave_far - _wave_near) * 0.12
 	for part: Dictionary in _parts[_wave_at]:
-		_draw_within(part.points, reach, HOME)
-		_draw_within(part.points, maxf(0.001, reach - band), OWNED)
+		_draw_within(part.points, reach, _wave_front)
+		_draw_within(part.points, maxf(0.001, reach - band), _wave_body)
 
 
 ## The part of a ring within `radius` of the wave's start. A sliver that can't be drawn is left out.
@@ -477,7 +565,7 @@ func _outline(i: int, color: Color, width: float) -> void:
 func _fill(i: int) -> Color:
 	var t := campaign.territories[i]
 	if i == _wave_at:
-		return ATTACKABLE  # as it was: the green rolls over this
+		return _wave_was  # as it was: the tide rolls over this
 	if i == campaign.under_attack:
 		return OWNED.lerp(UNDER_ATTACK, 0.5 + 0.5 * sin(_time * 5.0))
 	if t.owned:

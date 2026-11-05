@@ -17,12 +17,13 @@ signal raid_requested
 ## Back to the save picker.
 signal saves_requested
 signal auto_toggled
-## The liberation moment has finished playing.
+## The liberation and the horde's moves have finished playing.
 signal liberation_done
 
 var campaign: Campaign
 var profile: Profile
 var liberation := {}  # Campaign.take_liberation(): the moment to play as this screen opens
+var horde_news: Array = []  # Campaign.horde_news(): the horde's moves to play after it
 var celebrating := false
 
 var _map := MapView.new()
@@ -31,6 +32,8 @@ var _event := Label.new()
 ## The map always keeps MAP_MIN_HEIGHT; the news (and team feed) above it and the territory info
 ## below it are only as tall as their text, up to a cap, and scroll past that.
 const MAP_MIN_HEIGHT := 340.0
+const HORDE_MOMENT_SEC := 1.9
+const MAX_HORDE_MOMENTS := 4  # a teammate's long run of moves shouldn't hold the map for long
 const NEWS_MAX_HEIGHT := 135.0
 const INFO_MAX_HEIGHT := 125.0
 var _info_scroll := ScrollContainer.new()
@@ -59,21 +62,61 @@ func _ready() -> void:
 	_map.territory_selected.connect(_select)
 	_refresh_status()
 	_select(campaign.under_attack if campaign.under_attack >= 0 else campaign.home)
-	if campaign.under_attack >= 0:
+	if campaign.under_attack >= 0 and not horde_news.any(func(n: Dictionary) -> bool: return n.kind == "attack"):
 		_map.focus.call_deferred(campaign.under_attack)
-	if not liberation.is_empty():
+	if not liberation.is_empty() or not horde_news.is_empty():
 		celebrating = true
-		_play_liberation.call_deferred()
+		_play_moments.call_deferred()
+
+
+## What happened since the map was last up, in order. Nothing waits for it: the map works as usual
+## while it plays.
+func _play_moments() -> void:
+	await get_tree().process_frame  # the map has its size by now
+	if not liberation.is_empty():
+		await _play_liberation()
+	for news: Dictionary in horde_news.slice(0, MAX_HORDE_MOMENTS):
+		await _play_horde(news)
+	celebrating = false
+	liberation_done.emit()
+
+
+func _index_of(id: String) -> int:
+	for i in campaign.territories.size():
+		if campaign.territories[i].id == id:
+			return i
+	return -1
+
+
+## The horde's move: the view swings over, an alarm or a rumble, and it pours in from next door.
+func _play_horde(news: Dictionary) -> void:
+	var at := _index_of(String(news.territory))
+	if at < 0:
+		return
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		sound.play("alarm" if news.kind == "attack" else "horde")
+	_map.pan_to(at, 0.4)
+	if news.kind == "attack":
+		_select(at)
+	await get_tree().create_timer(0.4).timeout
+	_map.play_horde(at, news.from, news.kind)
+	var color := Retro.RED if news.kind != "spread" else Retro.ORANGE
+	var lines: Array[Label] = [_map_banner(String(news.banner), 22, color, 0.06), _map_banner(String(news.line), 14, Retro.WHITE, 0.2)]
+	await get_tree().create_timer(HORDE_MOMENT_SEC).timeout
+	_fade_banners(lines)
+
+
+func _fade_banners(lines: Array[Label]) -> void:
+	for line in lines:
+		var fade := line.create_tween()
+		fade.tween_property(line, "modulate:a", 0.0, 0.3)
+		fade.tween_callback(line.queue_free)
 
 
 ## Green sweeps over the freed territory, with its name across the map and the milestone under it.
-## Nothing waits for it: the map works as usual while it plays.
 func _play_liberation() -> void:
-	await get_tree().process_frame  # the map has its size by now
-	var at := -1
-	for i in campaign.territories.size():
-		if campaign.territories[i].id == String(liberation.territory):
-			at = i
+	var at := _index_of(String(liberation.territory))
 	var sound := get_node_or_null("/root/Sound")
 	if sound:
 		sound.play("liberate")
@@ -88,12 +131,7 @@ func _play_liberation() -> void:
 	if String(liberation.milestone) != "":
 		lines.append(_map_banner(String(liberation.milestone), 18 if liberation.milestone_big else 14, Retro.YELLOW if liberation.milestone_big else Retro.WHITE, 0.2))
 	await get_tree().create_timer(MapView.LIBERATION_SEC).timeout
-	for line in lines:
-		var fade := line.create_tween()
-		fade.tween_property(line, "modulate:a", 0.0, 0.3)
-		fade.tween_callback(line.queue_free)
-	celebrating = false
-	liberation_done.emit()
+	_fade_banners(lines)
 
 
 ## Big text across the map that a tap passes straight through.
@@ -111,10 +149,10 @@ func _map_banner(text: String, font_size: int, color: Color, y_share: float) -> 
 	backing.content_margin_top = 4
 	backing.content_margin_bottom = 4
 	label.add_theme_stylebox_override("normal", backing)
+	label.custom_minimum_size.x = _map.size.x - 16  # before it's added, or it measures its height for no width
 	_map.add_child(label)
-	label.size = Vector2(_map.size.x - 16, 0)
 	label.position = Vector2(8, _map.size.y * y_share)
-	label.pivot_offset = Vector2(label.size.x / 2.0, 24)
+	label.pivot_offset = Vector2(_map.size.x / 2.0 - 8.0, 24)
 	label.scale = Vector2.ONE * 2.2
 	label.create_tween().tween_property(label, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	return label

@@ -520,6 +520,54 @@ func _migrate() -> void:
 			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
+## What the map last showed, for horde_news to compare with.
+func horde_snapshot() -> Dictionary:
+	var held := {}
+	for t in territories:
+		if t.owned:
+			held[t.id] = true
+	return {"key": _key, "held": held, "spread": spread.duplicate(), "attack": territories[under_attack].id if under_attack >= 0 else ""}
+
+
+## What the horde has done since `seen` (a horde_snapshot), whoever's move it came with, for the map
+## to show: [{kind ("spread", "fell", "attack"), territory, from (map point it came from), banner, line}].
+func horde_news(seen: Dictionary) -> Array:
+	var news: Array = []
+	if seen.get("key", "") != _key:
+		return news
+	var attack := territories[under_attack].id if under_attack >= 0 else ""
+	for i in territories.size():
+		var t := territories[i]
+		var held_then: bool = seen.held.has(t.id)
+		if held_then and not t.owned:
+			news.append({"kind": "fell", "territory": t.id, "from": _horde_source(i), "banner": "%s HAS FALLEN!" % t.name.to_upper(),
+				"line": "The horde holds it at threat %d. Take it back!" % t.threat})
+		elif not t.owned and int(spread.get(t.id, 0)) > int(seen.spread.get(t.id, 0)):
+			news.append({"kind": "spread", "territory": t.id, "from": _horde_source(i), "banner": "THE HORDE SPREADS!",
+				"line": "%s is now threat %d" % [t.name, t.threat]})
+	if attack != "" and attack != String(seen.attack):
+		var line := "Defend it or lose it."
+		if cut_by(under_attack) > 0:
+			line = "Lose it and %d territor%s are cut off." % [cut_by(under_attack), "y" if cut_by(under_attack) == 1 else "ies"]
+		news.append({"kind": "attack", "territory": attack, "from": _horde_source(under_attack),
+			"banner": "THE HORDE ATTACKS %s!" % territories[under_attack].name.to_upper(), "line": line})
+	return news
+
+
+## Where the horde came at territory `i` from: its strongest unheld neighbor (a nest above all).
+func _horde_source(i: int) -> Vector2:
+	var best := -1
+	var best_rank := -1
+	for n in territories[i].neighbors:
+		if territories[n].owned:
+			continue
+		var rank: int = territories[n].threat + (100 if is_nest(n) else 0)
+		if rank > best_rank:
+			best_rank = rank
+			best = n
+	return territories[best].site if best >= 0 else territories[i].site
+
+
 ## This player's latest liberation for the map to play, once: {territory, from (map point the wave
 ## starts at), banner, milestone, milestone_big, rescued}. {} if there's none waiting.
 func take_liberation() -> Dictionary:

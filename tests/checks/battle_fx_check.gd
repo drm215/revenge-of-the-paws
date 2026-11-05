@@ -54,7 +54,7 @@ func _run() -> void:
 	var sound: Node = root.get_node("Sound")
 
 	for sound_name: String in ["hit", "crit", "heal", "down", "zombie_die", "groan", "swoosh", "bark", "meow", "combo", "weak", "wave_clear",
-			"victory", "defeat", "roar", "arrive", "windup", "finish", "thud", "loot", "liberate", "firework", "music_map", "music_battle", "music_boss"]:
+			"victory", "defeat", "roar", "arrive", "windup", "finish", "thud", "loot", "liberate", "firework", "alarm", "horde", "music_map", "music_battle", "music_boss"]:
 		if not ResourceLoader.exists("res://audio/%s.wav" % sound_name) or sound._stream(sound_name) == null:
 			_check(false, "missing sound: " + sound_name)
 	_check(sound._stream("hit").get_length() < 0.5, "effects are short")

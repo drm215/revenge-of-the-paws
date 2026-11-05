@@ -202,6 +202,18 @@ def sfx():
     t.tone(0.2, 0.1, 150, triangle, 0.6, slide=-500)
     t.write("firework", 0.6)
 
+    t = Track(1.25)  # a counterattack: a siren, rising and falling twice
+    for at in (0, 0.6):
+        t.tone(at, 0.3, 520, square, 0.42, slide=1100, duty=0.25)
+        t.tone(at + 0.3, 0.3, 850, square, 0.42, slide=-1100, duty=0.25)
+    t.write("alarm", 0.8)
+
+    t = Track(1.1)  # the horde moving: a rumble of many groans
+    t.noise(0, 1.05, 0.5, period=9, decay=0.5)
+    for at, f in [(0, 88), (0.14, 74), (0.3, 96), (0.46, 66)]:
+        t.tone(at, 0.6, f, saw, 0.32, slide=-30, attack=0.06, vibrato=8)
+    t.write("horde", 0.85)
+
     t = Track(0.8)  # the last blow of a battle
     t.tone(0, 0.7, 150, square, 0.7, slide=-180, decay=0.25)
     t.tone(0, 0.5, 75, triangle, 0.8, decay=0.3)
