@@ -30,6 +30,7 @@ var under_attack := -1  # territory index the horde is attacking, or -1
 var last_liberated := -1  # territory index most recently taken from the horde, or -1
 var last_event := ""
 var _liberation := {}  # the moment waiting to play on the map (take_liberation), if any
+var warlords: Array = []  # [{id, name, title, at (territory id), nest, loot, assaulting (territory id or "")}]
 var uses_zip_data := false
 var legends: Array[String] = []  # legend ids with a lair on this map
 var profile: Profile
@@ -302,9 +303,16 @@ func is_actionable(i: int) -> bool:
 
 ## The level the zombies here fight at: set when the territory was discovered. Only the horde's
 ## spreading, a lost counter defense (both raise its threat) or failed attacks change it. Legends
-## are the exception: see zombie_strength.
+## and counterattacks are the exceptions: see zombie_strength.
 func territory_level(i: int) -> int:
-	return GameData.territory_level(zombie_strength(i, territories[i].threat) * territories[i].horde_strength())
+	return GameData.territory_level(zombie_strength(i, _fight_threat(i)) * territories[i].horde_strength())
+
+
+## The threat a fight here is at: a counterattack comes in strength, and harder on cut-off land.
+func _fight_threat(i: int) -> int:
+	if i != under_attack:
+		return territories[i].threat
+	return maxi(territories[i].threat, GameData.ASSAULT_MIN_THREAT) + (GameData.CUT_OFF_THREAT if is_cut_off(i) else 0)
 
 
 ## The level from threat and attrition alone, whatever the pack was when it was found (what auto
@@ -318,8 +326,10 @@ func base_level(i: int) -> int:
 ## closer per threat), whichever is higher.
 func zombie_strength(i: int, threat: int) -> float:
 	var met := territories[i].met_level
-	if territories[i].boss != "":
-		met = profile.strongest_pack_level()  # legends never get easy: they match the pack of the day
+	if territories[i].boss != "" or i == under_attack:
+		met = profile.strongest_pack_level()  # these never get easy: they match the pack of the day
+	if i == under_attack:
+		met += GameData.ASSAULT_LEVEL
 	var matched := met - GameData.PACK_LEVEL_GAP + threat - 1
 	return maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
 
@@ -341,11 +351,22 @@ func auto_target(leader_level: int) -> int:
 
 func battle_config(i: int) -> Dictionary:
 	var t := territories[i]
-	var threat := t.threat + (GameData.CUT_OFF_THREAT if i == under_attack and is_cut_off(i) else 0)
+	var threat := _fight_threat(i)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(t.id)  # same zombies every visit, so a retry is a fair rematch
+	if i == under_attack:
+		rng.seed = hash("%s:assault:%d" % [t.id, turn])  # each assault is its own
+	var waves := GameData.generate_waves(threat, rng, t.boss)
+	var warlord := warlord_at(i)
+	if not warlord.is_empty():
+		var last: Array = waves[-1]
+		while last.size() >= GameData.MAX_ENEMIES:
+			last.pop_back()
+		last.push_front("warlord")
 	return {
-		"waves": GameData.generate_waves(threat, rng, t.boss),
+		"waves": waves,
+		"warlord": String(warlord.get("name", "")),
+		"warlord_loot": String(warlord.get("loot", "")),
 		"threat": threat,
 		"zombie_mult": zombie_strength(i, threat) * t.horde_strength(),
 		"xp_mult": GameData.zombie_mult(threat) * t.horde_strength(),
@@ -426,9 +447,89 @@ func _end_turn() -> void:
 	_update_supply()
 	if turn % (GameData.MIGRATE_EVERY * pace()) == 0:
 		_migrate()
+	_advance_warlords()
 	if under_attack < 0 and turn % counter_interval() == 0:
 		_start_counterattack()
 	save()
+
+
+## The warlord in territory `i`, or attacking it; {} if none.
+func warlord_at(i: int) -> Dictionary:
+	var id := territories[i].id
+	for w: Dictionary in warlords:
+		if w.at == id or w.assaulting == id:
+			return w
+	return {}
+
+
+func _is_occupied(i: int) -> bool:
+	return warlords.any(func(w: Dictionary) -> bool: return w.at == territories[i].id)
+
+
+## Nests raise warlords, and warlords march: onto the closest held land they can reach if they're
+## beside any (a counterattack, with them in it), else a step closer to home.
+func _advance_warlords() -> void:
+	for w: Dictionary in warlords:
+		if w.assaulting != "" and (under_attack < 0 or territories[under_attack].id != w.assaulting):
+			w.assaulting = ""
+	if turn >= GameData.WARLORD_FIRST * pace() and turn % (GameData.WARLORD_EVERY * pace()) == 0:
+		for n in nests:
+			if is_nest(n) and not warlords.any(func(w: Dictionary) -> bool: return w.nest == territories[n].id):
+				_raise_warlord(n)
+	if turn % (GameData.WARLORD_MOVE * pace()) != 0:
+		return
+	for w: Dictionary in warlords:
+		if w.assaulting == "":
+			_march_warlord(w)
+
+
+func _raise_warlord(nest: int) -> void:
+	var t := territories[nest]
+	var id := "%s:%d" % [t.id, turn]
+	var pick := absi(hash(id))
+	var w := {"id": id, "name": GameData.WARLORD_NAMES[pick % GameData.WARLORD_NAMES.size()],
+		"title": GameData.WARLORD_TITLES[(pick / 7) % GameData.WARLORD_TITLES.size()] % t.name,
+		"at": t.id, "nest": t.id, "loot": GameData.CACHE_TRINKETS[(pick / 3) % GameData.CACHE_TRINKETS.size()], "assaulting": ""}
+	warlords.append(w)
+	last_event += "\n%s, %s, rises at %s and marches on your home." % [w.name, w.title, t.full_name()]
+
+
+func _march_warlord(w: Dictionary) -> void:
+	var at := -1
+	for i in territories.size():
+		if territories[i].id == w.at:
+			at = i
+	if at < 0:
+		return
+	var nearest_held := -1
+	var step := -1
+	for n in territories[at].neighbors:
+		if territories[n].owned:
+			if nearest_held < 0 or _home_distance(territories[n].site) < _home_distance(territories[nearest_held].site):
+				nearest_held = n
+		elif territories[n].boss == "" and not _is_occupied(n) and _home_distance(territories[n].site) < _home_distance(territories[at].site):
+			if step < 0 or _home_distance(territories[n].site) < _home_distance(territories[step].site):
+				step = n
+	if nearest_held >= 0:
+		if under_attack < 0:
+			under_attack = nearest_held
+			w.assaulting = territories[nearest_held].id
+			last_event += "\n%s attacks %s!" % [w.name, territories[nearest_held].full_name()]
+	elif step >= 0:
+		w.at = territories[step].id
+		if int(spread.get(w.at, 0)) < GameData.MAX_SPREAD:
+			territories[step].threat += 1
+			spread[w.at] = int(spread.get(w.at, 0)) + 1
+		last_event += "\n%s advances to %s." % [w.name, territories[step].full_name()]
+
+
+## The warlord in this fight has fallen. Its treasure goes to whoever killed it.
+func _kill_warlord(w: Dictionary, rewards: bool) -> void:
+	warlords.erase(w)
+	last_event += "\n%s is dead!" % w.name
+	if not replaying and rewards:
+		profile.trinkets.append(w.loot)
+		last_event += " Found the %s! Equip it from Pack." % GameData.trinket(w.loot).name
 
 
 ## Cut-off territories count down; at GameData.CUT_OFF_FALL turns the horde takes them back.
@@ -526,7 +627,10 @@ func horde_snapshot() -> Dictionary:
 	for t in territories:
 		if t.owned:
 			held[t.id] = true
-	return {"key": _key, "held": held, "spread": spread.duplicate(), "attack": territories[under_attack].id if under_attack >= 0 else ""}
+	var marching := {}
+	for w: Dictionary in warlords:
+		marching[w.id] = w.at
+	return {"key": _key, "held": held, "spread": spread.duplicate(), "attack": territories[under_attack].id if under_attack >= 0 else "", "warlords": marching}
 
 
 ## What the horde has done since `seen` (a horde_snapshot), whoever's move it came with, for the map
@@ -536,8 +640,24 @@ func horde_news(seen: Dictionary) -> Array:
 	if seen.get("key", "") != _key:
 		return news
 	var attack := territories[under_attack].id if under_attack >= 0 else ""
+	var seen_warlords: Dictionary = seen.get("warlords", {})
+	var marched := {}
+	for w: Dictionary in warlords:
+		var at := _index_of_id(String(w.at))
+		if at < 0:
+			continue
+		if not seen_warlords.has(w.id):
+			news.append({"kind": "warlord", "territory": w.at, "from": territories[at].site, "banner": "%s RISES!" % String(w.name).to_upper(),
+				"line": "%s, marching on your home" % w.title})
+		elif seen_warlords[w.id] != w.at:
+			marched[w.at] = true
+			var was := _index_of_id(String(seen_warlords[w.id]))
+			news.append({"kind": "spread", "territory": w.at, "from": territories[was].site if was >= 0 else territories[at].site,
+				"banner": "%s ADVANCES!" % String(w.name).to_upper(), "line": "Now at %s, threat %d" % [territories[at].name, territories[at].threat]})
 	for i in territories.size():
 		var t := territories[i]
+		if marched.has(t.id):
+			continue
 		var held_then: bool = seen.held.has(t.id)
 		if held_then and not t.owned:
 			news.append({"kind": "fell", "territory": t.id, "from": _horde_source(i), "banner": "%s HAS FALLEN!" % t.name.to_upper(),
@@ -549,9 +669,23 @@ func horde_news(seen: Dictionary) -> Array:
 		var line := "Defend it or lose it."
 		if cut_by(under_attack) > 0:
 			line = "Lose it and %d territor%s are cut off." % [cut_by(under_attack), "y" if cut_by(under_attack) == 1 else "ies"]
+		var attacker := warlord_at(under_attack)
+		var who: String = String(attacker.name).to_upper() if not attacker.is_empty() else "THE HORDE"
 		news.append({"kind": "attack", "territory": attack, "from": _horde_source(under_attack),
-			"banner": "THE HORDE ATTACKS %s!" % territories[under_attack].name.to_upper(), "line": line})
+			"banner": "%s ATTACKS %s!" % [who, territories[under_attack].name.to_upper()], "line": line})
+	var killed: Array = seen_warlords.keys().filter(func(id: String) -> bool: return not warlords.any(func(w: Dictionary) -> bool: return w.id == id))
+	for id: String in killed:
+		var site := _index_of_id(String(seen_warlords[id]))
+		if site >= 0:
+			news.push_front({"kind": "warlord_dead", "territory": seen_warlords[id], "from": territories[site].site, "banner": "A WARLORD IS DEAD!", "line": "The horde loses a champion."})
 	return news
+
+
+func _index_of_id(id: String) -> int:
+	for i in territories.size():
+		if territories[i].id == id:
+			return i
+	return -1
 
 
 ## Where the horde came at territory `i` from: its strongest unheld neighbor (a nest above all).
@@ -630,6 +764,7 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 	_act({"do": "battle", "t": territories[i].id, "won": won, "xp": xp, "raiders": raiders})
 	turn += 1
 	var t := territories[i]
+	var warlord := warlord_at(i)
 	if t.owned and i != under_attack:
 		last_event = "%s is already free: a teammate got there first." % t.full_name()
 		_end_turn()
@@ -638,6 +773,12 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 		under_attack = -1
 		if won:
 			last_event = "%s held! The horde falls back." % t.full_name()
+			if not warlord.is_empty():
+				_kill_warlord(warlord, rewards)
+		elif i in homes:
+			last_event = "The horde drove the pack back, but %s still stands." % t.full_name()
+			if not warlord.is_empty():
+				warlord.assaulting = ""
 		else:
 			t.owned = false
 			_ownership_changed()
@@ -645,6 +786,9 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 			t.threat += 1
 			spread[t.id] = int(spread.get(t.id, 0)) + 1
 			last_event = "%s was overrun (threat %d to %d). Take it back!" % [t.full_name(), t.threat - 1, t.threat]
+			if not warlord.is_empty():
+				warlord.at = t.id
+				warlord.assaulting = ""
 	elif won:
 		t.owned = true
 		_ownership_changed()
@@ -676,6 +820,11 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 				GameData.ANIMALS[t.recruit].name, where, profile.level_of(t.recruit)]
 			_liberation["rescued"] = t.recruit
 		last_event += _reveal_beyond(i)
+		if not warlord.is_empty():
+			_kill_warlord(warlord, rewards)
+			if not _liberation.is_empty():
+				_liberation.milestone = "%s is dead!" % warlord.name
+				_liberation.milestone_big = true
 	else:
 		t.failed_attacks += 1
 		last_event = "The pack retreated from %s, but thinned the horde there." % t.full_name()
@@ -717,6 +866,7 @@ func _to_cfg() -> ConfigFile:
 	for t in territories:
 		met[t.id] = t.met_level
 	cfg.set_value("campaign", "met_levels", met)
+	cfg.set_value("campaign", "warlords", warlords)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	return cfg
@@ -762,6 +912,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	spread = cfg.get_value("campaign", "spread", {})
 	for t in territories:
 		t.threat += int(spread.get(t.id, 0))
+	warlords = cfg.get_value("campaign", "warlords", [])
 	# Territories a save doesn't date (saves from before this, a new teammate's ground) start from now.
 	var met: Dictionary = cfg.get_value("campaign", "met_levels", {})
 	for t in territories:

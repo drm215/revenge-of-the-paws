@@ -53,6 +53,7 @@ var _taken := {}  # Combatant -> damage
 var _uses := {}  # Combatant -> {skill id: times}
 var _wave_rounds: Array[int] = []
 var _legends: Array[Combatant] = []
+var warlord_name := ""  # the warlord in this fight, if any
 var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged
 var rng := RandomNumberGenerator.new()
 
@@ -91,6 +92,7 @@ func configure(cfg: Dictionary) -> void:
 	xp_mult = cfg.get("xp_mult", cfg.get("zombie_mult", 1.0))
 	boss_hp_mult = cfg.get("boss_hp", 1.0)
 	boss_atk_mult = cfg.get("boss_atk", 1.0)
+	warlord_name = cfg.get("warlord", "")
 
 
 ## A legend raid: every player's pack, in the same order on every device. `packs`:
@@ -217,6 +219,8 @@ func start_next_wave() -> void:
 			z.display_name += " " + "ABCD"[seen.get(zombie_id, 0)]
 			seen[zombie_id] = seen.get(zombie_id, 0) + 1
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
+		if zombie_id == "warlord" and warlord_name != "":
+			z.display_name = warlord_name
 		if z.is_boss:
 			z.scale_stats(boss_hp_mult, boss_atk_mult, 1.0)
 			_legends.append(z)

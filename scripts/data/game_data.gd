@@ -659,6 +659,11 @@ const ZOMBIES := {
 		"hp": 60, "atk": 9, "def": 2, "spd": 4, "crit": 0.0,
 		"skills": ["slam"], "traits": {"explode_on_death": 14},
 	},
+	"warlord": {
+		"name": "Warlord", "color": Color("6a1f2a"), "xp": 60,
+		"hp": 110, "atk": 12, "def": 7, "spd": 8, "crit": 0.1,
+		"skills": ["smash", "rampage"], "traits": {},
+	},
 	"brute": {
 		"name": "Brute", "color": Color("4a5e3e"), "xp": 40,
 		"hp": 260, "atk": 22, "def": 10, "spd": 7, "crit": 0.05,
@@ -696,6 +701,7 @@ const ZOMBIE_GUIDE := {
 	"screamer": {"from": 2, "note": "Stands in the back row. Its scream can stun everyone and frenzies the other zombies (+25% attack). Kill it early."},
 	"medic": {"from": 3, "note": "Stands in the back row and raises a destroyed zombie (never a legend, never twice; no XP the second time). Kill it first."},
 	"riot": {"from": 3, "note": "Armored: takes half damage from single-target attacks. Area attacks hit it fully."},
+	"warlord": {"from": 1, "note": "A named champion from a Horde Nest, marching on your home. It's on the map: hunt it for its treasure, or meet it when it attacks."},
 	"brute": {"from": 3, "note": "A huge tank at the end of tough waves. Its Rampage winds up, then hits the whole pack."},
 }
 ## General tips at the top of the zombie guide.
@@ -706,6 +712,8 @@ const ZOMBIE_TIPS := [
 	"Enraged: past round 8 of a wave, zombies gain +10% attack every round. Don't let fights drag on.",
 	"Targets: zombies hit what they can knock out, else often your healer. Taunt pulls their single-target attacks.",
 	"Kill first: Medics, then Screamers, then anything winding up.",
+	"Counterattacks are rare but dangerous: they match your pack, and if you lose, the land falls.",
+	"Warlords march out of Horde Nests toward your home, on the map for all to see. Hunt one down for its treasure before it reaches your land.",
 	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it.",
 ]
 
@@ -716,6 +724,7 @@ const ZOMBIE_WEAK_MULT := 1.5
 const ZOMBIE_WEAKNESS := {
 	"shambler": {"tag": "canine", "why": "Dogs and wolves scatter the horde."},
 	"runner": {"tag": "feline", "why": "Cats are quicker."},
+	"warlord": {"tag": "canine", "why": "Dogs and wolves go straight for the throat."},
 	"brute": {"tag": "mountain", "why": "Mountain animals are used to big things."},
 	"screamer": {"tag": "night", "why": "Night hunters strike before it can scream."},
 	"medic": {"tag": "urban", "why": "City animals know a hospital's back doors."},
@@ -1135,7 +1144,7 @@ const DUTIES := ["scout", "forage", "guard"]
 const DUTY_INFO := {
 	"scout": "Scout: reveals every territory's zombie waves.",
 	"forage": "Forage: after each battle, may find XP for the pack (25%) or a trinket (5%).",
-	"guard": "Guard: the horde counterattacks less often (every 5 turns, not 3).",
+	"guard": "Guard: the horde counterattacks less often (every 9 turns, not 7).",
 }
 const FORAGE_XP_CHANCE := 0.25
 const FORAGE_XP := 60
@@ -1328,7 +1337,18 @@ const MAX_HELD_BONUS := 0.15
 const ATTRITION_PER_LOSS := 0.08
 const MIN_ATTRITION := 0.7
 ## The horde counterattacks one of your border territories every N map turns.
-const COUNTERATTACK_EVERY := 3
+## Counterattacks are rare and dangerous: they match the pack of the day, whatever the land's own
+## level, ASSAULT_LEVEL from the usual catch-up and at no less than ASSAULT_MIN_THREAT. Tuned so the
+## simulator's AI holds about 3 in 4.
+const COUNTERATTACK_EVERY := 7
+const ASSAULT_MIN_THREAT := 3
+const ASSAULT_LEVEL := -1
+## Warlords: named champions from the nests that march on home. One at a time from each nest.
+const WARLORD_FIRST := 10  # no warlords before this turn
+const WARLORD_EVERY := 14  # a nest with no warlord out raises a new one on these turns
+const WARLORD_MOVE := 4  # they take a step on these turns
+const WARLORD_NAMES := ["Rotjaw", "Gutripper", "Old Marrow", "Skinflint", "Bonesaw", "Mother Maggot", "Gravewalker", "Lockjaw", "Hollowface", "Ratking", "The Deacon", "Blackwater"]
+const WARLORD_TITLES := ["the Butcher of %s", "the Plague of %s", "the Horror of %s", "the Scourge of %s", "the Terror of %s", "the Hunger of %s"]
 ## Supply lines: a held territory needs a chain of held land back home. Cut off, it adds no held
 ## bonus, can't launch attacks, is defended at CUT_OFF_THREAT more threat, and falls to the horde
 ## after CUT_OFF_FALL map turns. Counterattacks go for a chokepoint CHOKEPOINT_CHANCE of the time.

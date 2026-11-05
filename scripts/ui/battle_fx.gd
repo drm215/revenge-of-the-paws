@@ -261,6 +261,12 @@ func wave_started() -> void:
 			await _legend_entrance(z)
 			_music("boss")
 			return
+		if z.id == "warlord":
+			_sound("roar")
+			_add_shake(16.0)
+			callout(z.display_name.to_upper() + "!", Retro.RED)
+			_music("boss")
+			return
 	_music("battle")
 
 

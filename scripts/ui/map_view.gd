@@ -333,9 +333,13 @@ func refresh() -> void:
 		_fills_pulse = campaign.under_attack >= 0
 		for i in campaign.territories.size():
 			_fills_pulse = _fills_pulse or campaign.is_cut_off(i)
-			_outlines_pulse = _outlines_pulse or campaign.is_nest(i) or _is_lair(i)
+			_outlines_pulse = _outlines_pulse or campaign.is_nest(i) or _is_lair(i) or _has_warlord(i)
 	for layer: Node2D in [_shapes, _pulse, _labels]:
 		layer.queue_redraw()
+
+
+func _has_warlord(i: int) -> bool:
+	return campaign._is_occupied(i)
 
 
 func _is_lair(i: int) -> bool:
@@ -451,6 +455,9 @@ func _draw_pulse() -> void:
 		if _is_lair(i):
 			_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
 	for i in campaign.territories.size():
+		if _has_warlord(i):
+			_outline(i, HORDE_FRONT.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 5.0)), 4.0)
+	for i in campaign.territories.size():
 		if pings.has(campaign.territories[i].id):
 			_outline(i, Retro.CYAN.lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0)), 5.0)
 	if selected >= 0:
@@ -492,9 +499,14 @@ func _draw_labels() -> void:
 		elif is_lair:
 			label = GameData.LEGENDS[t.boss].name
 			color = LAIR
+		var warlord := _has_warlord(i)
+		if warlord:
+			label = String(campaign.warlord_at(i).name)
+			color = Color("ff5a6e")
+			_labels.draw_texture_rect(_icon("warlord"), Rect2(c + Vector2(-24, -56), Vector2(48, 48)), false)
 		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var label_box := Rect2(c.x - text_w / 2.0, c.y + 4 - font_size, text_w, font_size * 1.3).grow(LABEL_GAP)
-		var must_show := i in campaign.homes or i == selected or is_lair
+		var must_show := i in campaign.homes or i == selected or is_lair or warlord
 		if must_show or not placed.any(func(r: Rect2) -> bool: return r.intersects(label_box)):
 			placed.append(label_box)
 			_text(font, c + Vector2(0, 4), label, font_size, color)
@@ -528,7 +540,7 @@ func _label_order() -> Array[int]:
 		var on_screen := _bboxes[i].size * _fit_scale * _zoom
 		if i in campaign.homes or i == selected:
 			rank[i] = 0
-		elif is_lair:
+		elif is_lair or _has_warlord(i):
 			rank[i] = 1
 		elif maxf(on_screen.x, on_screen.y) < MIN_LABEL_PX:
 			continue

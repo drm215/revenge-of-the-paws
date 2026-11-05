@@ -94,7 +94,7 @@ func _init() -> void:
 	_check(pb.party[1].has_status("infected"), "the bobcat was infected")
 
 	# Details screen counters.
-	_check(GameData.counters("gray_wolf") == PackedStringArray(["Shambler", "Brute", "Screamer"]), "wolf counters: %s" % [GameData.counters("gray_wolf")])
+	_check(GameData.counters("gray_wolf") == PackedStringArray(["Shambler", "Warlord", "Brute", "Screamer"]), "wolf counters: %s" % [GameData.counters("gray_wolf")])
 	print("     " + GameData.weak_text("riot"))
 	print("%d failure(s)" % _fails)
 	quit()

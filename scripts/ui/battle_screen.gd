@@ -263,6 +263,8 @@ func _show_outcome() -> void:
 ## What the legend just beaten drops for this player: raiders always get its trinket; alone, it's
 ## only there the first time ("" otherwise, or if there's no legend here).
 func _legend_drop() -> String:
+	if String(config.get("warlord_loot", "")) != "":
+		return String(config.warlord_loot)
 	var legend := String(config.get("legend", ""))
 	if legend == "" or not GameData.LEGENDS.has(legend):
 		return ""

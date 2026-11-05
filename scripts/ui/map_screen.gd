@@ -95,13 +95,13 @@ func _play_horde(news: Dictionary) -> void:
 		return
 	var sound := get_node_or_null("/root/Sound")
 	if sound:
-		sound.play("alarm" if news.kind == "attack" else "horde")
+		sound.play({"attack": "alarm", "warlord": "roar", "warlord_dead": "loot"}.get(news.kind, "horde"))
 	_map.pan_to(at, 0.4)
 	if news.kind == "attack":
 		_select(at)
 	await get_tree().create_timer(0.4).timeout
 	_map.play_horde(at, news.from, news.kind)
-	var color := Retro.RED if news.kind != "spread" else Retro.ORANGE
+	var color: Color = {"spread": Retro.ORANGE, "warlord_dead": Retro.GOLD}.get(news.kind, Retro.RED)
 	var lines: Array[Label] = [_map_banner(String(news.banner), 22, color, 0.06), _map_banner(String(news.line), 14, Retro.WHITE, 0.2)]
 	await get_tree().create_timer(HORDE_MOMENT_SEC).timeout
 	_fade_banners(lines)
@@ -198,6 +198,10 @@ func _select(i: int) -> void:
 			(" · zombies +%d%%" % tougher) if tougher > 0 else ""]
 		if t.failed_attacks > 0:
 			_info_body.text += " · horde thinned to %d%%" % roundi(t.horde_strength() * 100)
+		var warlord := campaign.warlord_at(i)
+		if not warlord.is_empty():
+			_info_title.text = String(warlord.name)
+			_info_body.text = "WARLORD: %s, %s. Win here to kill it and take its %s.\n%s" % [warlord.name, warlord.title, GameData.trinket(warlord.loot).name, _info_body.text]
 		if t.boss != "":
 			_info_body.text += "\nA raid boss: it matches your pack. At %d%% HP it calls for help, at %d%% it enrages, and it winds up Cataclysm (stun it to cancel, Guard to halve)." % [
 				roundi(GameData.LEGEND_ADDS_AT * 100), roundi(GameData.LEGEND_ENRAGE_AT * 100)]
@@ -538,6 +542,12 @@ func _build_ui() -> void:
 			names.append(GameData.LEGENDS[t.boss].name)
 	if not names.is_empty():
 		lines.append("Lairs in sight: " + ", ".join(names))
+	var marching: PackedStringArray = []
+	for w: Dictionary in campaign.warlords:
+		if _index_of(String(w.at)) >= 0:
+			marching.append("%s at %s" % [w.name, campaign.territories[_index_of(String(w.at))].name])
+	if not marching.is_empty():
+		lines.append(("Warlord: " if marching.size() == 1 else "Warlords: ") + ", ".join(marching))
 	var rumors: PackedStringArray = []
 	for r in campaign.rumors():
 		rumors.append("%s %d mi %s" % [GameData.LEGENDS[r.id].name, roundi(r.km * 0.621371), r.direction])
