@@ -11,6 +11,8 @@ signal territory_selected(index: int)
 const OWNED := Retro.FOREST
 const HOME := Retro.GREEN
 const ATTACKABLE := Color("9a4a2a")
+const ATTACKABLE_EASY := Color("eeaa44")  # the lowest level you can attack right now
+const ATTACKABLE_HARD := Color("6e2412")  # the highest
 const INFESTED := Color("4f3446")
 const INFESTED_DEEP := Color("2c1f2e")
 const UNDER_ATTACK := Retro.RED
@@ -61,6 +63,7 @@ var _pulse_wait := 0.0
 var _fills_pulse := false  # a counterattack or cut-off land glows
 var _outlines_pulse := false  # lairs, pings or nests glow
 var _loading := Label.new()  # shown while this map's outlines are being fetched
+var _shades := {}  # territory index -> its fill, for those that can be attacked
 var _wave_at := -1  # the territory being liberated on screen right now
 var _wave_time := 0.0
 var _wave_from := Vector2.ZERO
@@ -330,12 +333,28 @@ func refresh() -> void:
 	_fills_pulse = false
 	_outlines_pulse = not pings.is_empty()
 	if campaign:
+		_update_shades()
 		_fills_pulse = campaign.under_attack >= 0
 		for i in campaign.territories.size():
 			_fills_pulse = _fills_pulse or campaign.is_cut_off(i)
 			_outlines_pulse = _outlines_pulse or campaign.is_nest(i) or _is_lair(i) or _has_warlord(i)
 	for layer: Node2D in [_shapes, _pulse, _labels]:
 		layer.queue_redraw()
+
+
+## Land you can attack shades from pale (the lowest level in reach) to dark (the highest).
+func _update_shades() -> void:
+	_shades.clear()
+	var levels := {}
+	var low := 1 << 30
+	var high := 0
+	for i in campaign.territories.size():
+		if campaign.can_attack(i):
+			levels[i] = campaign.territory_level(i)
+			low = mini(low, levels[i])
+			high = maxi(high, levels[i])
+	for i: int in levels:
+		_shades[i] = ATTACKABLE_EASY.lerp(ATTACKABLE_HARD, float(levels[i] - low) / (high - low)) if high > low else ATTACKABLE
 
 
 func _has_warlord(i: int) -> bool:
@@ -585,7 +604,7 @@ func _fill(i: int) -> Color:
 			return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
 		return HOME if i in campaign.homes else OWNED
 	if campaign.can_attack(i):
-		return ATTACKABLE
+		return _shades.get(i, ATTACKABLE)
 	return INFESTED.lerp(INFESTED_DEEP, float(t.threat) / GameData.MAX_THREAT)
 
 

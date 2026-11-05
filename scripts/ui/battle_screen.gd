@@ -254,10 +254,19 @@ func _show_outcome() -> void:
 					_start_wave()
 		Battle.Outcome.VICTORY:
 			_log_battle()
-			_show_overlay("Liberated!", "%s is free of the dead.\n\n%s" % [battle.place, _award_xp(true)], "Back to map", finished.emit.bind(true))
+			_show_overlay("Liberated!", "%s is free of the dead.\n\n%s%s" % [battle.place, _award_xp(true), _siege_line()], "Back to map", finished.emit.bind(true))
 		Battle.Outcome.DEFEAT:
 			_log_battle()
-			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s" % _award_xp(false), "Back to map", finished.emit.bind(false))
+			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s%s" % [_award_xp(false), _siege_line()], "Back to map", finished.emit.bind(false))
+
+
+## What this fight did to the week's siege, for the results.
+func _siege_line() -> String:
+	var points: int = battle.kills * int(config.get("threat", 1))
+	var cloud := get_node_or_null("/root/Cloud")
+	if points <= 0 or cloud == null or not cloud.enabled():
+		return ""
+	return "\n+%d damage to %s" % [points, GameData.siege_info(GameData.siege_week(Time.get_unix_time_from_system())).name]
 
 
 ## What the legend just beaten drops for this player: raiders always get its trinket; alone, it's

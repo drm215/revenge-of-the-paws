@@ -25,6 +25,7 @@ var profile: Profile
 var liberation := {}  # Campaign.take_liberation(): the moment to play as this screen opens
 var horde_news: Array = []  # Campaign.horde_news(): the horde's moves to play after it
 var celebrating := false
+var _siege_button := Button.new()
 
 var _map := MapView.new()
 var _status := Label.new()
@@ -102,7 +103,8 @@ func _play_horde(news: Dictionary) -> void:
 	await get_tree().create_timer(0.4).timeout
 	_map.play_horde(at, news.from, news.kind)
 	var color: Color = {"spread": Retro.ORANGE, "warlord_dead": Retro.GOLD}.get(news.kind, Retro.RED)
-	var lines: Array[Label] = [_map_banner(String(news.banner), 22, color, 0.06), _map_banner(String(news.line), 14, Retro.WHITE, 0.2)]
+	var top := _map_banner(String(news.banner), 22, color, 0.06)
+	var lines: Array[Label] = [top, _map_banner(String(news.line), 14, Retro.WHITE, 0.2, top)]
 	await get_tree().create_timer(HORDE_MOMENT_SEC).timeout
 	_fade_banners(lines)
 
@@ -129,13 +131,37 @@ func _play_liberation() -> void:
 	var banner := _map_banner(String(liberation.banner), 24, Retro.GREEN, 0.06)
 	var lines: Array[Label] = [banner]
 	if String(liberation.milestone) != "":
-		lines.append(_map_banner(String(liberation.milestone), 18 if liberation.milestone_big else 14, Retro.YELLOW if liberation.milestone_big else Retro.WHITE, 0.2))
+		lines.append(_map_banner(String(liberation.milestone), 18 if liberation.milestone_big else 14, Retro.YELLOW if liberation.milestone_big else Retro.WHITE, 0.2, banner))
 	await get_tree().create_timer(MapView.LIBERATION_SEC).timeout
 	_fade_banners(lines)
 
 
-## Big text across the map that a tap passes straight through.
-func _map_banner(text: String, font_size: int, color: Color, y_share: float) -> Label:
+## The Siege button shows how many stage rewards are waiting.
+func set_siege_rewards(count: int) -> void:
+	_siege_button.text = "Siege (%d)" % count if count > 0 else "Siege"
+	if count > 0:
+		_siege_button.add_theme_color_override("font_color", Retro.YELLOW)
+
+
+## A stage of the week's siege has broken: once anything else has played, it's said across the map.
+func announce_siege(banner: String, line: String) -> void:
+	while celebrating:
+		await get_tree().process_frame
+	celebrating = true
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		sound.play("victory", 0.0, -3.0)
+	var top := _map_banner(banner, 22, Retro.GOLD, 0.06)
+	var lines: Array[Label] = [top, _map_banner(line, 14, Retro.WHITE, 0.2, top)]
+	await get_tree().create_timer(HORDE_MOMENT_SEC + 0.8).timeout
+	_fade_banners(lines)
+	celebrating = false
+	liberation_done.emit()
+
+
+## Big text across the map that a tap passes straight through, at `y_share` of the map's height or,
+## if it would overlap, just below `under` (the banner above it, which may have wrapped).
+func _map_banner(text: String, font_size: int, color: Color, y_share: float, under: Label = null) -> Label:
 	var label := Retro.title(Label.new(), font_size, color)
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -152,6 +178,8 @@ func _map_banner(text: String, font_size: int, color: Color, y_share: float) -> 
 	label.custom_minimum_size.x = _map.size.x - 16  # before it's added, or it measures its height for no width
 	_map.add_child(label)
 	label.position = Vector2(8, _map.size.y * y_share)
+	if under:
+		label.position.y = maxf(label.position.y, under.position.y + under.get_combined_minimum_size().y + 4.0)
 	label.pivot_offset = Vector2(_map.size.x / 2.0 - 8.0, 24)
 	label.scale = Vector2.ONE * 2.2
 	label.create_tween().tween_property(label, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -591,7 +619,7 @@ func _build_ui() -> void:
 	col.add_child(_map)
 
 	var legend := Label.new()
-	legend.text = "Green: yours · Orange: can attack · Purple: legend lair · Red blocks: threat · Drag/pinch to move & zoom"
+	legend.text = "Green: yours · Orange: attack, darker is tougher · Purple: lair · Red blocks: threat · Drag/pinch to zoom"
 	Retro.text(legend, 17, Retro.FOG)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	legend.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -665,11 +693,10 @@ func _build_ui() -> void:
 	stable_button.add_theme_font_size_override("font_size", Retro.px(16))
 	stable_button.pressed.connect(stable_requested.emit)
 	footer.add_child(stable_button)
-	var siege_button := Button.new()
-	siege_button.text = "Siege"
-	siege_button.add_theme_font_size_override("font_size", Retro.px(16))
-	siege_button.pressed.connect(siege_requested.emit)
-	footer.add_child(siege_button)
+	_siege_button.text = "Siege"
+	_siege_button.add_theme_font_size_override("font_size", Retro.px(16))
+	_siege_button.pressed.connect(siege_requested.emit)
+	footer.add_child(_siege_button)
 	if campaign.is_team():
 		_chat_button = Button.new()
 		_chat_button.text = "Chat"

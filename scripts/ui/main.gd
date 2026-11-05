@@ -122,6 +122,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		_profile.save()
 		_show_map(_profile))
 	_swap(screen)
+	_check_siege(screen)
 	if allow_auto and profile.auto_battle and GameData.AUTO_MODE_ENABLED:
 		_queue_auto(screen)
 
@@ -345,6 +346,28 @@ func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := fal
 		else:
 			_show_map(_profile))
 	_swap(screen)
+
+
+## How the week's siege stands, for the map: rewards waiting on its button, and a banner when a stage
+## has broken since this pack last looked (their damage or anyone else's).
+func _check_siege(screen: MapScreen) -> void:
+	var cloud := get_node_or_null("/root/Cloud")
+	if cloud == null or not cloud.enabled() or not cloud.signed_in():
+		return
+	var week := GameData.siege_week(Time.get_unix_time_from_system())
+	var board: Dictionary = await cloud.siege_board(week)
+	if board.is_empty() or not is_instance_valid(screen) or not screen.is_inside_tree() or _profile == null:
+		return
+	var players := int(board.players)
+	var broken := GameData.siege_stage(int(board.total), players)
+	if int(board.mine) > 0:
+		screen.set_siege_rewards(maxi(0, broken - _profile.siege_claimed_stages(week)))
+	if broken > int(_profile.siege_seen.get(week, 0)):
+		_profile.siege_seen[week] = broken
+		_profile.save()
+		var stage: Dictionary = GameData.SIEGE_STAGES[broken - 1]
+		var siege_name := String(GameData.siege_info(week).name)
+		screen.announce_siege("%s: %s!" % [siege_name.to_upper(), String(stage.name).to_upper()], GameData.siege_reward_text(broken - 1) + ". Claim it from Siege.")
 
 
 ## Every zombie destroyed hits the weekly siege for the territory's threat.

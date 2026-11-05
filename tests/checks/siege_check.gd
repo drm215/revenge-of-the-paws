@@ -49,7 +49,7 @@ func _run() -> void:
 	_check(cloud.siege_pending(week) == 0, "logging in sent the waiting damage")
 	var board: Dictionary = await cloud.siege_board(week)
 	_check(int(board.total) == 6 and int(board.mine) == 6 and int(board.players) == 1, "board: %s" % board)
-	_check(GameData.siege_hp(1) == 450, "one pack: 450 HP")
+	_check(GameData.siege_goal(0, 1) == 500 and GameData.siege_goal(3, 2) == 20000, "stages scale with the packs in it")
 
 	var screen := SiegeScreen.new()
 	screen.profile = p
@@ -58,10 +58,11 @@ func _run() -> void:
 	await create_timer(1.0).timeout
 	screen.queue_free()
 
-	# Another pack finishes it off.
-	var ok: Variant = await _post_others([{"week": week, "user": "u2", "name": "Biscuit · Gulf Coast", "points": 800}])
+	# Another pack breaks the first stage.
+	var ok: Variant = await _post_others([{"week": week, "user": "u2", "name": "Biscuit · Gulf Coast", "points": 1200}])
 	board = await cloud.siege_board(week)
-	_check(int(board.total) >= GameData.siege_hp(int(board.players)), "with a second pack the horde falls (%d / %d)" % [int(board.total), GameData.siege_hp(int(board.players))])
+	var broken := GameData.siege_stage(int(board.total), int(board.players))
+	_check(broken == 1, "with a second pack the first stage breaks (%d of %d)" % [int(board.total), GameData.siege_goal(0, int(board.players))])
 	screen = SiegeScreen.new()
 	screen.profile = p
 	screen.size = Vector2(720, 1280)
@@ -70,13 +71,13 @@ func _run() -> void:
 	var buttons: Array[String] = []
 	for btn in screen.find_children("*", "Button", true, false):
 		buttons.append(btn.text)
-	_check("Claim this week's reward" in buttons, "claim button: %s" % [buttons])
+	_check("Claim this week's reward (1)" in buttons, "claim button: %s" % [buttons])
 	var trinkets := p.trinkets.size()
 	var bear_xp: int = p.xp.get("black_bear", 0)
-	var got := p.claim_siege(week)
+	var got := p.claim_siege(week, broken)
 	_check(got != "" and p.trinkets.size() == trinkets + 1 and int(p.xp.get("black_bear", 0)) > bear_xp, "reward: trinket and XP\n" + got)
-	_check(p.claim_siege(week) == "", "can't claim twice")
-	_check(week in Profile.load_saved().siege_claimed, "claim is saved")
+	_check(p.claim_siege(week, broken) == "", "can't claim twice")
+	_check(Profile.load_saved().siege_claimed_stages(week) == 1, "claim is saved")
 	print("%d failure(s)" % _fails)
 	quit()
 

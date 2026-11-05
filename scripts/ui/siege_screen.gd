@@ -1,8 +1,8 @@
 class_name SiegeScreen
 extends Control
 
-## The weekly siege (GameData.SIEGES): this week's horde, how much of it is left, the top packs,
-## and the reward once it falls. Last week's reward stays claimable for a week.
+## The weekly siege (GameData.SIEGES): this week's horde, its stages and their rewards, and the top
+## packs. Last week's rewards stay claimable for a week.
 
 signal closed
 
@@ -81,24 +81,33 @@ func _build() -> void:
 	elif board.is_empty():
 		_label("Can't reach the siege right now. Your pack's damage is kept and sent later.", 20, Retro.ORANGE)
 	else:
-		var hp := GameData.siege_hp(int(board.players))
 		var total := int(board.total)
+		var players := int(board.players)
+		var broken := GameData.siege_stage(total, players)
+		var last := GameData.SIEGE_STAGES.size() - 1
+		var goal := GameData.siege_goal(mini(broken, last), players)
+		var floor_at := GameData.siege_goal(broken - 1, players) if broken > 0 else 0
 		var bar := ProgressBar.new()
-		bar.max_value = hp
-		bar.value = maxi(0, hp - total)
+		bar.max_value = maxi(1, goal - floor_at)
+		bar.value = clampi(total - floor_at, 0, goal - floor_at)
 		bar.show_percentage = false
 		bar.custom_minimum_size = Vector2(0, 34)
 		bar.add_theme_stylebox_override("fill", Retro.box(Retro.RED, Retro.RED, 0, 0, 0))
 		bar.add_theme_stylebox_override("background", Retro.box(Retro.NIGHT, Retro.SLATE, 2, 0, 0))
 		_content.add_child(bar)
-		if total >= hp:
-			_label("THE HORDE HAS FALLEN!", 14, Retro.GREEN, true)
+		if broken > last:
+			_label("ANNIHILATED! %d damage" % total, 14, Retro.GOLD, true)
 		else:
-			_label("Horde HP %d / %d" % [hp - total, hp], 22, Retro.WHITE)
+			_label("%d / %d to %s" % [total, goal, String(GameData.SIEGE_STAGES[broken].name).to_upper()], 22, Retro.WHITE)
+		for k in GameData.SIEGE_STAGES.size():
+			var stage: Dictionary = GameData.SIEGE_STAGES[k]
+			var done := k < broken
+			_label("%s %s, %d: %s" % ["DONE:" if done else "NEXT:" if k == broken else "Later:", stage.name, GameData.siege_goal(k, players), GameData.siege_reward_text(k)],
+				19, Retro.GREEN if done else Retro.WHITE if k == broken else Retro.FOG)
 		var waiting: int = cloud.siege_pending(_week)
 		_label("%d pack%s fighting · your pack: %d damage%s" % [int(board.players), "" if int(board.players) == 1 else "s",
 			int(board.mine), (" (+%d sending)" % waiting) if waiting > 0 else ""], 20, Retro.CYAN)
-	_label("Every zombie your pack destroys hits the horde for the territory's threat (1 to 5), in battles and patrols. More packs, more HP. When it falls, everyone who helped claims a trinket and half a level of XP.", 19, Retro.FOG)
+	_label("Every zombie your pack destroys hits the horde for the territory's threat, in battles and patrols. More packs make it tougher. Everyone who helped claims the rewards of every stage it breaks.", 19, Retro.FOG)
 	if cloud and cloud.enabled() and not cloud.signed_in():
 		_label("Log in from Cloud on the map to join. Damage your pack deals now is kept and counts once you log in this week.", 20, Retro.YELLOW)
 
@@ -116,23 +125,27 @@ func _build() -> void:
 			_label("%d. %s  %d" % [i + 1, row.name, int(row.points)], 20, Retro.YELLOW if row.name == mine else Retro.MIST)
 
 
-## Claim button (or status) for a week whose horde has fallen.
+## Claim button (or status) for a week with stages broken.
 func _reward_row(week: int) -> void:
 	var board: Dictionary = _boards.get(week, {})
-	if board.is_empty() or int(board.total) < GameData.siege_hp(int(board.players)):
+	if board.is_empty():
+		return
+	var broken := GameData.siege_stage(int(board.total), int(board.players))
+	if broken == 0:
 		return
 	var which := "this week's" if week == _week else "last week's"
-	if week in profile.siege_claimed:
-		_label("Reward for %s horde claimed." % which, 19, Retro.FOG)
+	var unclaimed := broken - profile.siege_claimed_stages(week)
+	if unclaimed <= 0:
+		_label("Rewards for %s stages broken so far: claimed." % which, 19, Retro.FOG)
 	elif int(board.mine) <= 0:
 		if week == _week:
-			_label("It fell without your pack. Join in next week!", 19, Retro.FOG)
+			_label("It broke without your pack. Destroy a zombie this week to share the rewards!", 19, Retro.FOG)
 	else:
 		var b := Button.new()
-		b.text = "Claim %s reward" % which
+		b.text = "Claim %s reward%s (%d)" % [which, "" if unclaimed == 1 else "s", unclaimed]
 		b.custom_minimum_size = Vector2(0, 80)
 		b.pressed.connect(func() -> void:
-			_message = profile.claim_siege(week)
+			_message = profile.claim_siege(week, broken)
 			_build())
 		_content.add_child(b)
 

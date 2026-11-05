@@ -187,11 +187,13 @@ The apocalypse starts **where you actually live**.
   Only the game being played restarts when its copy downloads.
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
-  patrols, hits it for the territory's threat (1–5). HP is 150 + 300 per pack taking part. When the
-  week's damage reaches it, everyone who helped claims a cache trinket and half a level of XP for
-  each pack animal (last week's stays claimable for a week). Damage queues on the device (also
-  while logged out) and is sent with the cloud sync; the leaderboard shows the pet and region,
-  never the town. Server side: `server/siege.sql`.
+  patrols, hits it for the territory's threat. It breaks in stages (`GameData.SIEGE_STAGES`: 500,
+  2000, 5000 and 10000 damage per pack taking part), each with a reward for everyone who helped: XP
+  and trinkets, the last one legendary. A fight's results show its damage, and the map announces a
+  stage breaking and shows rewards waiting on the Siege button (last week's stay claimable for a
+  week). Damage queues on the device (also while logged out) and is sent with the cloud sync, at
+  most 5000 an hour per player; the leaderboard shows the pet and region, never the town. Server
+  side: `server/siege.sql`.
 - **Sync**: every save goes to the cloud at once (`Cloud.SYNC_DELAY` only gathers one action's
   saves), and a save made while a sync is running goes up right after it.
 - **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
@@ -361,6 +363,7 @@ versions of your recruits; a story beat).
   washes over land it spreads into or takes, and a siren and red flash mark a counterattack.
 
 ## Mobile UX
+- Land you can attack is shaded by level, pale for the lowest in reach and dark for the highest.
 - Portrait 9:16 (720×1280 base, stretches to taller phones).
 - Tap a skill, then tap a highlighted unit. Strong skill = longer, juicier animation.
 - Battle log for clarity; floating damage numbers; turn-order strip.

@@ -102,6 +102,35 @@ func _run() -> void:
 	_c.under_attack = -1
 	_view.refresh()
 
+	# Land in reach shades by level: pale is easiest, dark is toughest.
+	var reach: Array[int] = []
+	for k in _c.territories.size():
+		if _c.can_attack(k):
+			reach.append(k)
+	_c.territories[reach[0]].met_level = 1
+	_c.territories[reach[0]].threat = 1
+	_c.territories[reach[1]].met_level = 1
+	_c.territories[reach[1]].threat = 5
+	_view.refresh()
+	_check(_view._fill(reach[0]) != _view._fill(reach[1]), "different levels look different")
+	var luminance := func(k: int) -> float: return _view._fill(k).get_luminance()
+	var lowest := reach[0]
+	var highest := reach[0]
+	for k in reach:
+		if _c.territory_level(k) < _c.territory_level(lowest):
+			lowest = k
+		if _c.territory_level(k) > _c.territory_level(highest):
+			highest = k
+	_check(_view._fill(lowest) == MapView.ATTACKABLE_EASY, "the lowest level in reach is the palest")
+	_check(_view._fill(highest).is_equal_approx(MapView.ATTACKABLE_HARD), "the highest is the darkest")
+	_check(luminance.call(lowest) > luminance.call(highest), "and darker really is darker")
+	for k in reach:
+		_c.territories[k].threat = 2
+		_c.territories[k].met_level = 1
+		_c.territories[k].failed_attacks = 0
+	_view.refresh()
+	_check(reach.all(func(k: int) -> bool: return _view._fill(k) == MapView.ATTACKABLE), "all the same level: the usual orange")
+
 	# Tapping still finds the territory under the finger, at any zoom.
 	var picked := [-1]
 	_view.territory_selected.connect(func(i: int) -> void: picked[0] = i)

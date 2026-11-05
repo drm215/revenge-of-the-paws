@@ -1641,10 +1641,16 @@ static func default_row(role: String) -> String:
 ## Weekly siege (server/siege.sql): one giant horde shared by every signed-in player. Each zombie
 ## a pack destroys hits it for the territory's threat. Its HP grows with the packs taking part;
 ## when the week's damage reaches it, everyone who helped claims a trinket and XP.
-const SIEGE_HP_BASE := 150
-const SIEGE_HP_PER_PLAYER := 300
+## The week's horde breaks in stages, each worth a reward. Damage needed is per pack taking part, so
+## the stages stay a stretch however many join. `xp`: share of a level for each animal in the pack;
+## `trinket`: "cache", "legendary" (a random legend's drop) or none.
+const SIEGE_STAGES := [
+	{"name": "Breached", "per_pack": 500, "xp": 0.5, "trinket": "cache"},
+	{"name": "Broken", "per_pack": 2000, "xp": 0.5, "trinket": ""},
+	{"name": "Routed", "per_pack": 5000, "xp": 1.0, "trinket": "cache"},
+	{"name": "Annihilated", "per_pack": 10000, "xp": 1.0, "trinket": "legendary"},
+]
 const SIEGE_EPOCH := 345600  # Monday 1970-01-05 00:00 UTC: siege weeks start Mondays
-const SIEGE_REWARD_XP := 0.5  # share of a level each animal in the pack gains
 const SIEGES := [
 	{"name": "The Interstate Horde", "lore": "Ten miles of stalled traffic, and every car emptied out at once."},
 	{"name": "The Mall Swarm", "lore": "The food court never closed. Neither did the doors."},
@@ -1663,8 +1669,30 @@ static func siege_info(week: int) -> Dictionary:
 	return SIEGES[posmod(week, SIEGES.size())]
 
 
-static func siege_hp(players: int) -> int:
-	return SIEGE_HP_BASE + SIEGE_HP_PER_PLAYER * maxi(1, players)
+## The damage that breaks stage `k` (from 0) with `players` packs taking part.
+static func siege_goal(k: int, players: int) -> int:
+	return SIEGE_STAGES[k].per_pack * maxi(1, players)
+
+
+## How many stages `total` damage has broken.
+static func siege_stage(total: int, players: int) -> int:
+	var broken := 0
+	for k in SIEGE_STAGES.size():
+		if total >= siege_goal(k, players):
+			broken = k + 1
+	return broken
+
+
+## What a stage gives, for people: "A trinket, half a level for the pack".
+static func siege_reward_text(k: int) -> String:
+	var stage: Dictionary = SIEGE_STAGES[k]
+	var xp := "half a level" if stage.xp < 1.0 else "a level"
+	match stage.trinket:
+		"cache":
+			return "A trinket and %s for the pack" % xp
+		"legendary":
+			return "A LEGENDARY trinket and %s for the pack" % xp
+	return "%s for the pack" % (xp[0].to_upper() + xp.substr(1))
 
 
 ## Seconds until the siege of `week` ends.

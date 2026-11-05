@@ -42,7 +42,9 @@ var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
 var rows := {}  # unit id -> "front" / "back", where it differs from its role's default
 var fixes: Array[String] = []  # one-off save fixes already applied
 var auto_battle := false  # auto mode: fight territories far below the leader without asking
-var siege_claimed: Array[int] = []  # weekly sieges whose reward was claimed
+var siege_claimed: Array[int] = []  # weeks claimed before sieges had stages: the first stage's reward
+var siege_rewards := {}  # siege week -> how many of its stages have been claimed
+var siege_seen := {}  # siege week -> how many of its stages the map has announced
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
 var raids_claimed: Array[String] = []  # legend raids whose rewards this player has collected
 var team_id := ""  # the team this game is played with ("" = solo); see Team
@@ -469,6 +471,8 @@ func save() -> void:
 	cfg.set_value("profile", "auto_battle", auto_battle)
 	cfg.set_value("profile", "fixes", Array(fixes))
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
+	cfg.set_value("profile", "siege_rewards", siege_rewards)
+	cfg.set_value("profile", "siege_seen", siege_seen)
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
 	cfg.set_value("profile", "team_id", team_id)
@@ -505,6 +509,8 @@ static func load_saved() -> Profile:
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
 	p.fixes.assign(cfg.get_value("profile", "fixes", []))
 	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
+	p.siege_rewards = cfg.get_value("profile", "siege_rewards", {})
+	p.siege_seen = cfg.get_value("profile", "siege_seen", {})
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
 	p.team_id = cfg.get_value("profile", "team_id", "")
@@ -520,20 +526,36 @@ static func load_saved() -> Profile:
 	return p
 
 
-## The siege reward for helping bring down `week`'s horde: a cache trinket and half a level of XP
-## for everyone in the pack. Returns what was gained, or "" if already claimed.
-func claim_siege(week: int) -> String:
-	if week in siege_claimed:
+## How many of `week`'s siege stages this pack has claimed.
+func siege_claimed_stages(week: int) -> int:
+	return maxi(int(siege_rewards.get(week, 0)), 1 if week in siege_claimed else 0)
+
+
+## Claims the rewards of `week`'s siege stages up to `broken` (how many have fallen). Returns what was
+## gained, or "" if there's nothing new.
+func claim_siege(week: int, broken: int) -> String:
+	var from := siege_claimed_stages(week)
+	if broken <= from:
 		return ""
-	siege_claimed.append(week)
-	var found: String = GameData.CACHE_TRINKETS.pick_random()
-	trinkets.append(found)
-	var lines: PackedStringArray = ["Found the %s! Equip it from Pack." % GameData.trinket(found).name]
+	siege_rewards[week] = broken
+	var lines: PackedStringArray = []
+	var xp_share := 0.0
+	for k in range(from, broken):
+		var stage: Dictionary = GameData.SIEGE_STAGES[k]
+		xp_share += float(stage.xp)
+		var found := ""
+		if stage.trinket == "cache":
+			found = GameData.CACHE_TRINKETS.pick_random()
+		elif stage.trinket == "legendary":
+			found = GameData.LEGENDS[GameData.LEGENDS.keys().pick_random()].drop
+		if found != "":
+			trinkets.append(found)
+			lines.append("%s: found the %s! Equip it from Pack." % [stage.name, GameData.trinket(found).name])
 	for id in active():
 		var level_cost := GameData.xp_to_reach(level_of(id) + 1) - GameData.xp_to_reach(level_of(id))
-		if add_xp(id, roundi(level_cost * GameData.SIEGE_REWARD_XP)) > 0:
+		if add_xp(id, roundi(level_cost * xp_share)) > 0:
 			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
-	lines.append("The pack gains half a level of XP.")
+	lines.append("The pack gains %s level%s of XP." % [str(xp_share), "" if xp_share <= 1.0 else "s"])
 	save()
 	return "\n".join(lines)
 

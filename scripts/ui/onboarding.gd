@@ -39,6 +39,8 @@ func _ready() -> void:
 		_profile.pet_species = initial.pet_species
 		_profile.pet_name = initial.pet_name
 		_profile.siege_claimed = initial.siege_claimed.duplicate()
+		_profile.siege_rewards = initial.siege_rewards.duplicate()
+		_profile.siege_seen = initial.siege_seen.duplicate()
 		_profile.team_xp = initial.team_xp.duplicate()
 		_profile.fixes = initial.fixes.duplicate()
 		_pet_decided = true
