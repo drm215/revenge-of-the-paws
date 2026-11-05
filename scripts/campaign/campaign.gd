@@ -365,6 +365,7 @@ func battle_config(i: int) -> Dictionary:
 		last.push_front("warlord")
 	return {
 		"waves": waves,
+		"assault": i == under_attack,
 		"warlord": String(warlord.get("name", "")),
 		"warlord_loot": String(warlord.get("loot", "")),
 		"threat": threat,

@@ -268,6 +268,16 @@ func _run() -> void:
 	_check(battle.cards[battle.battle.enemies[0]]._sprite.texture.resource_path.ends_with("warlord.png"), "and its own sprite")
 	for z in battle.battle.enemies:
 		z.hp = 0
+	var cloud: Node = root.get_node("Cloud")
+	battle._log_battle()
+	_check(String(cloud._battle_logs[-1].get("warlord", "")) == "Rotjaw", "the battle log names the warlord")
+	var defended := _fresh(_profile(5))
+	var held := _unheld_neighbor(defended)
+	defended.resolve_battle(held, true, 0, [], false)
+	defended.under_attack = held
+	_check(defended.battle_config(held).assault == true, "an assault is marked for the log")
+	defended.under_attack = -1
+	_check(defended.battle_config(held).assault == false, "other fights aren't")
 	battle._show_outcome()
 	await _real_wait(1100)
 	_check(GameData.trinket("lucky_bottle_cap").name in _labels(battle), "beating it opens the chest")

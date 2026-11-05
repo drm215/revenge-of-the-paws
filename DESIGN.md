@@ -195,7 +195,7 @@ The apocalypse starts **where you actually live**.
 - **Sync**: every save goes to the cloud at once (`Cloud.SYNC_DELAY` only gathers one action's
   saves), and a save made while a sync is running goes up right after it.
 - **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
-  setup, each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
+  setup (including whether it was an assault or had a warlord), each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
   legend's stats and HP left, rounds per wave) with the cloud sync, queued while offline (newest
   30). Raids log once. Reports carry no names; `tools/battle_report.py` reads them back.
   Server side: `server/battle_logs.sql`, which also limits them (120 an hour and the newest 500 per

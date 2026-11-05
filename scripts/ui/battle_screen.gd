@@ -389,7 +389,7 @@ func _finish_raid() -> void:
 ## device that recorded the result.
 func _log_battle(players := 1) -> void:
 	var report := battle.report()
-	for key in ["legend", "threat", "region", "party_mult", "territory"]:
+	for key in ["legend", "assault", "warlord", "threat", "region", "party_mult", "territory"]:
 		if config.has(key):
 			report[key] = config[key]
 	report.merge({"players": players, "raid": raid, "auto": was_auto, "patrol": not config.has("territory")})

@@ -45,9 +45,14 @@ def main() -> None:
         return
     for row in rows:
         r = row["report"]
-        print("%s  %-8s %-18s players %d  threat %s  mult %.2f  rounds %s%s" % (
+        tags = ["ASSAULT"] if r.get("assault") else []
+        if r.get("warlord"):
+            tags.append("WARLORD " + r["warlord"])
+        if r.get("auto"):
+            tags.append("AUTO")
+        print("%s  %-8s %-18s players %d  threat %s  mult %.2f  rounds %s  %s" % (
             row["created_at"][:16], r["outcome"], row["legend"] or r.get("territory", "patrol"),
-            row["players"], r.get("threat", "?"), r["zombie_mult"], r["rounds"], "  AUTO" if r.get("auto") else ""))
+            row["players"], r.get("threat", "?"), r["zombie_mult"], r["rounds"], " ".join(tags)))
         for u in r["pack"]:
             print("    " + unit(u))
         for z in r["legends"]:
