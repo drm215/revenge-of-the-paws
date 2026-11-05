@@ -202,6 +202,8 @@ const SKILLS := {
 	"lake_bite": {"base": "smash", "name": "Lake Bite", "desc": "Huge jaws snap at one animal."},
 	"spindly_claw": {"base": "smash", "name": "Spindly Claw", "desc": "Long fingers rake one animal."},
 	"trestle_charge": {"base": "smash", "name": "Trestle Charge", "desc": "Charges one animal like a freight train."},
+	"cataclysm": {"name": "Cataclysm", "desc": "The legend gathers itself for a blow that hits your whole pack. Stun it to cancel; Guard halves it.",
+		"target": "all_enemies", "power": 0.7, "cooldown": 4, "windup": true},
 	"stomp": {"base": "rampage", "name": "Stomp", "desc": "Shakes the ground under your whole pack."},
 	"tail_lash": {"base": "rampage", "name": "Tail Lash", "desc": "Sweeps its tail across your whole pack."},
 	"avalanche": {"base": "rampage", "name": "Avalanche", "desc": "Buries your whole pack in rock."},
@@ -704,6 +706,7 @@ const ZOMBIE_TIPS := [
 	"Enraged: past round 8 of a wave, zombies gain +10% attack every round. Don't let fights drag on.",
 	"Targets: zombies hit what they can knock out, else often your healer. Taunt pulls their single-target attacks.",
 	"Kill first: Medics, then Screamers, then anything winding up.",
+	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it.",
 ]
 
 ## Zombie weak points: animals with the tag (kind, terrain or role) deal ZOMBIE_WEAK_MULT damage to
@@ -1157,6 +1160,14 @@ const LEGEND_WEAKNESS := {
 	"flyer": {"weak": "bird", "resist": "night", "why": "Birds meet it in the air; it owns the night."},
 	"lurker": {"weak": "water", "resist": "desert", "why": "Water animals fight it on its own terms; desert animals flounder."},
 }
+## Legends fight like raid bosses: below LEGEND_ADDS_AT of their HP they call LEGEND_ADDS, below
+## LEGEND_ENRAGE_AT they hit LEGEND_ENRAGE_ATK harder for good, and they keep winding up Cataclysm,
+## which a pack has to answer: stun the legend to cancel it, or Guard to halve it.
+const MAX_ENEMIES := 4
+const LEGEND_ADDS_AT := 0.66
+const LEGEND_ADDS := ["runner", "shambler"]
+const LEGEND_ENRAGE_AT := 0.33
+const LEGEND_ENRAGE_ATK := 1.3
 const LEGEND_WEAK_MULT := 1.5
 const LEGEND_RESIST_MULT := 0.6
 
@@ -1719,6 +1730,7 @@ static func enemy(id: String) -> Dictionary:
 	var data: Dictionary = BOSS_BUILDS[legend.build].duplicate()
 	data.merge(legend)
 	data["boss"] = true
+	data["skills"] = legend.skills + ["cataclysm"]  # last, so it's used whenever it's ready
 	return data
 
 

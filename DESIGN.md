@@ -62,7 +62,12 @@ The apocalypse starts **where you actually live**.
   A territory's threat and level are fixed when it's first discovered (`Territory.met_level`, saved
   in the shared map, so teammates see the same numbers). Only the horde changes them: a nest
   spreading into it, or losing a counter defense there (+1 threat, so +1 level); failed attacks
-  thin it.
+  thin it. Legends are the exception: they always match the pack of the day.
+- **Legends fight like raid bosses** (`GameData.LEGEND_*`, `Battle._advance_legend`): below 66% HP
+  they call a Runner and a Shambler (no XP), below 33% they hit 30% harder for good, and they keep
+  winding up Cataclysm, which hits the whole pack unless the legend is stunned (cancels it) or the
+  pack Guards (halves it). Worked out from HP alone, so every raid device agrees. Tuned so the
+  simulator's AI wins about 10% of the time at Lv 10 and above; real players should do better.
 - **Reinforcements:** every territory held beyond home gives the pack +2.5% HP/ATK (max +40%).
 - **Counterattacks:** every 3 map turns the horde attacks one of your border territories. You
   must defend it before attacking elsewhere; lose and it falls back to the dead.

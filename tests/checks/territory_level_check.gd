@@ -38,7 +38,7 @@ func _set_level(p: Profile, level: int) -> void:
 func _numbers(c: Campaign) -> Dictionary:
 	var out := {}
 	for i in c.territories.size():
-		if not c.territories[i].owned:
+		if not c.territories[i].owned and c.territories[i].boss == "":  # legends match the pack instead
 			out[c.territories[i].id] = [c.territories[i].threat, c.territory_level(i)]
 	return out
 

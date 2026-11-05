@@ -83,7 +83,7 @@ func _run() -> void:
 		await _wait(func() -> bool:
 			raid.refresh()
 			return raid.members().size() == 2 and raid.members().all(func(m: Dictionary) -> bool: return m.ready), "B to be ready")
-		_log("start: '%s'" % await raid.start(c.raid_config(lair)))
+		_log("start: '%s'" % await raid.start(c.raid_config(lair, 6)))
 	else:
 		DirAccess.remove_absolute(out + "/duo_B.txt")
 		await _wait(func() -> bool: return FileAccess.file_exists(code_file), "the team code")

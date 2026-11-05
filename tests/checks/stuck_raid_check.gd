@@ -64,7 +64,7 @@ func _run() -> void:
 	var t := c.territories[lair]
 
 	_check(await raid.open(t.id, "woodbooger", t.full_name(), "Jack", p.snapshot()) == "", "open a raid")
-	_check(await raid.start(c.raid_config(lair)) == "", "start the fight")
+	_check(await raid.start(c.raid_config(lair, 5)) == "", "start the fight")
 	_check(raid.status() == "fighting", "fighting")
 
 	# Everyone left: the map says so, and the raid screen can call it off.
@@ -94,7 +94,7 @@ func _run() -> void:
 
 	# The legend fell another way: the map calls the raid off by itself.
 	_check(await raid.open(t.id, "woodbooger", t.full_name(), "Jack", p.snapshot()) == "", "a new raid can open")
-	_check(await raid.start(c.raid_config(lair)) == "", "start it")
+	_check(await raid.start(c.raid_config(lair, 5)) == "", "start it")
 	t.owned = true
 	map = _map(c, p)
 	await process_frame
@@ -108,7 +108,7 @@ func _run() -> void:
 	# A fight on screen plays on when the raid is called off under it.
 	t.owned = false
 	await raid.open(t.id, "woodbooger", t.full_name(), "Jack", p.snapshot())
-	await raid.start(c.raid_config(lair))
+	await raid.start(c.raid_config(lair, 5))
 	raid.holding = true
 	var id: String = raid.info.id
 	await raid.cancel()

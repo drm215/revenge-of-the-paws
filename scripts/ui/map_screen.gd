@@ -99,7 +99,10 @@ func _select(i: int) -> void:
 			(" · zombies +%d%%" % tougher) if tougher > 0 else ""]
 		if t.failed_attacks > 0:
 			_info_body.text += " · horde thinned to %d%%" % roundi(t.horde_strength() * 100)
-		if campaign.territory_level(i) > campaign.base_level(i):
+		if t.boss != "":
+			_info_body.text += "\nA raid boss: it matches your pack. At %d%% HP it calls for help, at %d%% it enrages, and it winds up Cataclysm (stun it to cancel, Guard to halve)." % [
+				roundi(GameData.LEGEND_ADDS_AT * 100), roundi(GameData.LEGEND_ENRAGE_AT * 100)]
+		elif campaign.territory_level(i) > campaign.base_level(i):
 			_info_body.text += "\nThis horde matched your pack when you found it (usually Lv %d)." % campaign.base_level(i)
 		if campaign.under_attack >= 0:
 			_info_body.text += "\nDeal with the counterattack first."

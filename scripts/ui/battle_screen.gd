@@ -88,6 +88,7 @@ func _new_game() -> void:
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.combo.connect(func(c: Combatant, _name: String) -> void: _float_text(_card(c), "COMBO!", Retro.CYAN, 20))
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
+	battle.reinforced.connect(_on_reinforced)
 
 	# Big raids: two cards per row, and the pack's side of the field gets more room.
 	var big := battle.party.size() > 4  # raids of 2+ players: compact cards, two per row
@@ -390,6 +391,17 @@ func _award_xp(won: bool) -> String:
 
 
 # --- Feedback ---------------------------------------------------------------------------------
+
+## A legend's reinforcement joins the fight, on the fallen zombie's card or a new one.
+func _on_reinforced(fresh: Combatant, replaced: Combatant) -> void:
+	if replaced:
+		cards[replaced].get_parent().queue_free()
+		cards.erase(replaced)
+	_add_card(fresh, _enemy_col, ENEMY_SPRITE[GameData.MAX_ENEMIES] * (0.65 if battle.party.size() > 4 else 1.0), ROW_SHIFT)
+	await get_tree().process_frame  # so the new card has its place on screen
+	if cards.has(fresh):
+		_float_text(cards[fresh], "ARRIVES!", Retro.PINK, 18)
+
 
 func _on_log(text: String) -> void:
 	_log.append_text(text + "\n")

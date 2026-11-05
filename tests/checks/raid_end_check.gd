@@ -74,7 +74,7 @@ func _run() -> void:
 	c.territories[lair].boss = "woodbooger"
 	var t: Territory = c.territories[lair]
 	_check(await raid.open(t.id, "woodbooger", t.full_name(), "Jack", p.snapshot()) == "", "open a raid")
-	_check(await raid.start(c.raid_config(lair)) == "", "start it")
+	_check(await raid.start(c.raid_config(lair, 5)) == "", "start it")
 
 	# The fight ends with the connection gone.
 	var screen := BattleScreen.new()
@@ -120,7 +120,7 @@ func _run() -> void:
 	_check(raid.status() == "done", "the raid is done (%s)" % raid.status())
 	c = main._campaign
 	_check(c.territories[lair].owned, "the lair is free on the team map")
-	_check(main._profile.trinkets.size() == trinkets + 1, "the legend's trinket arrived")
+	_check(main._profile.trinkets.size() == trinkets + 1, "the legend's trinket arrived (%d to %d: %s; result %s)" % [trinkets, main._profile.trinkets.size(), main._profile.trinkets, raid.result()])
 	_check(int(main._profile.xp.get("dog", 0)) > xp, "and the XP")
 	_check(String(raid.info.id) in main._profile.raids_claimed, "claimed once")
 	_check(main.get_child(-1) is MapScreen, "the map shows it")

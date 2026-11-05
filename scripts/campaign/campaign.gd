@@ -300,7 +300,8 @@ func is_actionable(i: int) -> bool:
 
 
 ## The level the zombies here fight at: set when the territory was discovered. Only the horde's
-## spreading, a lost counter defense (both raise its threat) or failed attacks change it.
+## spreading, a lost counter defense (both raise its threat) or failed attacks change it. Legends
+## are the exception: see zombie_strength.
 func territory_level(i: int) -> int:
 	return GameData.territory_level(zombie_strength(i, territories[i].threat) * territories[i].horde_strength())
 
@@ -315,7 +316,10 @@ func base_level(i: int) -> int:
 ## it was when the territory was discovered (PACK_LEVEL_GAP levels below it at threat 1, one level
 ## closer per threat), whichever is higher.
 func zombie_strength(i: int, threat: int) -> float:
-	var matched := territories[i].met_level - GameData.PACK_LEVEL_GAP + threat - 1
+	var met := territories[i].met_level
+	if territories[i].boss != "":
+		met = profile.strongest_pack_level()  # legends never get easy: they match the pack of the day
+	var matched := met - GameData.PACK_LEVEL_GAP + threat - 1
 	return maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
 
 
@@ -353,10 +357,13 @@ func battle_config(i: int) -> Dictionary:
 	}
 
 
-## A legend raid on lair `i`: the lair's own fight (raiders bring their own strength, and the legend
-## grows with them: GameData.legend_growth). Fixed for every device.
-func raid_config(i: int) -> Dictionary:
+## A legend raid on lair `i`: the lair's waves, with zombies caught up to the strongest critter any
+## raider brings (`max_level`) rather than to this player's pack alone. Fixed for every device.
+func raid_config(i: int, max_level: int) -> Dictionary:
 	var cfg := battle_config(i)
+	var t := territories[i]
+	var caught_up := GameData.level_strength(max_level - GameData.PACK_LEVEL_GAP + t.threat - 1)
+	cfg.zombie_mult = maxf(GameData.zombie_mult(t.threat), caught_up) * t.horde_strength()
 	cfg.erase("party_mult")
 	return cfg
 

@@ -12,6 +12,8 @@ signal status_changed(target: Combatant)
 signal died(target: Combatant)
 signal combo(target: Combatant, name: String)
 signal weak_hit(target: Combatant)
+## A legend called `fresh` to the fight, in the place of the fallen `replaced` (or null).
+signal reinforced(fresh: Combatant, replaced: Combatant)
 
 enum Outcome { ONGOING, WAVE_CLEARED, VICTORY, DEFEAT }
 
@@ -49,6 +51,7 @@ var _taken := {}  # Combatant -> damage
 var _uses := {}  # Combatant -> {skill id: times}
 var _wave_rounds: Array[int] = []
 var _legends: Array[Combatant] = []
+var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged
 var rng := RandomNumberGenerator.new()
 
 var _waves: Array
@@ -171,7 +174,7 @@ func report() -> Dictionary:
 		pack.append(_unit_report(c).merged({"player": owners.find(c.owner) + 1}))
 	var legends: Array = []
 	for z in _legends:
-		legends.append(_unit_report(z))
+		legends.append(_unit_report(z).merged({"phase": _legend_phase.get(z, 0)}))
 	return {"outcome": Outcome.keys()[outcome()].to_lower(), "wave": wave_index + 1, "waves": wave_count(),
 		"rounds": rounds, "zombie_mult": snappedf(_zombie_mult, 0.01), "boss_hp": boss_hp_mult,
 		"boss_atk": boss_atk_mult, "condition": condition, "pack": pack, "legends": legends,
@@ -641,6 +644,8 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 	dst.hp = maxi(0, dst.hp - amount)
 	damaged.emit(dst, amount, crit)
 	if dst.is_alive():
+		if dst.is_boss:
+			_advance_legend(dst)
 		return
 	dst.statuses.clear()
 	log_message.emit("[color=%s]%s %s![/color]" % [
@@ -670,6 +675,44 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 		log_message.emit("%s bursts in a cloud of gore!" % dst.display_name)
 		for c in living(_opponents(dst)):
 			_apply_damage(c, blast, false)
+
+
+## Legends change as they're worn down. Worked out here, from HP alone, so every raid device agrees.
+func _advance_legend(legend: Combatant) -> void:
+	var phase: int = _legend_phase.get(legend, 0)
+	if phase < 1 and legend.hp_ratio() <= GameData.LEGEND_ADDS_AT:
+		phase = 1
+		log_message.emit("[color=#c99bff][b]%s calls for help![/b][/color]" % legend.display_name)
+		for zombie_id: String in GameData.LEGEND_ADDS:
+			_call_add(zombie_id)
+	if phase < 2 and legend.hp_ratio() <= GameData.LEGEND_ENRAGE_AT:
+		phase = 2
+		legend.atk = roundi(legend.atk * GameData.LEGEND_ENRAGE_ATK)  # (scale_stats would refill its HP)
+		log_message.emit("[color=#f77622][b]%s is enraged![/b] It hits %d%% harder from now on.[/color]" % [
+			legend.display_name, roundi((GameData.LEGEND_ENRAGE_ATK - 1.0) * 100)])
+		status_changed.emit(legend)
+	_legend_phase[legend] = phase
+
+
+## One more zombie for the legend: in a fallen zombie's place, or a free one (4 at most). Gives no XP,
+## so it can't be farmed. Tougher in a raid, where the legend is too.
+func _call_add(zombie_id: String) -> void:
+	var slot := -1
+	for k in enemies.size():
+		if not enemies[k].is_alive() and not enemies[k].is_boss:
+			slot = k
+			break
+	if slot < 0 and enemies.size() >= GameData.MAX_ENEMIES:
+		return
+	var z := Combatant.from_data(zombie_id, GameData.enemy(zombie_id), false)
+	z.scale_stats(_zombie_mult * sqrt(boss_hp_mult), _zombie_mult, 1.0)
+	z.xp_value = 0
+	var replaced: Combatant = enemies[slot] if slot >= 0 else null
+	if slot >= 0:
+		enemies[slot] = z
+	else:
+		enemies.append(z)
+	reinforced.emit(z, replaced)
 
 
 func _heal(target: Combatant, amount: int) -> void:

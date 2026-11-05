@@ -245,7 +245,8 @@ func _send(ready: bool) -> void:
 	_status.text = error
 
 
-## Fixes the battle for every device: the lair's own fight.
+## Fixes the battle for every device: the lair's waves, with zombies caught up to the strongest
+## critter any ready raider brings.
 func _start() -> void:
 	var r := _raid()
 	var i := -1
@@ -255,9 +256,15 @@ func _start() -> void:
 	if i < 0:
 		_status.text = "That lair isn't on this map."
 		return
+	var max_level := 1
+	for m: Dictionary in r.members():
+		var p := Profile.from_snapshot(String(m.pack))
+		if p and m.ready:
+			for id in p.pack_ids():
+				max_level = maxi(max_level, p.level_of(id))
 	_busy = true
 	_status.text = "Starting..."
-	var error: String = await r.start(campaign.raid_config(i))
+	var error: String = await r.start(campaign.raid_config(i, max_level))
 	_busy = false
 	_status.text = error
 
