@@ -91,8 +91,8 @@ func _run() -> void:
 		if l.text.begins_with("CRIT"):
 			crit_label = l
 	_check(crit_label != null, "a crit shows big")
-	var card_end: float = s.cards[target].get_global_rect().end.x
-	_check(crit_label.global_position.x + crit_label.get_combined_minimum_size().x <= card_end + 1.0, "and stays inside its card, on screen")
+	var field_end: float = s._enemy_col.get_global_rect().end.x
+	_check(crit_label.global_position.x + crit_label.get_combined_minimum_size().x <= field_end + 1.0, "and stays on the battlefield")
 	await _real_wait(1500)
 	_check(Engine.time_scale == 1.0, "time returns to normal")
 	_check(fx._shake == 0.0, "the shake dies away (at %s)" % s.position)

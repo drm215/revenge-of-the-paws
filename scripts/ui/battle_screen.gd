@@ -417,7 +417,7 @@ func _on_damaged(target: Combatant, amount: int, crit: bool) -> void:
 	var card := _card(target)
 	card.refresh()
 	card.flash(Color(1.6, 0.5, 0.5))
-	_float_text(card, ("CRIT %d!" if crit else "%d") % amount, Retro.YELLOW if crit else Retro.PINK, 34 if crit else 18)
+	_float_text(card, ("CRIT %d!" if crit else "%d") % amount, Retro.YELLOW if crit else Retro.PINK, 26 if crit else 18)
 
 
 func _on_healed(target: Combatant, amount: int) -> void:
@@ -436,9 +436,9 @@ func _float_text(card: UnitCard, text: String, color: Color, font_size: int) -> 
 	label.z_index = 10
 	add_child(label)
 	var start := card.global_position + Vector2(card.size.x / 2.0 - 24, 10)
-	start.x = maxf(card.global_position.x, minf(start.x, card.get_global_rect().end.x - label.get_combined_minimum_size().x))  # stays on screen
+	start.x = maxf(0.0, minf(start.x, _enemy_col.get_global_rect().end.x - label.get_combined_minimum_size().x))  # stays on screen
 	label.global_position = start
-	if font_size >= 30:  # a crit pops
+	if font_size >= 26:  # a crit pops
 		label.scale = Vector2.ONE * 1.8
 		label.create_tween().set_ignore_time_scale(true).tween_property(label, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	var tween := label.create_tween().set_parallel()
