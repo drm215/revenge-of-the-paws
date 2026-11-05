@@ -43,7 +43,7 @@ func _run() -> void:
 	var slots := Saves.list()
 	_check(slots.size() == 1 and not FileAccess.file_exists(Profile.SAVE_PATH), "it became the first save: %s" % [slots.map(func(s: Dictionary) -> String: return s.title)])
 
-	await create_timer(1.1).timeout  # "newest first" goes by file times, to the second
+	await create_timer(2.2).timeout  # "newest first" goes by file times, to the second
 	# A new game in its own slot; saving tags the slot and wakes the cloud.
 	var a := Saves.new_slot()
 	Saves.use(a)
