@@ -28,6 +28,10 @@ const LABEL_GAP := 3.0  # px kept clear around each label; crowded labels wait f
 const LABEL_MARGIN := 120.0  # labels this far off screen can still reach into view; beyond it they're skipped
 const PULSE_INTERVAL := 0.05  # seconds between redraws of what glows
 const OUTLINE_RETRY := 5.0  # seconds before asking again for outlines that didn't arrive
+const LIBERATION_SEC := 3.2  # how long a liberation plays
+const WAVE_SEC := 1.1  # of that, how long the green takes to cross the territory
+const WAVE_POINTS := 36
+const FIREWORK_COLORS: Array[Color] = [Retro.GOLD, Retro.GREEN, Retro.CYAN, Retro.PINK, Retro.YELLOW]
 
 var campaign: Campaign
 var selected := -1
@@ -54,6 +58,11 @@ var _pulse_wait := 0.0
 var _fills_pulse := false  # a counterattack or cut-off land glows
 var _outlines_pulse := false  # lairs, pings or nests glow
 var _loading := Label.new()  # shown while this map's outlines are being fetched
+var _wave_at := -1  # the territory being liberated on screen right now
+var _wave_time := 0.0
+var _wave_from := Vector2.ZERO
+var _wave_near := 0.0  # distance from the wave's start to the territory's nearest and farthest points
+var _wave_far := 0.0
 
 
 func _init() -> void:
@@ -76,6 +85,111 @@ func _ready() -> void:
 	_fit()
 	refresh()
 	_load_outlines()
+
+
+## Plays a territory being freed: green rolls over it from `from` (a map point), fireworks go off
+## over it, and the pet (with anyone just rescued) runs across.
+func play_liberation(i: int, from: Vector2, rescued: String) -> void:
+	_wave_at = i
+	_wave_time = 0.0
+	_wave_from = from
+	_wave_near = INF
+	_wave_far = 0.0
+	for ring in campaign.territories[i].parts:
+		for p in ring:
+			var d := p.distance_to(from)
+			_wave_near = minf(_wave_near, d)
+			_wave_far = maxf(_wave_far, d)
+	if _wave_far <= 0.0:
+		_wave_at = -1  # no outline here yet: the rest of the moment still plays
+	_shapes.queue_redraw()
+	var runners: Array[String] = []
+	if campaign.profile and campaign.profile.has_pet():
+		runners.append(campaign.profile.pet_species)
+	if rescued != "":
+		runners.append(rescued)
+	var site := _to_screen(campaign.territories[i].site)
+	for k in runners.size():
+		_run_across(runners[k], site + Vector2(0, 14), k)
+	for k in 4:
+		_firework(site, 0.5 + k * 0.5, k)
+
+
+## The green so far: everything of the territory within the wave's reach, with a bright front.
+func _draw_wave() -> void:
+	var reach: float = lerpf(_wave_near, _wave_far, clampf(_wave_time / WAVE_SEC, 0.0, 1.0))
+	var band := (_wave_far - _wave_near) * 0.12
+	for part: Dictionary in _parts[_wave_at]:
+		_draw_within(part.points, reach, HOME)
+		_draw_within(part.points, maxf(0.001, reach - band), OWNED)
+
+
+## The part of a ring within `radius` of the wave's start. A sliver that can't be drawn is left out.
+func _draw_within(points: PackedVector2Array, radius: float, color: Color) -> void:
+	var colors := PackedColorArray([color])
+	for piece: PackedVector2Array in Geometry2D.intersect_polygons(points, _circle(_wave_from, radius)):
+		var tris := Geometry2D.triangulate_polygon(piece)
+		if not tris.is_empty():
+			RenderingServer.canvas_item_add_triangle_array(_pulse.get_canvas_item(), tris, piece, colors)
+
+
+func _circle(center: Vector2, radius: float) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for k in WAVE_POINTS:
+		out.append(center + Vector2.from_angle(TAU * k / WAVE_POINTS) * radius)
+	return out
+
+
+## An animal bounding across the freed land.
+func _run_across(id: String, at: Vector2, order: int) -> void:
+	var path := "res://art/pixel/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return
+	var sprite := TextureRect.new()
+	sprite.texture = load(path)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sprite.size = Vector2(56, 56)
+	sprite.z_index = 3
+	sprite.modulate.a = 0.0
+	add_child(sprite)
+	var start := at + Vector2(-130 - order * 54, -44)
+	sprite.position = start
+	var run := sprite.create_tween()
+	run.tween_interval(0.25 + order * 0.15)
+	run.tween_property(sprite, "modulate:a", 1.0, 0.1)
+	run.tween_method(func(t: float) -> void:
+		sprite.position = start + Vector2(260.0 * t, -absf(sin(t * TAU * 3.0)) * 22.0), 0.0, 1.0, 1.5)
+	run.tween_property(sprite, "modulate:a", 0.0, 0.15)
+	run.tween_callback(sprite.queue_free)
+
+
+## A burst of pixels over the freed land, `delay` seconds from now.
+func _firework(site: Vector2, delay: float, order: int) -> void:
+	await get_tree().create_timer(delay).timeout
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		sound.play("firework", 0.12, -4.0)
+	var bits := CPUParticles2D.new()
+	bits.one_shot = true
+	bits.explosiveness = 1.0
+	bits.amount = 34
+	bits.lifetime = 0.9
+	bits.direction = Vector2.UP
+	bits.spread = 180.0
+	bits.gravity = Vector2(0, 170)
+	bits.initial_velocity_min = 70.0
+	bits.initial_velocity_max = 190.0
+	bits.scale_amount_min = 3.0
+	bits.scale_amount_max = 7.0
+	bits.color = FIREWORK_COLORS[order % FIREWORK_COLORS.size()]
+	bits.z_index = 4
+	bits.position = site + Vector2([-90, 80, -30, 40][order % 4], [-70, -110, -140, -60][order % 4])
+	bits.finished.connect(bits.queue_free)
+	add_child(bits)
+	bits.emitting = true
 
 
 ## First time on this ground: fetch the outlines. Names and markers show until they arrive.
@@ -107,6 +221,12 @@ func _load_outlines() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _wave_at >= 0:
+		_wave_time += delta
+		_pulse.queue_redraw()
+		if _wave_time >= WAVE_SEC:
+			_wave_at = -1
+			_shapes.queue_redraw()
 	_pulse_wait -= delta
 	if _pulse_wait > 0.0:
 		return
@@ -237,6 +357,8 @@ func _draw_pulse() -> void:
 	if campaign == null or _parts.is_empty():
 		return
 	_pulse.draw_set_transform(_shapes.position, 0.0, _shapes.scale)
+	if _wave_at >= 0:
+		_draw_wave()
 	for i in campaign.territories.size():
 		if _is_lair(i):
 			_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
@@ -354,6 +476,8 @@ func _outline(i: int, color: Color, width: float) -> void:
 
 func _fill(i: int) -> Color:
 	var t := campaign.territories[i]
+	if i == _wave_at:
+		return ATTACKABLE  # as it was: the green rolls over this
 	if i == campaign.under_attack:
 		return OWNED.lerp(UNDER_ATTACK, 0.5 + 0.5 * sin(_time * 5.0))
 	if t.owned:

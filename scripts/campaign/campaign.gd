@@ -29,6 +29,7 @@ var turn := 0
 var under_attack := -1  # territory index the horde is attacking, or -1
 var last_liberated := -1  # territory index most recently taken from the horde, or -1
 var last_event := ""
+var _liberation := {}  # the moment waiting to play on the map (take_liberation), if any
 var uses_zip_data := false
 var legends: Array[String] = []  # legend ids with a lair on this map
 var profile: Profile
@@ -519,6 +520,62 @@ func _migrate() -> void:
 			territories[nest].full_name(), target.full_name(), target.threat - 1, target.threat]
 
 
+## This player's latest liberation for the map to play, once: {territory, from (map point the wave
+## starts at), banner, milestone, milestone_big, rescued}. {} if there's none waiting.
+func take_liberation() -> Dictionary:
+	var moment := _liberation
+	_liberation = {}
+	return moment
+
+
+func _liberation_moment(i: int) -> Dictionary:
+	var t := territories[i]
+	var moment := {"territory": t.id, "from": _attacked_from(i), "banner": "%s IS FREE!" % t.name.to_upper(), "milestone": "", "milestone_big": false, "rescued": ""}
+	var state := _state_of(i)
+	var new_state := state != ""
+	for k in territories.size():
+		if k != i and territories[k].owned and _state_of(k) == state:
+			new_state = false
+			break
+	if is_liberated():
+		moment.milestone = "EVERY TERRITORY IS FREE!"
+		moment.milestone_big = true
+	elif new_state and GameData.STATE_NAMES.has(state):
+		moment.milestone = "The pack has reached %s!" % GameData.STATE_NAMES[state]
+		moment.milestone_big = true
+	elif t.boss != "" and GameData.LEGENDS.has(t.boss):
+		moment.milestone = "The %s is dead!" % GameData.LEGENDS[t.boss].name
+		moment.milestone_big = true
+	elif owned_count() in GameData.LIBERATION_MILESTONES:
+		moment.milestone = "%d territories free!" % owned_count()
+		moment.milestone_big = true
+	else:
+		moment.milestone = "%d of %d territories free" % [owned_count(), territories.size()]
+	return moment
+
+
+## The point the wave of green starts from: the closest held land, where the attack came from.
+func _attacked_from(i: int) -> Vector2:
+	var site := territories[i].site
+	var best := site
+	var best_d := INF
+	for n in territories[i].neighbors:
+		if territories[n].owned and territories[n].site.distance_squared_to(site) < best_d:
+			best_d = territories[n].site.distance_squared_to(site)
+			best = territories[n].site
+	return best
+
+
+## The US state a real territory is in ("" on other maps).
+func _state_of(i: int) -> String:
+	if not uses_zip_data:
+		return ""
+	var row := ZipDB.lookup(territories[i].id)
+	if row.is_empty():
+		row = ZipDB.row_near(territories[i].lonlat.y, territories[i].lonlat.x)
+	return String(row.get("state", ""))
+
+
 ## `xp`: what each of this player's fighters earned; linked teammates get a share of it. A legend
 ## raid passes its `raiders` (they got their XP and trinkets from the raid) and no `rewards` here.
 func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := true) -> void:
@@ -545,6 +602,8 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 		_ownership_changed()
 		last_liberated = i
 		last_event = "%s liberated!" % t.full_name()
+		if not replaying:
+			_liberation = _liberation_moment(i)
 		if i in nests and t.id not in cleared_nests:
 			cleared_nests.append(t.id)
 			last_event += "\nThe nest is destroyed: the horde stops spreading from here."
@@ -567,6 +626,7 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 			var where := "waits in the Stable (the pack is full)" if t.recruit in profile.stable else "joined the pack"
 			last_event += "\nRescued: %s %s at Lv %d! Swap it in from Pack." % [
 				GameData.ANIMALS[t.recruit].name, where, profile.level_of(t.recruit)]
+			_liberation["rescued"] = t.recruit
 		last_event += _reveal_beyond(i)
 	else:
 		t.failed_attacks += 1

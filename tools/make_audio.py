@@ -190,6 +190,18 @@ def sfx():
         t.tone(0.45, 0.8, note(m), triangle, 0.4, vibrato=6, decay=0.45)
     t.write("loot", 0.8)
 
+    t = Track(1.6)  # a territory freed: a bright rising fanfare
+    for at, m, length in [(0, 72, 0.12), (0.12, 76, 0.12), (0.24, 79, 0.12), (0.36, 84, 0.36), (0.72, 79, 0.12), (0.84, 84, 0.12), (0.96, 88, 0.6)]:
+        t.tone(at, length, note(m), square, 0.42, duty=0.25, decay=0.5)
+        t.tone(at, length, note(m - 12), triangle, 0.42, decay=0.5)
+    t.write("liberate", 0.85)
+
+    t = Track(0.7)  # a firework: a whistle up, then a crackling pop
+    t.tone(0, 0.2, 700, square, 0.14, slide=3200, duty=0.125)
+    t.noise(0.2, 0.42, 0.7, period=3, decay=0.09)
+    t.tone(0.2, 0.1, 150, triangle, 0.6, slide=-500)
+    t.write("firework", 0.6)
+
     t = Track(0.8)  # the last blow of a battle
     t.tone(0, 0.7, 150, square, 0.7, slide=-180, decay=0.25)
     t.tone(0, 0.5, 75, triangle, 0.8, decay=0.3)

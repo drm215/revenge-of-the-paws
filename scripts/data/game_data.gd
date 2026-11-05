@@ -1160,6 +1160,19 @@ const LEGEND_WEAKNESS := {
 	"flyer": {"weak": "bird", "resist": "night", "why": "Birds meet it in the air; it owns the night."},
 	"lurker": {"weak": "water", "resist": "desert", "why": "Water animals fight it on its own terms; desert animals flounder."},
 }
+## Territories freed that get their own moment on the map.
+const LIBERATION_MILESTONES := [5, 10, 25, 50, 75, 100, 150, 200, 300, 500]
+const STATE_NAMES := {
+	"AK": "Alaska", "AL": "Alabama", "AR": "Arkansas", "AZ": "Arizona", "CA": "California", "CO": "Colorado", "CT": "Connecticut",
+	"DC": "Washington, DC", "DE": "Delaware", "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "IA": "Iowa", "ID": "Idaho",
+	"IL": "Illinois", "IN": "Indiana", "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "MA": "Massachusetts", "MD": "Maryland",
+	"ME": "Maine", "MH": "the Marshall Islands", "MI": "Michigan", "MN": "Minnesota", "MO": "Missouri", "MS": "Mississippi",
+	"MT": "Montana", "NC": "North Carolina", "ND": "North Dakota", "NE": "Nebraska", "NH": "New Hampshire", "NJ": "New Jersey",
+	"NM": "New Mexico", "NV": "Nevada", "NY": "New York", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+	"RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VA": "Virginia",
+	"VT": "Vermont", "WA": "Washington", "WI": "Wisconsin", "WV": "West Virginia", "WY": "Wyoming",
+}
+
 ## Legends fight like raid bosses: below LEGEND_ADDS_AT of their HP they call LEGEND_ADDS, below
 ## LEGEND_ENRAGE_AT they hit LEGEND_ENRAGE_ATK harder for good, and they keep winding up Cataclysm,
 ## which a pack has to answer: stun the legend to cancel it, or Guard to halve it.

@@ -346,6 +346,12 @@ versions of your recruits; a story beat).
   red and the music speeding up; a banner and dimmed screen while Cataclysm winds up, then
   "INTERRUPTED!" or a red blast and "SURVIVED!"; and a chest bursting with its trinket.
 
+- Freeing a territory plays on the map (`Campaign.take_liberation`, `MapScreen._play_liberation`,
+  `MapView.play_liberation`): green rolls in from the held land next door, fireworks, the pet and any
+  rescued animal run across, and "ABINGDON IS FREE!" across the map, with what it means under it:
+  a new state reached, a legend dead, a round number of territories, or the count so far. Nothing
+  waits for it; a teammate's move arriving meanwhile rebuilds the map when it ends.
+
 ## Mobile UX
 - Portrait 9:16 (720×1280 base, stretches to taller phones).
 - Tap a skill, then tap a highlighted unit. Strong skill = longer, juicier animation.

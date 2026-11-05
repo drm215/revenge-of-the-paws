@@ -17,9 +17,13 @@ signal raid_requested
 ## Back to the save picker.
 signal saves_requested
 signal auto_toggled
+## The liberation moment has finished playing.
+signal liberation_done
 
 var campaign: Campaign
 var profile: Profile
+var liberation := {}  # Campaign.take_liberation(): the moment to play as this screen opens
+var celebrating := false
 
 var _map := MapView.new()
 var _status := Label.new()
@@ -57,6 +61,63 @@ func _ready() -> void:
 	_select(campaign.under_attack if campaign.under_attack >= 0 else campaign.home)
 	if campaign.under_attack >= 0:
 		_map.focus.call_deferred(campaign.under_attack)
+	if not liberation.is_empty():
+		celebrating = true
+		_play_liberation.call_deferred()
+
+
+## Green sweeps over the freed territory, with its name across the map and the milestone under it.
+## Nothing waits for it: the map works as usual while it plays.
+func _play_liberation() -> void:
+	await get_tree().process_frame  # the map has its size by now
+	var at := -1
+	for i in campaign.territories.size():
+		if campaign.territories[i].id == String(liberation.territory):
+			at = i
+	var sound := get_node_or_null("/root/Sound")
+	if sound:
+		sound.play("liberate")
+		if liberation.milestone_big:
+			sound.play("loot", 0.0, -3.0)
+	if at >= 0:
+		_map.focus(at)
+		_select(at)
+		_map.play_liberation(at, liberation.from, liberation.rescued)
+	var banner := _map_banner(String(liberation.banner), 24, Retro.GREEN, 0.06)
+	var lines: Array[Label] = [banner]
+	if String(liberation.milestone) != "":
+		lines.append(_map_banner(String(liberation.milestone), 18 if liberation.milestone_big else 14, Retro.YELLOW if liberation.milestone_big else Retro.WHITE, 0.2))
+	await get_tree().create_timer(MapView.LIBERATION_SEC).timeout
+	for line in lines:
+		var fade := line.create_tween()
+		fade.tween_property(line, "modulate:a", 0.0, 0.3)
+		fade.tween_callback(line.queue_free)
+	celebrating = false
+	liberation_done.emit()
+
+
+## Big text across the map that a tap passes straight through.
+func _map_banner(text: String, font_size: int, color: Color, y_share: float) -> Label:
+	var label := Retro.title(Label.new(), font_size, color)
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_outline_color", Retro.INK)
+	label.add_theme_constant_override("outline_size", 10)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 5
+	var backing := StyleBoxFlat.new()  # readable over the map's town names
+	backing.bg_color = Color(Retro.INK, 0.72)
+	backing.content_margin_top = 4
+	backing.content_margin_bottom = 4
+	label.add_theme_stylebox_override("normal", backing)
+	_map.add_child(label)
+	label.size = Vector2(_map.size.x - 16, 0)
+	label.position = Vector2(8, _map.size.y * y_share)
+	label.pivot_offset = Vector2(label.size.x / 2.0, 24)
+	label.scale = Vector2.ONE * 2.2
+	label.create_tween().tween_property(label, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return label
 
 
 func _select(i: int) -> void:

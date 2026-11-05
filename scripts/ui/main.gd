@@ -74,6 +74,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	var raid_node := get_node_or_null("/root/Raid")
 	if raid_node:
 		raid_node.listening = true
+	var moment: Dictionary = _campaign.take_liberation() if _campaign else {}
 	if _campaign == null or _profile == null or _profile.home_key() != profile.home_key() or _campaign_stale:
 		var message := _campaign.last_event if _campaign and _campaign_stale else ""
 		_campaign = _make_campaign(profile)
@@ -87,6 +88,10 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	var screen := MapScreen.new()
 	screen.campaign = _campaign
 	screen.profile = profile
+	screen.liberation = moment
+	screen.liberation_done.connect(func() -> void:
+		if _campaign_stale:
+			_show_map(_profile, false))
 	screen.battle_requested.connect(_show_battle)
 	screen.patrol_requested.connect(_show_battle.bind(true))
 	screen.rest_requested.connect(func() -> void:
@@ -224,7 +229,7 @@ func _collect_raid() -> void:
 ## Teammates moved (or the team changed): rebuild the map now if it's showing, else next time.
 func _on_team_changed() -> void:
 	_campaign_stale = true
-	if _profile and get_child_count() > 0 and get_child(-1) is MapScreen:
+	if _profile and get_child_count() > 0 and get_child(-1) is MapScreen and not get_child(-1).celebrating:
 		_show_map(_profile, false)
 
 
