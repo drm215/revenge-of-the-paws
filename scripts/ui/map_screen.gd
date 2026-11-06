@@ -16,8 +16,8 @@ signal chat_requested
 signal raid_requested
 ## Back to the save picker.
 signal saves_requested
-## Delve into this region's dungeon.
-signal dungeon_requested
+## Delve into the dungeon of `region` (its entrance is held).
+signal dungeon_requested(region: String)
 ## Claim the bonus for a cleared state or region.
 signal bonus_requested
 signal auto_toggled
@@ -198,7 +198,7 @@ func _select(i: int) -> void:
 	var t := campaign.territories[i]
 	_info_title.text = t.name + (("  " + t.id) if campaign.uses_zip_data else "")
 	_action.visible = campaign.is_actionable(i)
-	_delve.visible = i == campaign.home and not GameData.dungeon(profile.region).is_empty()
+	_delve.visible = t.owned and t.dungeon != ""
 	_action.set_meta("mode", "attack")
 	if i == campaign.under_attack:
 		_info_body.text = "Under attack! Lv %d · threat %d. Lose this fight and the territory falls." % [campaign.territory_level(i), t.threat]
@@ -208,8 +208,6 @@ func _select(i: int) -> void:
 		_action.visible = false
 	elif i == campaign.home:
 		_info_body.text = "Home. Rest here to heal injuries and clear fatigue (takes a turn)."
-		if not GameData.dungeon(profile.region).is_empty():
-			_info_body.text += "\nDelve: %s, endless waves for rewards (free, no injuries)." % GameData.dungeon(profile.region).name
 		_action.text = "Rest"
 		_action.visible = true
 		_action.set_meta("mode", "rest")
@@ -281,6 +279,9 @@ func _select(i: int) -> void:
 			var a: Dictionary = GameData.ANIMALS[survivor]
 			_info_body.text += "\nSurvivor here: %s (%s). Liberate it to recruit!" % [a.name, a.role]
 	_action.set_meta("territory", i)
+	if t.dungeon != "":
+		var d := GameData.dungeon(t.dungeon)
+		_info_body.text += "\nDUNGEON: %s. %s" % [d.name, "Delve for endless waves and rewards (free, no injuries)." if t.owned else "Free this land to delve."]
 	_ping.text = "Unping" if _map.pings.has(t.id) else "Ping"
 	_fit_info()
 
@@ -589,6 +590,9 @@ func _build_ui() -> void:
 			marching.append("%s at %s" % [w.name, campaign.territories[_index_of(String(w.at))].name])
 	if not marching.is_empty():
 		lines.append(("Warlord: " if marching.size() == 1 else "Warlords: ") + ", ".join(marching))
+	var rumor := campaign.dungeon_rumor()
+	if not rumor.is_empty():
+		lines.append("Dungeon: %s, %d mi %s" % [rumor.name, roundi(rumor.km * 0.621371), rumor.direction])
 	var rumors: PackedStringArray = []
 	for r in campaign.rumors():
 		rumors.append("%s %d mi %s" % [GameData.LEGENDS[r.id].name, roundi(r.km * 0.621371), r.direction])
@@ -699,7 +703,9 @@ func _build_ui() -> void:
 	_delve.custom_minimum_size = Vector2(130, 60)
 	_delve.add_theme_color_override("font_color", Retro.CYAN)
 	_delve.visible = false
-	_delve.pressed.connect(dungeon_requested.emit)
+	_delve.pressed.connect(func() -> void:
+		if _map.selected >= 0:
+			dungeon_requested.emit(campaign.territories[_map.selected].dungeon))
 	actions.add_child(_delve)
 
 	# Buttons share one row evenly; the data credit gets its own full-width line below them.

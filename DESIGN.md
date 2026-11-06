@@ -191,8 +191,12 @@ The apocalypse starts **where you actually live**.
   the map then gets one permanent bonus, rolled at random (`GameData.CLEAR_BONUSES`: +8% HP, ATK or
   DEF, +10% SPD or +5% crit; double for a region), and gives it to any critter of theirs. Once
   each, for good. A territory's info shows its state's progress.
-- **Dungeons** (Delve, at home): each region has one, set in its best-known wild place (the
-  Everglades, the Old Coal Mine, the Paris Catacombs...; `GameData.DUNGEONS`). Endless waves that climb
+- **Dungeons** (Delve, from the entrance's territory once it's held): each region has one, set in
+  its best-known wild place (the Everglades, the Old Coal Mine, the Paris Catacombs...;
+  `GameData.DUNGEONS`). On a US map the entrance is the ZIP area nearest the real place (Appalachia,
+  VA for the coal mine), and any dungeon whose place is on the map appears there, marked with a
+  doorway; until your own region's is in reach, the map points the way to it. Generated maps put
+  their region's part way out from home. Endless waves that climb
   0.6 zombie levels a wave; every 5th wave adds a Brute (two on screen at most: each past that
   makes them 8% tougher), and the mix grows nastier. Half HP back between waves. Tuned so the
   simulator's AI reaches about wave 12 at pack Lv 10, 21 at Lv 20 and 26 at Lv 30. Clearing a depth for

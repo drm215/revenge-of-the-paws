@@ -9,6 +9,7 @@ signal closed
 signal start(wave: int)
 
 var profile: Profile
+var region := ""  # whose dungeon (a GameData.DUNGEONS key)
 
 var _content := VBoxContainer.new()
 var _board := {}
@@ -46,7 +47,7 @@ func _ready() -> void:
 	var cloud := get_node_or_null("/root/Cloud")
 	if cloud and cloud.enabled():
 		cloud.sync()  # sends a new record still waiting
-		_board = await cloud.dungeon_board(profile.region)
+		_board = await cloud.dungeon_board(region)
 	_loaded = true
 	if is_inside_tree():
 		_build()
@@ -55,10 +56,9 @@ func _ready() -> void:
 func _build() -> void:
 	for child in _content.get_children():
 		child.queue_free()
-	var region := profile.region
 	var dungeon := GameData.dungeon(region)
 	if dungeon.is_empty():
-		_label("Your region has no dungeon.", 20, Retro.ORANGE)
+		_label("There's no dungeon here.", 20, Retro.ORANGE)
 		return
 	_label("Dungeon", 20, Retro.GOLD, true)
 	_label(dungeon.name, 14, Retro.CYAN, true)

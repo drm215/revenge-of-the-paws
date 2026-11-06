@@ -19,6 +19,7 @@ var region := ""  # animal region this area belongs to
 var condition := "forest"  # GameData.CONDITIONS key
 var recruit := ""  # wild animal waiting to be rescued here, if any
 var cache := ""  # trinket hidden here (lairs drop their legend's instead)
+var dungeon := ""  # the region whose dungeon opens here (GameData.DUNGEONS), if any
 
 
 func _init(territory_id: String, territory_name: String, position: Vector2) -> void:

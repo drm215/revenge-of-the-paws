@@ -124,7 +124,47 @@ func _run() -> void:
 	fresh.dungeon_best["us_florida"] = 23
 	_check(fresh.dungeon_starts("us_florida") == [1, 11, 21], "clear 23: start at 1, 11 or 21")
 
-	# The real flow: home's Delve, the dungeon screen, readying the pack, the run.
+	# Where it is: the real place on the map, or a pointer until it's in reach.
+	Campaign.clear_saved()
+	var far := Campaign.create(_profile())
+	var rumor := far.dungeon_rumor()
+	_check(far.dungeon_territory("us_florida") < 0 and rumor.get("name", "") == "The Everglades" and rumor.direction == "SW", "from Miami Beach the Everglades lie out of sight to the SW: %s" % [rumor])
+	var near_p := _profile()
+	near_p.zip = "33034"
+	Campaign.clear_saved()
+	var near := Campaign.create(near_p)
+	var at := near.dungeon_territory("us_florida")
+	_check(at == near.home and near.dungeon_rumor().is_empty(), "Homestead's own ZIP area holds the park, so the entrance is at home (%s)" % (near.territories[at].id if at >= 0 else "none"))
+	var abingdon := _profile()
+	abingdon.region = "us_appalachia"
+	abingdon.zip = "24210"
+	Campaign.clear_saved()
+	var hills := Campaign.create(abingdon)
+	_check(hills.dungeon_rumor().get("name", "") == "The Old Coal Mine", "Abingdon hears of the Old Coal Mine")
+	var walked := 0
+	var mine: Dictionary = GameData.dungeon("us_appalachia")
+	while hills.dungeon_territory("us_appalachia") < 0 and walked < 20:
+		walked += 1
+		var best := -1
+		var best_km := INF
+		for i in hills.territories.size():
+			if hills.can_attack(i):
+				var km := hills._km_between(hills.territories[i].lonlat.y, hills.territories[i].lonlat.x, mine.lat, mine.lon)
+				if km < best_km:
+					best_km = km
+					best = i
+		hills.under_attack = -1
+		hills.resolve_battle(best, true, 0, [], false)
+	var mine_at := hills.dungeon_territory("us_appalachia")
+	_check(mine_at >= 0, "and finds it by freeing land that way (%d liberations)" % walked)
+	if mine_at >= 0:
+		_check(hills._km_between(hills.territories[mine_at].lonlat.y, hills.territories[mine_at].lonlat.x, mine.lat, mine.lon) < 25, "at the real place: " + hills.territories[mine_at].full_name())
+		hills.save()
+		var again := Campaign.create(abingdon)
+		_check(again.dungeon_territory("us_appalachia") == mine_at, "and it's still there after a reload")
+	Campaign.clear_saved()
+
+	# The real flow: Delve from the held entrance, the dungeon screen, readying the pack, the run.
 	var cloud: Node = root.get_node("Cloud")
 	cloud.state_path = "user://dg_cloud.cfg"
 	cloud.base_url = OS.get_environment("FAKE_SUPABASE_URL")
@@ -143,13 +183,21 @@ func _run() -> void:
 	var map: MapScreen = main.get_child(-1)
 	var c: Campaign = main._campaign
 	map._select(c.home)
-	_check("Delve" in _buttons(map), "home has Delve")
-	_check("The Everglades" in map._info_body.text, "and says where it leads")
-	map._select(c.territories[c.home].neighbors[0])
-	_check(not "Delve" in _buttons(map), "elsewhere it doesn't")
+	_check(not "Delve" in _buttons(map), "home has no Delve")
+	_check(_labels(map).any(func(t: String) -> bool: return "Dungeon: The Everglades" in t and "mi SW" in t), "the map points the way")
+	# As if the entrance were here: first in the dead's hands, then freed.
+	var gate: int = c.territories[c.home].neighbors[0]
+	c.territories[gate].dungeon = "us_florida"
+	c.territories[gate].owned = false
+	map._select(gate)
+	_check(not "Delve" in _buttons(map) and "DUNGEON: The Everglades" in map._info_body.text and "Free this land" in map._info_body.text, "the entrance shows, but only freed land opens it")
+	c.territories[gate].owned = true
+	c._ownership_changed()
+	map._select(gate)
+	_check("Delve" in _buttons(map), "freed, it has Delve")
 	var turn: int = c.turn
 	var injured: Dictionary = main._profile.injuries.duplicate()
-	map.dungeon_requested.emit()
+	map._delve.pressed.emit()
 	await _real_wait(400)
 	var screen: Node = main.get_child(-1)
 	_check(screen is DungeonScreen, "Delve opens the dungeon")

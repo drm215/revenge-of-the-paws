@@ -1191,25 +1191,26 @@ const LEGEND_WEAKNESS := {
 	"flyer": {"weak": "bird", "resist": "night", "why": "Birds meet it in the air; it owns the night."},
 	"lurker": {"weak": "water", "resist": "desert", "why": "Water animals fight it on its own terms; desert animals flounder."},
 }
-## Each region's dungeon: endless waves in its best-known wild place, climbing DUNGEON_LEVELS_PER_WAVE
+## Each region's dungeon: endless waves in its best-known wild place (on a US map, the ZIP area nearest
+## `lat`/`lon`; elsewhere, a territory part way out from home), climbing DUNGEON_LEVELS_PER_WAVE
 ## zombie levels a wave; every DUNGEON_BRUTE_EVERY waves adds a Brute, and the depths reached pay
 ## out once each per saved game (DUNGEON_REWARDS). Runs can start from every DUNGEON_CHECKPOINT.
 const DUNGEONS := {
-	"us_florida": {"name": "The Everglades", "lore": "Sawgrass to the horizon, and something moving in every gator hole.", "terrain": "water", "trinket": "gator_tooth"},
-	"us_gulf_south": {"name": "The Atchafalaya Bayou", "lore": "Cypress knees, black water, and the dead wading slow.", "terrain": "water", "trinket": "cypress_knee_charm"},
-	"us_appalachia": {"name": "The Old Coal Mine", "lore": "The miners went down for one last shift and never came up.", "terrain": "mountain", "trinket": "miners_lamp"},
-	"us_carolinas": {"name": "The Okefenokee Swamp", "lore": "The trembling earth: peat that quakes underfoot, and things beneath it.", "terrain": "water", "trinket": "peat_moss_poultice"},
-	"us_new_england": {"name": "Ghost Light Point", "lore": "A storm-wrecked lighthouse whose lamp still turns for the drowned.", "terrain": "water", "trinket": "lighthouse_lens"},
-	"us_mid_atlantic": {"name": "The Dead Line", "lore": "Abandoned subway tunnels where the last train never left.", "terrain": "urban", "trinket": "third_rail_spike"},
-	"us_great_lakes": {"name": "The Shipwreck Shore", "lore": "Ten thousand wrecks under the lakes, and the crews walking back to land.", "terrain": "water", "trinket": "ships_bell_clapper"},
-	"us_plains": {"name": "Tornado Alley", "lore": "Grain silos and storm cellars, and the dead the twisters left behind.", "terrain": "desert", "trinket": "storm_cellar_key"},
-	"us_texas": {"name": "The Oil Fields", "lore": "Pumpjacks still nodding, and crude soaking up through the dirt.", "terrain": "desert", "trinket": "crude_soaked_bandana"},
-	"us_desert": {"name": "The Grand Canyon", "lore": "A mile of rock down to the river, and a horde on every ledge.", "terrain": "desert", "trinket": "canyon_jasper"},
-	"us_rockies": {"name": "Yellowstone's Geyser Basin", "lore": "Boiling springs, sulfur steam, and the dead that don't mind the heat.", "terrain": "mountain", "trinket": "sulfur_crystal"},
-	"us_pacific_nw": {"name": "The Rain Forest", "lore": "Moss on everything under Mount Rainier, and every log hides a shambler.", "terrain": "forest", "trinket": "old_growth_moss"},
-	"us_california": {"name": "The Redwoods", "lore": "Trees older than every city, and a horde that climbs.", "terrain": "forest", "trinket": "redwood_burl"},
-	"us_alaska": {"name": "The Glacier Caves", "lore": "Blue ice tunnels, and the frozen dead thawing out.", "terrain": "mountain", "trinket": "glacier_ice_shard"},
-	"us_hawaii": {"name": "The Lava Tubes", "lore": "Tunnels the volcano carved, and the horde sheltering from the sun.", "terrain": "mountain", "trinket": "obsidian_fang"},
+	"us_florida": {"name": "The Everglades", "lore": "Sawgrass to the horizon, and something moving in every gator hole.", "terrain": "water", "trinket": "gator_tooth", "lat": 25.4, "lon": -80.75},
+	"us_gulf_south": {"name": "The Atchafalaya Bayou", "lore": "Cypress knees, black water, and the dead wading slow.", "terrain": "water", "trinket": "cypress_knee_charm", "lat": 30.3, "lon": -91.75},
+	"us_appalachia": {"name": "The Old Coal Mine", "lore": "The miners went down for one last shift and never came up.", "terrain": "mountain", "trinket": "miners_lamp", "lat": 36.9, "lon": -82.78},
+	"us_carolinas": {"name": "The Okefenokee Swamp", "lore": "The trembling earth: peat that quakes underfoot, and things beneath it.", "terrain": "water", "trinket": "peat_moss_poultice", "lat": 30.73, "lon": -82.33},
+	"us_new_england": {"name": "Ghost Light Point", "lore": "A storm-wrecked lighthouse whose lamp still turns for the drowned.", "terrain": "water", "trinket": "lighthouse_lens", "lat": 43.62, "lon": -70.21},
+	"us_mid_atlantic": {"name": "The Dead Line", "lore": "Abandoned subway tunnels where the last train never left.", "terrain": "urban", "trinket": "third_rail_spike", "lat": 40.75, "lon": -73.99},
+	"us_great_lakes": {"name": "The Shipwreck Shore", "lore": "Ten thousand wrecks under the lakes, and the crews walking back to land.", "terrain": "water", "trinket": "ships_bell_clapper", "lat": 46.77, "lon": -84.96},
+	"us_plains": {"name": "Tornado Alley", "lore": "Grain silos and storm cellars, and the dead the twisters left behind.", "terrain": "desert", "trinket": "storm_cellar_key", "lat": 37.6, "lon": -99.29},
+	"us_texas": {"name": "The Oil Fields", "lore": "Pumpjacks still nodding, and crude soaking up through the dirt.", "terrain": "desert", "trinket": "crude_soaked_bandana", "lat": 31.99, "lon": -102.08},
+	"us_desert": {"name": "The Grand Canyon", "lore": "A mile of rock down to the river, and a horde on every ledge.", "terrain": "desert", "trinket": "canyon_jasper", "lat": 36.05, "lon": -112.14},
+	"us_rockies": {"name": "Yellowstone's Geyser Basin", "lore": "Boiling springs, sulfur steam, and the dead that don't mind the heat.", "terrain": "mountain", "trinket": "sulfur_crystal", "lat": 44.46, "lon": -110.83},
+	"us_pacific_nw": {"name": "The Rain Forest", "lore": "Moss on everything under Mount Rainier, and every log hides a shambler.", "terrain": "forest", "trinket": "old_growth_moss", "lat": 46.76, "lon": -122.03},
+	"us_california": {"name": "The Redwoods", "lore": "Trees older than every city, and a horde that climbs.", "terrain": "forest", "trinket": "redwood_burl", "lat": 41.21, "lon": -124.0},
+	"us_alaska": {"name": "The Glacier Caves", "lore": "Blue ice tunnels, and the frozen dead thawing out.", "terrain": "mountain", "trinket": "glacier_ice_shard", "lat": 58.42, "lon": -134.55},
+	"us_hawaii": {"name": "The Lava Tubes", "lore": "Tunnels the volcano carved, and the horde sheltering from the sun.", "terrain": "mountain", "trinket": "obsidian_fang", "lat": 19.41, "lon": -155.24},
 	"na_east": {"name": "Niagara's Caves", "lore": "Behind the falls, in the roar and the spray, the drowned gather.", "terrain": "water", "trinket": "falls_mist_vial"},
 	"na_west": {"name": "The Klondike Gold Mine", "lore": "Prospectors who never stopped digging.", "terrain": "mountain", "trinket": "klondike_nugget"},
 	"europe": {"name": "The Paris Catacombs", "lore": "Six million bones in the walls, and some of them still moving.", "terrain": "urban", "trinket": "catacomb_skull"},

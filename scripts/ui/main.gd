@@ -385,18 +385,18 @@ func _show_bonus() -> void:
 	_swap(screen)
 
 
-## The region's dungeon: pick a starting wave, ready the pack, then wave after wave. It costs no
-## map turn and leaves no injuries; its rewards are paid as the waves fall.
-func _show_dungeon() -> void:
+## `region`'s dungeon: pick a starting wave, ready the pack, then wave after wave. It costs no map
+## turn and leaves no injuries; its rewards are paid as the waves fall.
+func _show_dungeon(region: String) -> void:
 	var screen := DungeonScreen.new()
 	screen.profile = _profile
+	screen.region = region
 	screen.closed.connect(func() -> void: _show_map(_profile, false))
-	screen.start.connect(_ready_dungeon)
+	screen.start.connect(_ready_dungeon.bind(region))
 	_swap(screen)
 
 
-func _ready_dungeon(wave: int) -> void:
-	var region := _profile.region
+func _ready_dungeon(wave: int, region: String) -> void:
 	var dungeon := GameData.dungeon(region)
 	var config := {"dungeon": region, "start": wave, "waves": [GameData.dungeon_wave(region, wave)],
 		"zombie_mult": GameData.dungeon_mult(wave), "party_mult": 1.0, "place": dungeon.name,
@@ -406,7 +406,7 @@ func _ready_dungeon(wave: int) -> void:
 	prep.battle_config = config
 	prep.closed.connect(func() -> void:
 		_profile.save()
-		_show_dungeon())
+		_show_dungeon(region))
 	prep.fight.connect(func() -> void:
 		_profile.save()
 		var battle := BattleScreen.new()

@@ -89,6 +89,7 @@ static func create(profile: Profile, team := {}) -> Campaign:
 		t.met_level = profile.strongest_pack_level()
 	c._place_lairs(profile)
 	c._place_nests()
+	c._place_dungeons(0)
 	c._place_recruits(profile)
 	c._place_caches()
 	for h in c.homes:
@@ -1098,6 +1099,69 @@ func _place_real_lairs(first: int) -> Array[String]:
 
 
 static var _legend_areas := {}
+static var _dungeon_areas := {}
+
+
+## Dungeon entrances on territories from `first` on. A real map puts every dungeon whose place is on
+## it at that place, even a home (next door, toward the real spot, if a lair is there already); a
+## generated map gets its home region's, part way out from home.
+func _place_dungeons(first: int) -> void:
+	if not uses_zip_data:
+		if first == 0 and GameData.DUNGEONS.has(profile.region):
+			var best := -1
+			for i in territories.size():
+				var t := territories[i]
+				if i in homes or i in nests or t.boss != "" or t.threat != 3:
+					continue
+				if best < 0 or _home_distance(t.site) < _home_distance(territories[best].site):
+					best = i
+			if best >= 0:
+				territories[best].dungeon = profile.region
+		return
+	for region: String in GameData.DUNGEONS:
+		if dungeon_territory(region) >= 0 or not GameData.DUNGEONS[region].has("lat"):
+			continue
+		var area := Campaign.dungeon_area(region)
+		if area < 0 or not _slot.has(area) or _slot[area] < first:
+			continue
+		var at: int = _slot[area]
+		if territories[at].boss != "":
+			var d: Dictionary = GameData.DUNGEONS[region]
+			var best_km := INF
+			at = -1
+			for n in territories[_slot[area]].neighbors:
+				var ll := territories[n].lonlat
+				var km := _km_between(ll.y, ll.x, d.lat, d.lon)
+				if territories[n].boss == "" and territories[n].dungeon == "" and km < best_km:
+					best_km = km
+					at = n
+		if at >= 0:
+			territories[at].dungeon = region
+
+
+## The territory with `region`'s dungeon on this map, or -1.
+func dungeon_territory(region: String) -> int:
+	for i in territories.size():
+		if territories[i].dungeon == region:
+			return i
+	return -1
+
+
+static func dungeon_area(region: String) -> int:
+	if not _dungeon_areas.has(region):
+		var d: Dictionary = GameData.DUNGEONS[region]
+		_dungeon_areas[region] = ZctaDB.nearest(d.lat, d.lon) if d.has("lat") and ZctaDB.count() > 0 else -1
+	return _dungeon_areas[region]
+
+
+## Where this player's own region's dungeon is, if it isn't on the map yet: {name, km, direction}.
+func dungeon_rumor() -> Dictionary:
+	var d := GameData.dungeon(profile.region)
+	if d.is_empty() or not uses_zip_data or not d.has("lat") or dungeon_territory(profile.region) >= 0:
+		return {}
+	var from := territories[rumor_origin()].lonlat
+	var bearing := Vector2((d.lon - from.x) * cos(deg_to_rad(from.y)), d.lat - from.y)
+	return {"name": d.name, "km": _km_between(from.y, from.x, d.lat, d.lon), "direction": _compass(bearing)}
 
 
 ## The ZIP area containing (nearest to) a legend's real hometown, or -1 if it has none.
@@ -1327,6 +1391,7 @@ func _apply_batch(codes: Array) -> Array[String]:
 		territories[i].threat = _threat_at(territories[i].site)
 		territories[i].met_level = profile.strongest_pack_level()
 	var new_legends := _place_frontier_lairs(first_new)
+	_place_dungeons(first_new)
 	_place_frontier_extras(first_new)
 	return new_legends
 
