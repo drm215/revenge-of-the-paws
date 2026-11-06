@@ -193,7 +193,7 @@ The apocalypse starts **where you actually live**.
   each, for good. A territory's info shows its state's progress.
 - **Perfect waves**: clear a wave with no animal taking any damage and the whole pack gets +10% ATK
   (stacking to +30% over perfect waves in a row) until any animal is hurt. The wave banner shows it.
-- **Dungeons** (Delve, from the entrance's territory once it's held): each region has one, set in
+- **Dungeons** (Enter, from the entrance's territory once it's held): each region has one, set in
   its best-known wild place (the Everglades, the Old Coal Mine, the Paris Catacombs...;
   `GameData.DUNGEONS`). On a US map the entrance is the ZIP area nearest the real place (Appalachia,
   VA for the coal mine), and any dungeon whose place is on the map appears there, marked with a

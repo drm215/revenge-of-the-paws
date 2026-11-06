@@ -164,7 +164,7 @@ func _run() -> void:
 		_check(again.dungeon_territory("us_appalachia") == mine_at, "and it's still there after a reload")
 	Campaign.clear_saved()
 
-	# The real flow: Delve from the held entrance, the dungeon screen, readying the pack, the run.
+	# The real flow: Enter from the held entrance, the dungeon screen, readying the pack, the run.
 	var cloud: Node = root.get_node("Cloud")
 	cloud.state_path = "user://dg_cloud.cfg"
 	cloud.base_url = OS.get_environment("FAKE_SUPABASE_URL")
@@ -183,7 +183,7 @@ func _run() -> void:
 	var map: MapScreen = main.get_child(-1)
 	var c: Campaign = main._campaign
 	map._select(c.home)
-	_check(not "Delve" in _buttons(map), "home has no Delve")
+	_check(not "Enter" in _buttons(map), "home has no Enter")
 	_check(_labels(map).any(func(t: String) -> bool: return "Dungeon: The Everglades" in t and "mi SW" in t), "the map points the way")
 	# As if the entrance were here: first in the dead's hands, then freed.
 	var gate: int = c.territories[c.home].neighbors[0]
@@ -196,17 +196,17 @@ func _run() -> void:
 	map._map._select_at(marker.position + Vector2(4, 4))
 	_check(map._map.selected == gate, "and so does tapping its doorway")
 	map._select(gate)
-	_check(not "Delve" in _buttons(map) and "DUNGEON: The Everglades" in map._info_body.text and "Free this land" in map._info_body.text, "the entrance shows, but only freed land opens it")
+	_check(not "Enter" in _buttons(map) and "DUNGEON: The Everglades" in map._info_body.text and "Free this land" in map._info_body.text, "the entrance shows, but only freed land opens it")
 	c.territories[gate].owned = true
 	c._ownership_changed()
 	map._select(gate)
-	_check("Delve" in _buttons(map), "freed, it has Delve")
+	_check("Enter" in _buttons(map), "freed, it has Enter")
 	var turn: int = c.turn
 	var injured: Dictionary = main._profile.injuries.duplicate()
 	map._delve.pressed.emit()
 	await _real_wait(400)
 	var screen: Node = main.get_child(-1)
-	_check(screen is DungeonScreen, "Delve opens the dungeon")
+	_check(screen is DungeonScreen, "Enter opens the dungeon")
 	var text := "\n".join(_labels(screen))
 	_check("The Everglades" in text and "Wave 25" in text and GameData.trinket(GameData.dungeon("us_florida").trinket).name in text, "with its name and treasure")
 	_check("From the top (wave 1)" in _buttons(screen), "a run starts at the top")

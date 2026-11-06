@@ -16,7 +16,7 @@ signal chat_requested
 signal raid_requested
 ## Back to the save picker.
 signal saves_requested
-## Delve into the dungeon of `region` (its entrance is held).
+## Enter the dungeon of `region` (its entrance is held).
 signal dungeon_requested(region: String)
 ## Claim the bonus for a cleared state or region.
 signal bonus_requested
@@ -281,7 +281,7 @@ func _select(i: int) -> void:
 	_action.set_meta("territory", i)
 	if t.dungeon != "":
 		var d := GameData.dungeon(t.dungeon)
-		_info_body.text += "\nDUNGEON: %s. %s" % [d.name, "Delve for endless waves and rewards (free, no injuries)." if t.owned else "Free this land to delve."]
+		_info_body.text += "\nDUNGEON: %s. %s" % [d.name, "Enter for endless waves and rewards (free, no injuries)." if t.owned else "Free this land to enter."]
 	_ping.text = "Unping" if _map.pings.has(t.id) else "Ping"
 	_fit_info()
 
@@ -699,7 +699,7 @@ func _build_ui() -> void:
 	_ping.visible = campaign.is_team()
 	_ping.pressed.connect(_on_ping)
 	actions.add_child(_ping)
-	_delve.text = "Delve"
+	_delve.text = "Enter"
 	_delve.custom_minimum_size = Vector2(130, 60)
 	_delve.add_theme_color_override("font_color", Retro.CYAN)
 	_delve.visible = false
