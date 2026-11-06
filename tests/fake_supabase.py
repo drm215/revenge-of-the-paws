@@ -296,6 +296,16 @@ class H(BaseHTTPRequestHandler):
             uid = self._user() or "u1"
             members[:] = [m for m in members if m["team_id"] != body["team"]]
             return self._send(200, {})
+        if self.path == "/rest/v1/rpc/record_dungeon":
+            if not self._authed():
+                return self._send(401, {"message": "JWT invalid"})
+            rec = state.setdefault("dungeons", {}).setdefault(body["p_region"], {})
+            rec["u1"] = {"name": body["p_name"], "best": max(rec.get("u1", {}).get("best", 0), body["p_wave"])}
+            return self._send(204, None)
+        if self.path == "/rest/v1/rpc/dungeon_board":
+            rec = state.get("dungeons", {}).get(body["p_region"], {})
+            top = sorted(rec.values(), key=lambda r: -r["best"])[:10]
+            return self._send(200, {"mine": rec.get("u1", {}).get("best", 0) if self._authed() else 0, "top": top})
         if self.path == "/rest/v1/rpc/team_pulse":
             return self._pulse(body or {})
         if self.path == "/rest/v1/battle_logs":

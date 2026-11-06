@@ -54,6 +54,8 @@ var _uses := {}  # Combatant -> {skill id: times}
 var _wave_rounds: Array[int] = []
 var _legends: Array[Combatant] = []
 var warlord_name := ""  # the warlord in this fight, if any
+var dungeon := ""  # a dungeon run: the region whose dungeon this is; its waves never end
+var dungeon_start := 1  # the dungeon wave the run began on
 var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged
 var rng := RandomNumberGenerator.new()
 
@@ -93,6 +95,8 @@ func configure(cfg: Dictionary) -> void:
 	boss_hp_mult = cfg.get("boss_hp", 1.0)
 	boss_atk_mult = cfg.get("boss_atk", 1.0)
 	warlord_name = cfg.get("warlord", "")
+	dungeon = cfg.get("dungeon", "")
+	dungeon_start = cfg.get("start", 1)
 
 
 ## A legend raid: every player's pack, in the same order on every device. `packs`:
@@ -200,13 +204,22 @@ func wave_count() -> int:
 
 
 func is_last_wave() -> bool:
-	return wave_index >= wave_count() - 1
+	return dungeon == "" and wave_index >= wave_count() - 1
+
+
+## The dungeon wave number of the wave being fought (a run started part way down counts from there).
+func dungeon_wave() -> int:
+	return dungeon_start + wave_index
 
 
 func start_next_wave() -> void:
 	wave_index += 1
 	if wave_index > 0:
 		_rest_party()
+	if dungeon != "":
+		if wave_index >= _waves.size():
+			_waves.append(GameData.dungeon_wave(dungeon, dungeon_wave()))
+		_zombie_mult = GameData.dungeon_mult(dungeon_wave())
 	enemies.clear()
 	var wave: Array = _waves[wave_index]
 	var totals := {}
@@ -221,6 +234,9 @@ func start_next_wave() -> void:
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
 		if zombie_id == "warlord" and warlord_name != "":
 			z.display_name = warlord_name
+		if zombie_id == "brute" and dungeon != "":
+			var tougher := GameData.dungeon_brute_mult(dungeon_wave())
+			z.scale_stats(tougher, tougher, 1.0)
 		if z.is_boss:
 			z.scale_stats(boss_hp_mult, boss_atk_mult, 1.0)
 			_legends.append(z)
@@ -231,8 +247,11 @@ func start_next_wave() -> void:
 	_turn_queue.clear()
 	current = null
 	_last_hit = null
-	log_message.emit("[b]Wave %d/%d[/b]: the dead shamble through %s..." % [
-		wave_index + 1, wave_count(), place if place != "" else "town"])
+	if dungeon != "":
+		log_message.emit("[b]Wave %d[/b]: deeper into %s..." % [dungeon_wave(), place])
+	else:
+		log_message.emit("[b]Wave %d/%d[/b]: the dead shamble through %s..." % [
+			wave_index + 1, wave_count(), place if place != "" else "town"])
 	if wave_index == 0:
 		for line in _perk_log:
 			log_message.emit(line)
@@ -732,10 +751,11 @@ func _heal(target: Combatant, amount: int) -> void:
 ## Between waves: the living heal a little; an animal knocked out last wave sits this one out and
 ## gets back up at REVIVE_HP the wave after. Cooldowns keep running (the rest counts as one turn).
 func _rest_party() -> void:
-	log_message.emit("The pack catches its breath. (+%d%% HP)" % roundi(REST_HEAL * 100))
+	var rest := GameData.DUNGEON_REST if dungeon != "" else REST_HEAL
+	log_message.emit("The pack catches its breath. (+%d%% HP)" % roundi(rest * 100))
 	for c in party:
 		if c.is_alive():
-			c.hp = mini(c.max_hp, c.hp + roundi(c.max_hp * REST_HEAL))
+			c.hp = mini(c.max_hp, c.hp + roundi(c.max_hp * rest))
 		elif wave_index - c.fell_in_wave >= 2:
 			c.hp = roundi(c.max_hp * REVIVE_HP)
 			log_message.emit("%s is back on its paws." % c.display_name)

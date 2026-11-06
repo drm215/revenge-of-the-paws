@@ -46,6 +46,7 @@ var _pending := {}  # the cloud save waiting on a conflict decision
 var _siege_pending := {}  # siege week (as text) -> damage not yet sent
 var _siege_name := ""
 var _battle_logs: Array = []  # battle reports not yet sent (see log_battle)
+var _dungeon_records := {}  # region -> {wave, name}: a new deepest wave not yet sent
 var _last_error := ""  # why the last request failed, shown after "Offline" so problems can be traced
 var _conflict_ui: CanvasLayer
 
@@ -256,6 +257,7 @@ func sync() -> void:
 		await _sync_once()
 		await _send_siege()
 		await _send_battle_logs()
+	await _send_dungeon_records()
 	_busy = false
 
 
@@ -573,6 +575,38 @@ func _send_battle_logs() -> void:
 		_store_state()
 
 
+## A new deepest dungeon wave for the leaderboard; sent with the next sync (kept while offline).
+func dungeon_record(region: String, wave: int, pack_name: String) -> void:
+	if wave <= int(_dungeon_records.get(region, {}).get("wave", 0)):
+		return
+	_dungeon_records[region] = {"wave": wave, "name": pack_name}
+	_store_state()
+	if signed_in():
+		_timer.start(SYNC_DELAY)
+
+
+func _send_dungeon_records() -> void:
+	if _dungeon_records.is_empty() or not await _ensure_token():
+		return
+	for region: String in _dungeon_records.keys():
+		var record: Dictionary = _dungeon_records[region]
+		var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/rpc/record_dungeon",
+			{"p_region": region, "p_wave": int(record.wave), "p_name": String(record.name)})
+		if r.ok:
+			_dungeon_records.erase(region)
+			_store_state()
+		else:
+			_note_error("dungeon", r)
+
+
+## The deepest packs in `region`'s dungeon: {"top": [{name, best}], "mine"}, or {} offline.
+func dungeon_board(region: String) -> Dictionary:
+	if signed_in() and not await _ensure_token():
+		return {}
+	var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/rpc/dungeon_board", {"p_region": region}, signed_in())
+	return r.data if r.ok and r.data is Dictionary else {}
+
+
 ## Damage waiting to be sent for `week`.
 func siege_pending(week: int) -> int:
 	return int(_siege_pending.get(str(week), 0))
@@ -625,6 +659,7 @@ func _store_state() -> void:
 	cfg.set_value("cloud", "siege_pending", _siege_pending)
 	cfg.set_value("cloud", "siege_name", _siege_name)
 	cfg.set_value("cloud", "battle_logs", _battle_logs)
+	cfg.set_value("cloud", "dungeon_records", _dungeon_records)
 	cfg.save(state_path)
 
 
@@ -642,3 +677,4 @@ func _load_state() -> void:
 	_siege_pending = cfg.get_value("cloud", "siege_pending", {})
 	_siege_name = cfg.get_value("cloud", "siege_name", "")
 	_battle_logs = cfg.get_value("cloud", "battle_logs", [])
+	_dungeon_records = cfg.get_value("cloud", "dungeon_records", {})

@@ -45,6 +45,8 @@ var auto_battle := false  # auto mode: fight territories far below the leader wi
 var siege_claimed: Array[int] = []  # weeks claimed before sieges had stages: the first stage's reward
 var siege_rewards := {}  # siege week -> how many of its stages have been claimed
 var siege_seen := {}  # siege week -> how many of its stages the map has announced
+var dungeon_best := {}  # region -> the deepest dungeon wave cleared
+var dungeon_paid := {}  # region -> the deepest wave whose reward has been paid (each pays once)
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
 var raids_claimed: Array[String] = []  # legend raids whose rewards this player has collected
 var team_id := ""  # the team this game is played with ("" = solo); see Team
@@ -473,6 +475,8 @@ func save() -> void:
 	cfg.set_value("profile", "siege_claimed", Array(siege_claimed))
 	cfg.set_value("profile", "siege_rewards", siege_rewards)
 	cfg.set_value("profile", "siege_seen", siege_seen)
+	cfg.set_value("profile", "dungeon_best", dungeon_best)
+	cfg.set_value("profile", "dungeon_paid", dungeon_paid)
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
 	cfg.set_value("profile", "team_id", team_id)
@@ -511,6 +515,8 @@ static func load_saved() -> Profile:
 	p.siege_claimed.assign(cfg.get_value("profile", "siege_claimed", []))
 	p.siege_rewards = cfg.get_value("profile", "siege_rewards", {})
 	p.siege_seen = cfg.get_value("profile", "siege_seen", {})
+	p.dungeon_best = cfg.get_value("profile", "dungeon_best", {})
+	p.dungeon_paid = cfg.get_value("profile", "dungeon_paid", {})
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
 	p.team_id = cfg.get_value("profile", "team_id", "")
@@ -634,6 +640,52 @@ func claim_raid(raid_id: String, outcome: Dictionary, brought: Array, account: S
 		lines.append("Everyone who fought gets the %s! Equip it from Pack." % GameData.trinket(drop).name)
 	save()
 	return lines
+
+
+## The pack cleared dungeon wave `n` in `region`'s dungeon: records it, and pays any reward for a
+## depth reached for the first time. Returns what was gained ("" if nothing new).
+func clear_dungeon_wave(region: String, n: int) -> String:
+	dungeon_best[region] = maxi(int(dungeon_best.get(region, 0)), n)
+	var lines: PackedStringArray = []
+	var paid := int(dungeon_paid.get(region, 0))
+	var xp_share := 0.0
+	for depth: int in GameData.DUNGEON_REWARDS:
+		if depth <= paid or depth > n:
+			continue
+		var reward: Dictionary = GameData.DUNGEON_REWARDS[depth]
+		xp_share += float(reward.get("xp", 0.0))
+		var found := ""
+		match reward.get("trinket", ""):
+			"cache":
+				found = GameData.CACHE_TRINKETS.pick_random()
+			"legendary":
+				found = GameData.LEGENDS[GameData.LEGENDS.keys().pick_random()].drop
+			"dungeon":
+				found = GameData.dungeon(region).trinket
+		if found != "":
+			trinkets.append(found)
+			lines.append("Wave %d: found the %s! Equip it from Pack." % [depth, GameData.trinket(found).name])
+	if n > paid:
+		dungeon_paid[region] = maxi(paid, n)
+	if xp_share > 0.0:
+		for id in pack_ids() + active().filter(func(a: String) -> bool: return a not in pack_ids()):
+			var level_cost := GameData.xp_to_reach(level_of(id) + 1) - GameData.xp_to_reach(level_of(id))
+			if add_xp(id, roundi(level_cost * xp_share)) > 0:
+				lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
+		lines.append("The pack gains %s level%s of XP." % ["half a" if xp_share == 0.5 else str(xp_share), "" if xp_share <= 1.0 else "s"])
+	save()
+	return "\n".join(lines)
+
+
+## The waves a dungeon run can start on: the first, and every checkpoint already cleared.
+func dungeon_starts(region: String) -> Array[int]:
+	var starts: Array[int] = [1]
+	var best := int(dungeon_best.get(region, 0))
+	var checkpoint := GameData.DUNGEON_CHECKPOINT
+	while checkpoint <= best:
+		starts.append(checkpoint + 1)
+		checkpoint += GameData.DUNGEON_CHECKPOINT
+	return starts
 
 
 ## How this pack appears on the siege leaderboard: pet (or lead animal) and region, never the town.

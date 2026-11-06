@@ -185,6 +185,16 @@ The apocalypse starts **where you actually live**.
   by one: a game this device doesn't have downloads, the newer copy of each game wins, the same
   game changed on both devices asks which to keep, and deleting a game deletes its cloud copy.
   Only the game being played restarts when its copy downloads.
+- **Dungeons** (Delve, at home): each region has one, set in its best-known wild place (the
+  Everglades, the Old Coal Mine, the Paris Catacombs...; `GameData.DUNGEONS`). Endless waves that climb
+  0.6 zombie levels a wave; every 5th wave adds a Brute (two on screen at most: each past that
+  makes them 8% tougher), and the mix grows nastier. Half HP back between waves. Tuned so the
+  simulator's AI reaches about wave 12 at pack Lv 10, 21 at Lv 20 and 26 at Lv 30. Clearing a depth for
+  the first time pays once per saved game (`DUNGEON_REWARDS`: XP and trinkets up to wave 40, the
+  region's own trinket at 25, a legendary at 40); waves give no other XP. Runs start from wave 1 or
+  any cleared checkpoint (every 10), cost no map turn and leave no injuries. Leave between waves
+  or fall: either way you keep what you won. Deepest waves go on a leaderboard per region
+  (`server/dungeons.sql`).
 - **Weekly siege** (map footer, co-op): one giant horde a week (`GameData.SIEGES`, new each
   Monday UTC) shared by every signed-in player. Each zombie a pack destroys, in battles and
   patrols, hits it for the territory's threat. It breaks in stages (`GameData.SIEGE_STAGES`: 500,
@@ -382,8 +392,8 @@ units hop forward when they act.
 
 UI is retro too (`scripts/ui/retro.gd`): ENDESGA 32 colors everywhere, square chunky panels and
 buttons with a thick bottom "lip", Press Start 2P for titles/buttons/tags and Pixelify Sans for
-body text (both SIL Open Font License, in `fonts/`), aliasing-free map borders and block-style
-threat pips.
+body text (both SIL Open Font License, in `fonts/`), aliasing-free map borders, and
+threat shown by shading (land you can attack goes darker as it gets tougher).
 
 ## Art direction (later)
 Chunky hand-drawn 2D, warm color animals against desaturated green/grey zombies. Overgrown

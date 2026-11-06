@@ -18,7 +18,6 @@ const INFESTED_DEEP := Color("2c1f2e")
 const UNDER_ATTACK := Retro.RED
 const BORDER := Retro.INK
 const SELECTED := Retro.YELLOW
-const THREAT_PIP := Retro.RED
 const LAIR := Color("f6a0e0")
 const CUT_OFF := Color("2a4a33")  # held but cut off from home
 const NEST := Color("b8203a")
@@ -538,13 +537,6 @@ func _draw_labels() -> void:
 		var survivor := campaign.pending_recruit(i)
 		if survivor != "":
 			_labels.draw_texture_rect(_icon(survivor), Rect2(c + Vector2(-20, -48), Vector2(40, 40)), false)
-		if not t.owned:
-			if t.threat > GameData.MAX_THREAT:
-				_text(font, c + Vector2(0, 36), "+%d" % (t.threat - GameData.MAX_THREAT), Retro.px(12), THREAT_PIP)
-			for k in mini(t.threat, GameData.MAX_THREAT):
-				var pip := c + Vector2((k - (mini(t.threat, GameData.MAX_THREAT) - 1) / 2.0) * 10 - 3, 10)
-				_labels.draw_rect(Rect2(pip - Vector2(1, 1), Vector2(8, 8)), BORDER)
-				_labels.draw_rect(Rect2(pip, Vector2(6, 6)), THREAT_PIP)
 
 
 ## Territories big enough on screen to label, most important first: home and the selection, lairs,

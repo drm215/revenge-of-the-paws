@@ -109,6 +109,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.stable_requested.connect(_show_pack.bind(true))
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
+	screen.dungeon_requested.connect(_show_dungeon)
 	screen.raid_requested.connect(_show_raid.bind(-1))
 	screen.saves_requested.connect(func() -> void:
 		_profile.save()  # everything else is already saved after each move
@@ -368,6 +369,43 @@ func _check_siege(screen: MapScreen) -> void:
 		var stage: Dictionary = GameData.SIEGE_STAGES[broken - 1]
 		var siege_name := String(GameData.siege_info(week).name)
 		screen.announce_siege("%s: %s!" % [siege_name.to_upper(), String(stage.name).to_upper()], GameData.siege_reward_text(broken - 1) + ". Claim it from Siege.")
+
+
+## The region's dungeon: pick a starting wave, ready the pack, then wave after wave. It costs no
+## map turn and leaves no injuries; its rewards are paid as the waves fall.
+func _show_dungeon() -> void:
+	var screen := DungeonScreen.new()
+	screen.profile = _profile
+	screen.closed.connect(func() -> void: _show_map(_profile, false))
+	screen.start.connect(_ready_dungeon)
+	_swap(screen)
+
+
+func _ready_dungeon(wave: int) -> void:
+	var region := _profile.region
+	var dungeon := GameData.dungeon(region)
+	var config := {"dungeon": region, "start": wave, "waves": [GameData.dungeon_wave(region, wave)],
+		"zombie_mult": GameData.dungeon_mult(wave), "party_mult": 1.0, "place": dungeon.name,
+		"condition": dungeon.terrain, "region": region}
+	var prep := PackScreen.new()
+	prep.profile = _profile
+	prep.battle_config = config
+	prep.closed.connect(func() -> void:
+		_profile.save()
+		_show_dungeon())
+	prep.fight.connect(func() -> void:
+		_profile.save()
+		var battle := BattleScreen.new()
+		battle.profile = _profile
+		battle.config = config
+		battle.finished.connect(func(_won: bool) -> void:
+			_profile.save()
+			if not _profile.units_with_new_points().is_empty():
+				_show_upgrades()
+			else:
+				_show_map(_profile, false))
+		_swap(battle))
+	_swap(prep)
 
 
 ## Every zombie destroyed hits the weekly siege for the territory's threat.

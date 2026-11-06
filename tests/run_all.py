@@ -97,7 +97,7 @@ def problems(output: str) -> list:
 
 def run_check(name: str) -> tuple:
     start = time.time()
-    with tempfile.TemporaryDirectory(prefix="paws_test_") as data, Server() as url:
+    with tempfile.TemporaryDirectory(prefix="paws_test_", ignore_cleanup_errors=True) as data, Server() as url:
         output, timed_out = godot(f"res://tests/checks/{name}.gd", environment(url, data), [], TIMEOUT)
     bad = problems(output)
     if timed_out:
@@ -111,7 +111,7 @@ def run_duo() -> tuple:
     """Two devices fight one raid: both must end on exactly the same battle."""
     start = time.time()
     bad = []
-    with tempfile.TemporaryDirectory(prefix="paws_test_") as data, Server() as url:
+    with tempfile.TemporaryDirectory(prefix="paws_test_", ignore_cleanup_errors=True) as data, Server() as url:
         out = Path(data) / "out"
         out.mkdir()
         script = "res://tests/raid_duo.gd"

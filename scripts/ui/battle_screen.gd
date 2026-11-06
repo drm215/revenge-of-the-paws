@@ -52,6 +52,8 @@ var _overlay := ColorRect.new()
 var _overlay_title := Label.new()
 var _overlay_body := Label.new()
 var _overlay_button := Button.new()
+var _overlay_alt := Button.new()  # a second choice on the overlay (a dungeon's Leave)
+var _overlay_alt_action: Callable
 var _overlay_action: Callable
 
 
@@ -136,9 +138,14 @@ func _start_wave() -> void:
 		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 4 else 1.0)
 		_add_card(c, _enemy_col, enemy_sprite, ROW_SHIFT)
 	var cond: String = config.get("condition", "")
-	_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
-		(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
+	if battle.dungeon != "":
+		_wave_label.text = "%s · WAVE %d" % [battle.place.to_upper(), battle.dungeon_wave()]
+	else:
+		_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
+			(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
 	_overlay.hide()
+	if battle.dungeon != "" and battle.dungeon_wave() % GameData.DUNGEON_BRUTE_EVERY == 0:
+		_fx.callout("BRUTE WAVE!", Retro.ORANGE)
 	await _fx.wave_started()
 	_run_turns()
 
@@ -158,6 +165,8 @@ func _run_turns() -> void:
 			_begin_player_turn(actor)
 			return  # resumes from _execute() once the player picks a target
 		await get_tree().create_timer(AUTO_THINK_TIME if auto else ENEMY_THINK_TIME).timeout
+		if not cards.has(actor) or not actor.is_alive() or battle.outcome() != Battle.Outcome.ONGOING:
+			return  # its wave ended while it was making up its mind
 		var plan := AutoBattle.pick_action(battle, actor) if actor.is_player else battle.plan_enemy_action(actor)
 		battle.use_skill(actor, plan.skill, plan.target)
 		await get_tree().create_timer(AUTO_AFTER_TIME if auto else AFTER_ACTION_TIME).timeout
@@ -239,6 +248,10 @@ func _show_outcome() -> void:
 	if battle.outcome() == Battle.Outcome.VICTORY and _legend_drop() != "":
 		await _fx.legend_loot(_legend_drop())
 	match battle.outcome():
+		Battle.Outcome.WAVE_CLEARED when battle.dungeon != "":
+			_dungeon_wave_cleared()
+		Battle.Outcome.DEFEAT when battle.dungeon != "":
+			_dungeon_over()
 		Battle.Outcome.WAVE_CLEARED when raid:
 			_show_overlay("Wave cleared!", "The raid pushes on...", "Next wave", _start_wave)
 			await get_tree().create_timer(RAID_WAVE_PAUSE).timeout
@@ -258,6 +271,53 @@ func _show_outcome() -> void:
 		Battle.Outcome.DEFEAT:
 			_log_battle()
 			_show_overlay("The pack retreats", "The horde was too much this time. Regroup and try again.\n\n%s%s" % [_award_xp(false), _siege_line()], "Back to map", finished.emit.bind(false))
+
+
+# --- Dungeons --------------------------------------------------------------------------------------
+
+## A dungeon wave down: any reward for a new depth, then on or out.
+func _dungeon_wave_cleared() -> void:
+	var n := battle.dungeon_wave()
+	var region := battle.dungeon
+	var first_time: bool = n > int(profile.dungeon_paid.get(region, 0))
+	var unique := String(GameData.DUNGEON_REWARDS.get(n, {}).get("trinket", "")) == "dungeon"
+	var gained := profile.clear_dungeon_wave(region, n)
+	var cloud := get_node_or_null("/root/Cloud")
+	if cloud and cloud.enabled():
+		cloud.dungeon_record(region, n, profile.siege_name())
+	if first_time and unique:
+		await _fx.legend_loot(GameData.dungeon(region).trinket)
+	var lines: PackedStringArray = []
+	if gained != "":
+		lines.append(gained)
+	var next := n + 1
+	if GameData.DUNGEON_REWARDS.has(next) and next > int(profile.dungeon_paid.get(region, 0)):
+		lines.append("Clear wave %d for %s." % [next, GameData.dungeon_reward_text(region, next)])
+	if next % GameData.DUNGEON_BRUTE_EVERY == 0:
+		var brutes := next / GameData.DUNGEON_BRUTE_EVERY
+		if brutes <= GameData.DUNGEON_BRUTES_ON_SCREEN:
+			lines.append("Wave %d brings %d Brute%s." % [next, brutes, "" if brutes == 1 else "s"])
+		else:
+			lines.append("Wave %d: the Brutes grow stronger (+%d%%)." % [next, roundi((GameData.dungeon_brute_mult(next) - 1.0) * 100)])
+	lines.append("The pack rests a moment. Anyone knocked out sits the next wave out.")
+	_show_overlay("Wave %d cleared!" % n, "\n\n".join(lines), "Next wave", _start_wave, "Leave with what you've won", _leave_dungeon)
+
+
+func _leave_dungeon() -> void:
+	_log_battle()
+	finished.emit(true)
+
+
+## The pack has fallen: the run is over, and everything won is kept.
+func _dungeon_over() -> void:
+	_log_battle()
+	var region := battle.dungeon
+	var reached := battle.dungeon_wave() - 1
+	var best := int(profile.dungeon_best.get(region, 0))
+	var line := "Your deepest: wave %d." % best if best > 0 else "Not a wave cleared this time."
+	if reached > 0 and reached >= best:
+		line = "A new deepest: wave %d!" % reached
+	_show_overlay("The pack falls at wave %d" % battle.dungeon_wave(), "%s\n\nEverything you won down here is yours to keep.\nNo injuries: the dungeon never costs the campaign." % line, "Back to map", finished.emit.bind(false))
 
 
 ## What this fight did to the week's siege, for the results.
@@ -515,11 +575,14 @@ func _add_card(c: Combatant, column: Container, sprite_size: float, shift: int, 
 	cards[c] = card
 
 
-func _show_overlay(title: String, body: String, button_text: String, action: Callable) -> void:
+func _show_overlay(title: String, body: String, button_text: String, action: Callable, alt_text := "", alt_action := Callable()) -> void:
 	_overlay_title.text = title
 	_overlay_body.text = body
 	_overlay_button.text = button_text
 	_overlay_action = action
+	_overlay_alt.text = alt_text
+	_overlay_alt_action = alt_action
+	_overlay_alt.visible = alt_text != ""
 	_overlay.show()
 
 
@@ -620,3 +683,7 @@ func _build_ui() -> void:
 	_overlay_button.custom_minimum_size = Vector2(0, 90)
 	_overlay_button.pressed.connect(func() -> void: _overlay_action.call())
 	box.add_child(_overlay_button)
+	_overlay_alt.custom_minimum_size = Vector2(0, 76)
+	_overlay_alt.pressed.connect(func() -> void: _overlay_alt_action.call())
+	_overlay_alt.hide()
+	box.add_child(_overlay_alt)

@@ -918,6 +918,28 @@ const LEGENDS := {
 ## that share of damage dealt, thorns reflects that share of damage taken, regen heals that share
 ## of max HP each turn, immune blocks statuses, start triggers at the start of every wave.
 const TRINKETS := {
+	"gator_tooth": {"name": "Gator Tooth", "flavor": "Pulled from a jaw that kept snapping.", "crit": 0.15, "atk": 0.1, "def": -0.1},
+	"cypress_knee_charm": {"name": "Cypress Knee Charm", "flavor": "Carved from a bayou root.", "regen": 0.04, "def": 0.1, "spd": -0.1},
+	"miners_lamp": {"name": "Miner's Lamp", "flavor": "Still lit, somehow.", "crit": 0.1, "spd": 0.1, "hp": -0.05},
+	"peat_moss_poultice": {"name": "Peat Moss Poultice", "flavor": "Smells awful. Works wonders.", "regen": 0.05, "atk": -0.05},
+	"lighthouse_lens": {"name": "Lighthouse Lens", "flavor": "Every zombie sees it and flinches.", "start": "weaken_foes", "hp": -0.1},
+	"third_rail_spike": {"name": "Third-Rail Spike", "flavor": "It still hums.", "atk": 0.2, "hp": -0.1},
+	"ships_bell_clapper": {"name": "Ship's Bell Clapper", "flavor": "Rings once, then never again.", "thorns": 0.2, "def": 0.1, "spd": -0.15},
+	"storm_cellar_key": {"name": "Storm Cellar Key", "flavor": "Opens a door nothing gets through.", "start": "guard", "atk": -0.05},
+	"crude_soaked_bandana": {"name": "Crude-Soaked Bandana", "flavor": "Slick, black and lucky.", "spd": 0.2, "def": -0.1},
+	"canyon_jasper": {"name": "Canyon Jasper", "flavor": "Red stone, warm to the touch.", "def": 0.2, "spd": -0.1},
+	"sulfur_crystal": {"name": "Sulfur Crystal", "flavor": "Burns whatever bites you.", "thorns": 0.25, "hp": -0.05},
+	"old_growth_moss": {"name": "Old-Growth Moss", "flavor": "Soft, green and stubborn.", "hp": 0.2, "spd": -0.1},
+	"redwood_burl": {"name": "Redwood Burl", "flavor": "Heavy, ridged and hard as iron.", "def": 0.15, "hp": 0.1, "spd": -0.15},
+	"glacier_ice_shard": {"name": "Glacier Ice Shard", "flavor": "Never melts.", "immune": ["stunned"], "atk": -0.05},
+	"obsidian_fang": {"name": "Obsidian Fang", "flavor": "Glass-sharp volcanic stone.", "crit": 0.2, "def": -0.15},
+	"falls_mist_vial": {"name": "Falls Mist Vial", "flavor": "The spray of the falls, bottled.", "lifesteal": 0.12, "hp": -0.05},
+	"klondike_nugget": {"name": "Klondike Nugget", "flavor": "Worth fighting for.", "atk": 0.15, "crit": 0.05, "spd": -0.1},
+	"catacomb_skull": {"name": "Catacomb Skull", "flavor": "It grins at the dead.", "immune": ["infected"], "def": 0.1, "spd": -0.05},
+	"poison_dart_frog": {"name": "Poison Dart Frog Charm", "flavor": "Bright colors mean danger.", "atk": 0.15, "thorns": 0.1, "hp": -0.1},
+	"desert_rose": {"name": "Desert Rose", "flavor": "Sand grown into petals.", "def": 0.15, "regen": 0.03, "atk": -0.1},
+	"summit_prayer_flag": {"name": "Summit Prayer Flag", "flavor": "Faded, and still flying.", "hp": 0.15, "lifesteal": 0.08, "spd": -0.1},
+	"boomerang": {"name": "Boomerang", "flavor": "Comes back. So do you.", "spd": 0.15, "crit": 0.1, "hp": -0.1},
 	"moth_wing_charm": {"name": "Moth Wing Charm", "flavor": "A dusty scale from a red-eyed omen.", "spd": 0.25, "def": -0.1},
 	"hollow_bark_armor": {"name": "Hollow-Bark Armor", "flavor": "Bark peeled off a Virginia giant.", "def": 0.3, "spd": -0.15},
 	"glowing_hood_scrap": {"name": "Glowing Hood Scrap", "flavor": "Still faintly warm. Smells like metal.", "immune": ["infected"], "atk": -0.1},
@@ -1169,6 +1191,103 @@ const LEGEND_WEAKNESS := {
 	"flyer": {"weak": "bird", "resist": "night", "why": "Birds meet it in the air; it owns the night."},
 	"lurker": {"weak": "water", "resist": "desert", "why": "Water animals fight it on its own terms; desert animals flounder."},
 }
+## Each region's dungeon: endless waves in its best-known wild place, climbing DUNGEON_LEVELS_PER_WAVE
+## zombie levels a wave; every DUNGEON_BRUTE_EVERY waves adds a Brute, and the depths reached pay
+## out once each per saved game (DUNGEON_REWARDS). Runs can start from every DUNGEON_CHECKPOINT.
+const DUNGEONS := {
+	"us_florida": {"name": "The Everglades", "lore": "Sawgrass to the horizon, and something moving in every gator hole.", "terrain": "water", "trinket": "gator_tooth"},
+	"us_gulf_south": {"name": "The Atchafalaya Bayou", "lore": "Cypress knees, black water, and the dead wading slow.", "terrain": "water", "trinket": "cypress_knee_charm"},
+	"us_appalachia": {"name": "The Old Coal Mine", "lore": "The miners went down for one last shift and never came up.", "terrain": "mountain", "trinket": "miners_lamp"},
+	"us_carolinas": {"name": "The Okefenokee Swamp", "lore": "The trembling earth: peat that quakes underfoot, and things beneath it.", "terrain": "water", "trinket": "peat_moss_poultice"},
+	"us_new_england": {"name": "Ghost Light Point", "lore": "A storm-wrecked lighthouse whose lamp still turns for the drowned.", "terrain": "water", "trinket": "lighthouse_lens"},
+	"us_mid_atlantic": {"name": "The Dead Line", "lore": "Abandoned subway tunnels where the last train never left.", "terrain": "urban", "trinket": "third_rail_spike"},
+	"us_great_lakes": {"name": "The Shipwreck Shore", "lore": "Ten thousand wrecks under the lakes, and the crews walking back to land.", "terrain": "water", "trinket": "ships_bell_clapper"},
+	"us_plains": {"name": "Tornado Alley", "lore": "Grain silos and storm cellars, and the dead the twisters left behind.", "terrain": "desert", "trinket": "storm_cellar_key"},
+	"us_texas": {"name": "The Oil Fields", "lore": "Pumpjacks still nodding, and crude soaking up through the dirt.", "terrain": "desert", "trinket": "crude_soaked_bandana"},
+	"us_desert": {"name": "The Grand Canyon", "lore": "A mile of rock down to the river, and a horde on every ledge.", "terrain": "desert", "trinket": "canyon_jasper"},
+	"us_rockies": {"name": "Yellowstone's Geyser Basin", "lore": "Boiling springs, sulfur steam, and the dead that don't mind the heat.", "terrain": "mountain", "trinket": "sulfur_crystal"},
+	"us_pacific_nw": {"name": "The Rain Forest", "lore": "Moss on everything under Mount Rainier, and every log hides a shambler.", "terrain": "forest", "trinket": "old_growth_moss"},
+	"us_california": {"name": "The Redwoods", "lore": "Trees older than every city, and a horde that climbs.", "terrain": "forest", "trinket": "redwood_burl"},
+	"us_alaska": {"name": "The Glacier Caves", "lore": "Blue ice tunnels, and the frozen dead thawing out.", "terrain": "mountain", "trinket": "glacier_ice_shard"},
+	"us_hawaii": {"name": "The Lava Tubes", "lore": "Tunnels the volcano carved, and the horde sheltering from the sun.", "terrain": "mountain", "trinket": "obsidian_fang"},
+	"na_east": {"name": "Niagara's Caves", "lore": "Behind the falls, in the roar and the spray, the drowned gather.", "terrain": "water", "trinket": "falls_mist_vial"},
+	"na_west": {"name": "The Klondike Gold Mine", "lore": "Prospectors who never stopped digging.", "terrain": "mountain", "trinket": "klondike_nugget"},
+	"europe": {"name": "The Paris Catacombs", "lore": "Six million bones in the walls, and some of them still moving.", "terrain": "urban", "trinket": "catacomb_skull"},
+	"latin_america": {"name": "The Amazon", "lore": "The river, the canopy, and a horde in every shade of green.", "terrain": "forest", "trinket": "poison_dart_frog"},
+	"africa": {"name": "The Sahara", "lore": "Dunes without end, and the dead walking out of the heat haze.", "terrain": "desert", "trinket": "desert_rose"},
+	"asia": {"name": "The Himalayas", "lore": "Thin air, frozen passes, and climbers who never came down.", "terrain": "mountain", "trinket": "summit_prayer_flag"},
+	"australia": {"name": "The Outback", "lore": "Red earth to every horizon, and a horde with nowhere else to go.", "terrain": "desert", "trinket": "boomerang"},
+}
+const DUNGEON_LEVEL_LAG := 2
+const DUNGEON_LEVELS_PER_WAVE := 0.6  # zombie levels gained per wave
+const DUNGEON_REST := 0.5  # share of max HP the pack gets back between dungeon waves
+## Brutes on screen at most; each one the schedule adds past that makes them all this much tougher.
+const DUNGEON_BRUTES_ON_SCREEN := 2
+const DUNGEON_BRUTE_GROWTH := 0.08
+const DUNGEON_BRUTE_EVERY := 5
+const DUNGEON_CHECKPOINT := 10
+const DUNGEON_REWARDS := {
+	5: {"xp": 0.5}, 10: {"xp": 0.5, "trinket": "cache"}, 15: {"xp": 1.0}, 20: {"xp": 1.0, "trinket": "cache"},
+	25: {"trinket": "dungeon"}, 30: {"xp": 1.0}, 35: {"xp": 1.0}, 40: {"xp": 1.0, "trinket": "legendary"},
+}
+
+
+## The dungeon for a region ({} if it has none).
+static func dungeon(region: String) -> Dictionary:
+	return DUNGEONS.get(region, {})
+
+
+## Zombie strength on wave `n` of any dungeon.
+static func dungeon_mult(n: int) -> float:
+	return level_strength(roundi(n * DUNGEON_LEVELS_PER_WAVE) - DUNGEON_LEVEL_LAG)
+
+
+## Wave `n` of `region`'s dungeon: the same every run. Brutes join every DUNGEON_BRUTE_EVERY waves;
+## the rest come from a mix that grows nastier the deeper it goes.
+static func dungeon_wave(region: String, n: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:%d" % [region, n])
+	var size := 2 if n <= 2 else 3 if n <= 6 else MAX_ENEMIES
+	var brutes := mini(n / DUNGEON_BRUTE_EVERY, mini(size, DUNGEON_BRUTES_ON_SCREEN))
+	var pool: Array[String] = ["shambler", "runner"]
+	if n >= 3:
+		pool.append_array(["bloater", "plague"])
+	if n >= 8:
+		pool.append_array(["screamer", "medic"])
+	if n >= 12:
+		pool.append_array(["riot", "riot"])
+	var wave: Array = []
+	for k in size - brutes:
+		wave.append(pool[rng.randi_range(0, pool.size() - 1)])
+	for k in brutes:
+		wave.append("brute")
+	return wave
+
+
+## How much tougher a dungeon's Brutes are on wave `n`: one step for each Brute the schedule adds past
+## what fits on screen.
+static func dungeon_brute_mult(n: int) -> float:
+	return 1.0 + DUNGEON_BRUTE_GROWTH * maxi(0, n / DUNGEON_BRUTE_EVERY - DUNGEON_BRUTES_ON_SCREEN)
+
+
+## What clearing wave `n` pays, for people ("" if it pays nothing).
+static func dungeon_reward_text(region: String, n: int) -> String:
+	if not DUNGEON_REWARDS.has(n):
+		return ""
+	var reward: Dictionary = DUNGEON_REWARDS[n]
+	var parts: PackedStringArray = []
+	match reward.get("trinket", ""):
+		"cache":
+			parts.append("a trinket")
+		"legendary":
+			parts.append("a LEGENDARY trinket")
+		"dungeon":
+			parts.append("the %s" % trinket(dungeon(region).trinket).name)
+	if reward.has("xp"):
+		parts.append("half a level" if reward.xp < 1.0 else "a level")
+	return " and ".join(parts)
+
+
 ## Territories freed that get their own moment on the map.
 const LIBERATION_MILESTONES := [5, 10, 25, 50, 75, 100, 150, 200, 300, 500]
 const STATE_NAMES := {

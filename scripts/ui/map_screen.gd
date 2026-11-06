@@ -16,6 +16,8 @@ signal chat_requested
 signal raid_requested
 ## Back to the save picker.
 signal saves_requested
+## Delve into this region's dungeon.
+signal dungeon_requested
 signal auto_toggled
 ## The liberation and the horde's moves have finished playing.
 signal liberation_done
@@ -26,6 +28,7 @@ var liberation := {}  # Campaign.take_liberation(): the moment to play as this s
 var horde_news: Array = []  # Campaign.horde_news(): the horde's moves to play after it
 var celebrating := false
 var _siege_button := Button.new()
+var _delve := Button.new()  # home: into the region's dungeon
 
 var _map := MapView.new()
 var _status := Label.new()
@@ -192,6 +195,7 @@ func _select(i: int) -> void:
 	var t := campaign.territories[i]
 	_info_title.text = t.name + (("  " + t.id) if campaign.uses_zip_data else "")
 	_action.visible = campaign.is_actionable(i)
+	_delve.visible = i == campaign.home and not GameData.dungeon(profile.region).is_empty()
 	_action.set_meta("mode", "attack")
 	if i == campaign.under_attack:
 		_info_body.text = "Under attack! Lv %d · threat %d. Lose this fight and the territory falls." % [campaign.territory_level(i), t.threat]
@@ -201,6 +205,8 @@ func _select(i: int) -> void:
 		_action.visible = false
 	elif i == campaign.home:
 		_info_body.text = "Home. Rest here to heal injuries and clear fatigue (takes a turn)."
+		if not GameData.dungeon(profile.region).is_empty():
+			_info_body.text += "\nDelve: %s, endless waves for rewards (free, no injuries)." % GameData.dungeon(profile.region).name
 		_action.text = "Rest"
 		_action.visible = true
 		_action.set_meta("mode", "rest")
@@ -619,7 +625,7 @@ func _build_ui() -> void:
 	col.add_child(_map)
 
 	var legend := Label.new()
-	legend.text = "Green: yours · Orange: attack, darker is tougher · Purple: lair · Red blocks: threat · Drag/pinch to zoom"
+	legend.text = "Green: yours · Orange: attack, darker is tougher · Purple: legend lair · Drag/pinch to move & zoom"
 	Retro.text(legend, 17, Retro.FOG)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	legend.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -674,6 +680,12 @@ func _build_ui() -> void:
 	_ping.visible = campaign.is_team()
 	_ping.pressed.connect(_on_ping)
 	actions.add_child(_ping)
+	_delve.text = "Delve"
+	_delve.custom_minimum_size = Vector2(130, 60)
+	_delve.add_theme_color_override("font_color", Retro.CYAN)
+	_delve.visible = false
+	_delve.pressed.connect(dungeon_requested.emit)
+	actions.add_child(_delve)
 
 	# Buttons share one row evenly; the data credit gets its own full-width line below them.
 	var footer := HBoxContainer.new()
