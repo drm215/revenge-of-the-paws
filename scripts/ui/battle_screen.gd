@@ -91,7 +91,7 @@ func _new_game() -> void:
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 	battle.reinforced.connect(_on_reinforced)
-	battle.perfect_changed.connect(func(_stacks: int) -> void: _show_wave_label())
+	battle.perfect_changed.connect(_on_perfect)
 
 	_fx = BattleFx.new()
 	add_child(_fx)
@@ -534,6 +534,14 @@ func _set_active(actor: Combatant) -> void:
 			mode = UnitCard.Highlight.TARGET
 		cards[c].set_highlight(mode)
 	_update_order()
+
+
+## A perfect wave lights the pack up gold; the first hit puts it out.
+func _on_perfect(stacks: int) -> void:
+	_show_wave_label()
+	for c in battle.party:
+		if cards.has(c):
+			cards[c].set_glow(stacks > 0 and c.is_alive())
 
 
 ## Where the fight is, which wave, and the perfect-wave bonus while the pack has one.

@@ -58,5 +58,21 @@ func _init() -> void:
 	b.start_next_wave()
 	_check(b.perfect == 0, "and a wave with a hit in it isn't perfect")
 
+	# On screen: the pack's cards glow gold while the streak lasts.
+	var card := UnitCard.new()
+	root.add_child(card)
+	card.setup(b.party[0], 100)
+	card.set_glow(true)
+	_check(card.is_glowing(), "a perfect wave lights the card up")
+	card.set_glow(false)
+	_check(not card.is_glowing() and card._sprite.self_modulate == Color.WHITE, "and a hit puts it out")
+	var fallen := UnitCard.new()
+	root.add_child(fallen)
+	var dead := b.party[1]
+	dead.hp = 0
+	fallen.setup(dead, 100)
+	fallen.set_glow(true)
+	_check(not fallen.is_glowing(), "the fallen don't glow")
+
 	print("%d failure(s)" % _fails)
 	quit()

@@ -36,6 +36,8 @@ var _status_label := Label.new()
 var _ring := Color(0, 0, 0, 0.35)
 var _time := 0.0
 var _mode := Highlight.NONE
+var _glow := false  # a perfect-wave streak: a pulsing gold aura, until an animal is hurt
+var _glow_time := 0.0
 
 
 func setup(c: Combatant, sprite_size: float) -> void:
@@ -147,6 +149,36 @@ func _process(delta: float) -> void:
 		_time += delta
 		_style.border_color = BORDER_COLORS[Highlight.TARGET].lerp(Color.WHITE, 0.35 + 0.35 * sin(_time * 6.0))
 		_stage.queue_redraw()
+	if _glow:
+		_glow_time += delta
+		var pulse := 0.5 + 0.5 * sin(_glow_time * 4.0)
+		_sprite.self_modulate = Color.WHITE.lerp(Color(1.45, 1.3, 0.75), 0.35 + 0.4 * pulse)
+		if _mode == Highlight.NONE:
+			_style.border_color = Retro.GOLD.lerp(Color.WHITE, 0.4 * pulse)
+		_style.bg_color = Color(Retro.INK, 0.45).lerp(Color(Retro.GOLD, 0.45), 0.25 + 0.2 * pulse)
+		_stage.queue_redraw()
+
+
+## Glows gold while the pack is on a perfect-wave streak; switching it on flares bright first.
+func set_glow(on: bool) -> void:
+	if on == _glow or (on and not unit.is_alive()):
+		return
+	_glow = on
+	_glow_time = 0.0
+	if on:
+		pivot_offset = size / 2.0
+		var tween := create_tween()
+		tween.tween_property(self, "scale", Vector2.ONE * 1.08, 0.12)
+		tween.tween_property(self, "scale", Vector2.ONE, 0.2)
+		flash(Color(1.6, 1.4, 0.6))
+	else:
+		_sprite.self_modulate = Color.WHITE
+		_style.bg_color = Color(Retro.INK, 0.45)
+		set_highlight(_mode)
+
+
+func is_glowing() -> bool:
+	return _glow
 
 
 func refresh() -> void:
@@ -215,8 +247,15 @@ func enrage() -> void:
 
 
 func _draw_ring() -> void:
-	# A stepped "pixel" ellipse: stacked bars snapped to a 4px grid.
 	var s := _stage.size
+	if _glow:
+		# A gold aura behind the sprite: stepped rings, breathing in and out.
+		var pulse := 0.5 + 0.5 * sin(_glow_time * 4.0)
+		var middle := s / 2.0
+		for k in 3:
+			var r := s.x * (0.36 + 0.06 * k + 0.03 * pulse)
+			_pixel_disc(middle, r, r, Color(Retro.YELLOW, (0.34 - 0.09 * k) * (0.6 + 0.4 * pulse)))
+	# A stepped "pixel" ellipse: stacked bars snapped to a 4px grid.
 	var center := Vector2(s.x / 2.0, s.y * 0.92)
 	var rx := s.x * 0.42
 	var ry := rx * 0.28
@@ -226,6 +265,16 @@ func _draw_ring() -> void:
 		var half := snappedf(rx * sqrt(maxf(0.0, 1.0 - pow((y + step / 2.0) / ry, 2.0))), step)
 		if half > 0.0:
 			_stage.draw_rect(Rect2(center + Vector2(-half, y), Vector2(half * 2.0, step)), _ring)
+		y += step
+
+
+func _pixel_disc(center: Vector2, rx: float, ry: float, color: Color) -> void:
+	var step := 4.0
+	var y := -ry
+	while y < ry:
+		var half := snappedf(rx * sqrt(maxf(0.0, 1.0 - pow((y + step / 2.0) / ry, 2.0))), step)
+		if half > 0.0:
+			_stage.draw_rect(Rect2(center + Vector2(-half, y), Vector2(half * 2.0, step)), color)
 		y += step
 
 
