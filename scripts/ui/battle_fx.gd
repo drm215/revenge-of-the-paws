@@ -42,6 +42,7 @@ func watch(of: BattleScreen) -> void:
 	b.weak_hit.connect(func(_c: Combatant) -> void: _sound("weak"))
 	b.status_changed.connect(_on_status)
 	b.legend_phase.connect(_on_legend_phase)
+	b.perfect_changed.connect(_on_perfect)
 	b.reinforced.connect(func(_fresh: Combatant, _old: Combatant) -> void:
 		_sound("arrive")
 		_add_shake(12.0))
@@ -159,6 +160,15 @@ func _on_combo(_target: Combatant, combo_name: String) -> void:
 	_sound("combo")
 	callout(combo_name.to_upper() + "!", Retro.CYAN)
 	_add_shake(4.0)
+
+
+## A perfect wave earns a gold callout; losing the streak gets a sour one.
+func _on_perfect(stacks: int) -> void:
+	if stacks > 0:
+		_sound("combo")
+		callout("PERFECT WAVE! ATK +%d%%" % roundi(screen.battle.perfect_atk_bonus() * 100), Retro.GOLD)
+	else:
+		callout("STREAK LOST", Retro.ORANGE)
 
 
 ## Big text slammed across the middle of the field, then gone.

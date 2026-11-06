@@ -1312,7 +1312,6 @@ static func cleared_name(key: String) -> String:
 
 
 ## Territories freed that get their own moment on the map.
-const LIBERATION_MILESTONES := [5, 10, 25, 50, 75, 100, 150, 200, 300, 500]
 const STATE_NAMES := {
 	"AK": "Alaska", "AL": "Alabama", "AR": "Arkansas", "AZ": "Arizona", "CA": "California", "CO": "Colorado", "CT": "Connecticut",
 	"DC": "Washington, DC", "DE": "Delaware", "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "IA": "Iowa", "ID": "Idaho",
@@ -1751,6 +1750,10 @@ static func upgraded_skill(skill_id: String, steps: Dictionary, mastery := false
 ## Follow-up: hitting the zombie an ally hit last does FOLLOW_UP_BONUS more damage.
 const KNOCKDOWN_POWER := 1.5
 const FOLLOW_UP_BONUS := 0.25
+## A perfect wave (cleared with no animal taking any damage) gives the whole pack this much more ATK,
+## stacking over perfect waves in a row up to PERFECT_MAX_STACKS, until any animal is hurt.
+const PERFECT_ATK_STEP := 0.1
+const PERFECT_MAX_STACKS := 3
 
 
 ## What a skill does in combos, for skill descriptions ("" if nothing).

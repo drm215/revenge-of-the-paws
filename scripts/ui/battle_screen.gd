@@ -91,6 +91,7 @@ func _new_game() -> void:
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 	battle.reinforced.connect(_on_reinforced)
+	battle.perfect_changed.connect(func(_stacks: int) -> void: _show_wave_label())
 
 	_fx = BattleFx.new()
 	add_child(_fx)
@@ -137,12 +138,7 @@ func _start_wave() -> void:
 	for c in battle.enemies:
 		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 4 else 1.0)
 		_add_card(c, _enemy_col, enemy_sprite, ROW_SHIFT)
-	var cond: String = config.get("condition", "")
-	if battle.dungeon != "":
-		_wave_label.text = "%s · WAVE %d" % [battle.place.to_upper(), battle.dungeon_wave()]
-	else:
-		_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
-			(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
+	_show_wave_label()
 	_overlay.hide()
 	if battle.dungeon != "" and battle.dungeon_wave() % GameData.DUNGEON_BRUTE_EVERY == 0:
 		_fx.callout("BRUTE WAVE!", Retro.ORANGE)
@@ -538,6 +534,18 @@ func _set_active(actor: Combatant) -> void:
 			mode = UnitCard.Highlight.TARGET
 		cards[c].set_highlight(mode)
 	_update_order()
+
+
+## Where the fight is, which wave, and the perfect-wave bonus while the pack has one.
+func _show_wave_label() -> void:
+	var cond: String = config.get("condition", "")
+	if battle.dungeon != "":
+		_wave_label.text = "%s · WAVE %d" % [battle.place.to_upper(), battle.dungeon_wave()]
+	else:
+		_wave_label.text = "%s%s · WAVE %d/%d" % [battle.place.to_upper(),
+			(" · " + GameData.CONDITIONS[cond].name.to_upper()) if cond != "" else "", battle.wave_index + 1, battle.wave_count()]
+	if battle.perfect > 0:
+		_wave_label.text += " · PERFECT ATK +%d%%" % roundi(battle.perfect_atk_bonus() * 100)
 
 
 func _update_order() -> void:

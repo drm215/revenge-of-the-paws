@@ -72,7 +72,7 @@ func _run() -> void:
 		near_home = near_home or c.territories[n].site == moment.from
 	_check(near_home, "the wave starts from the held land next door")
 	_check(c.take_liberation().is_empty(), "and it plays once")
-	_check("of" in moment.milestone or moment.milestone_big, "it says how the map stands: " + moment.milestone)
+	_check(not "territories" in moment.milestone, "no count of what's free or left: '%s'" % moment.milestone)
 
 	# What doesn't count.
 	c.resolve_battle(i, true, 0, [], false)
@@ -96,15 +96,13 @@ func _run() -> void:
 	c.replaying = false
 	_check(c.take_liberation().is_empty(), "a move being replayed: nothing")
 
-	# Milestones: a round number.
+	# No counts, even on round numbers.
 	c = _fresh(p)
-	var count_hit := ""
+	var counted := false
 	for k in 12:
 		_free_one(c)
-		var m := c.take_liberation()
-		if c.owned_count() == 5:
-			count_hit = m.milestone
-	_check(count_hit == "5 territories free!" or count_hit.begins_with("The pack has reached"), "a round number gets its moment: " + count_hit)
+		counted = counted or "territories" in String(c.take_liberation().milestone)
+	_check(not counted, "a round number isn't counted out either")
 
 	# Milestones: crossing a state line. 24210 is Virginia; Tennessee is next door.
 	c = _fresh(_profile())

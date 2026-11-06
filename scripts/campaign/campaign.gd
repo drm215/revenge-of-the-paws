@@ -764,11 +764,6 @@ func _liberation_moment(i: int) -> Dictionary:
 	elif t.boss != "" and GameData.LEGENDS.has(t.boss):
 		moment.milestone = "The %s is dead!" % GameData.LEGENDS[t.boss].name
 		moment.milestone_big = true
-	elif owned_count() in GameData.LIBERATION_MILESTONES:
-		moment.milestone = "%d territories free!" % owned_count()
-		moment.milestone_big = true
-	else:
-		moment.milestone = "%d of %d territories free" % [owned_count(), territories.size()]
 	return moment
 
 

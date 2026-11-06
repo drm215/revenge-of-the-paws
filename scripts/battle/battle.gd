@@ -16,6 +16,8 @@ signal weak_hit(target: Combatant)
 signal legend_phase(legend: Combatant, phase: int)
 ## A legend called `fresh` to the fight, in the place of the fallen `replaced` (or null).
 signal reinforced(fresh: Combatant, replaced: Combatant)
+## The pack's perfect-wave streak changed: `stacks` > 0 is a fresh perfect wave, 0 means it's lost.
+signal perfect_changed(stacks: int)
 
 enum Outcome { ONGOING, WAVE_CLEARED, VICTORY, DEFEAT }
 
@@ -57,6 +59,9 @@ var warlord_name := ""  # the warlord in this fight, if any
 var dungeon := ""  # a dungeon run: the region whose dungeon this is; its waves never end
 var dungeon_start := 1  # the dungeon wave the run began on
 var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged
+var perfect := 0  # perfect waves in a row (capped at PERFECT_MAX_STACKS); the pack's ATK bonus, until hurt
+var perfect_waves := 0  # how many perfect waves this fight, for the log
+var _wave_hurt := false  # an animal has taken damage this wave
 var rng := RandomNumberGenerator.new()
 
 var _waves: Array
@@ -186,7 +191,12 @@ func report() -> Dictionary:
 	return {"outcome": Outcome.keys()[outcome()].to_lower(), "wave": wave_index + 1, "waves": wave_count(),
 		"rounds": rounds, "zombie_mult": snappedf(_zombie_mult, 0.01), "boss_hp": boss_hp_mult,
 		"boss_atk": boss_atk_mult, "condition": condition, "pack": pack, "legends": legends,
-		"zombies": _waves, "xp": xp_earned, "kills": kills}
+		"zombies": _waves, "xp": xp_earned, "kills": kills, "perfect_waves": perfect_waves}
+
+
+## The pack's ATK bonus from perfect waves right now (0.1 = +10%).
+func perfect_atk_bonus() -> float:
+	return GameData.PERFECT_ATK_STEP * perfect
 
 
 func _unit_report(c: Combatant) -> Dictionary:
@@ -215,7 +225,13 @@ func dungeon_wave() -> int:
 func start_next_wave() -> void:
 	wave_index += 1
 	if wave_index > 0:
+		if not _wave_hurt:
+			perfect = mini(perfect + 1, GameData.PERFECT_MAX_STACKS)
+			perfect_waves += 1
+			log_message.emit("[color=#ffd34d][b]PERFECT WAVE![/b] Not a scratch: the pack gets +%d%% ATK until one of them is hurt.[/color]" % roundi(perfect_atk_bonus() * 100))
+			perfect_changed.emit(perfect)
 		_rest_party()
+	_wave_hurt = false
 	if dungeon != "":
 		if wave_index >= _waves.size():
 			_waves.append(GameData.dungeon_wave(dungeon, dungeon_wave()))
@@ -594,6 +610,8 @@ func _base_damage(src: Combatant, dst: Combatant, power: float) -> float:
 		atk *= GameData.WEAKENED_ATK_MULT
 	if src.has_status("frenzied"):
 		atk *= GameData.FRENZIED_ATK_MULT
+	if src.is_player:
+		atk *= 1.0 + perfect_atk_bonus()
 	if src.traits.get("horde", false):
 		var pack_mates := 0
 		for c in living(_allies(src)):
@@ -667,6 +685,12 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 	_taken[dst] = int(_taken.get(dst, 0)) + mini(amount, dst.hp)
 	dst.hp = maxi(0, dst.hp - amount)
+	if dst.is_player and amount > 0:
+		_wave_hurt = true
+		if perfect > 0:
+			perfect = 0
+			log_message.emit("[color=#ff8080]%s is hurt: the perfect streak is over.[/color]" % dst.display_name)
+			perfect_changed.emit(0)
 	damaged.emit(dst, amount, crit)
 	if dst.is_alive():
 		if dst.is_boss:
