@@ -110,6 +110,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
 	screen.dungeon_requested.connect(_show_dungeon)
+	screen.bonus_requested.connect(_show_bonus)
 	screen.raid_requested.connect(_show_raid.bind(-1))
 	screen.saves_requested.connect(func() -> void:
 		_profile.save()  # everything else is already saved after each move
@@ -369,6 +370,19 @@ func _check_siege(screen: MapScreen) -> void:
 		var stage: Dictionary = GameData.SIEGE_STAGES[broken - 1]
 		var siege_name := String(GameData.siege_info(week).name)
 		screen.announce_siege("%s: %s!" % [siege_name.to_upper(), String(stage.name).to_upper()], GameData.siege_reward_text(broken - 1) + ". Claim it from Siege.")
+
+
+## A cleared state's or region's bonus: this player picks which of their critters gets it.
+func _show_bonus() -> void:
+	var waiting := _profile.bonuses_waiting(_campaign.cleared)
+	if waiting.is_empty():
+		_show_map(_profile, false)
+		return
+	var screen := BonusScreen.new()
+	screen.profile = _profile
+	screen.key = waiting[0]
+	screen.closed.connect(func() -> void: _show_map(_profile, false))
+	_swap(screen)
 
 
 ## The region's dungeon: pick a starting wave, ready the pack, then wave after wave. It costs no

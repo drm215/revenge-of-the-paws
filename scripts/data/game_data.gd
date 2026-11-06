@@ -1288,6 +1288,28 @@ static func dungeon_reward_text(region: String, n: int) -> String:
 	return " and ".join(parts)
 
 
+## Clearing a state (every one of its ZIP areas freed) or a region (all its states) gives each player
+## on the map one permanent bonus, rolled from these, for a critter of their choice. A region's is
+## REGION_BONUS_SCALE times bigger.
+const CLEAR_BONUSES := [
+	{"stat": "hp", "amount": 0.08}, {"stat": "atk", "amount": 0.08}, {"stat": "def", "amount": 0.08},
+	{"stat": "spd", "amount": 0.1}, {"stat": "crit", "amount": 0.05},
+]
+const REGION_BONUS_SCALE := 2.0
+
+
+## A bonus for people: "+8% ATK", "+5% crit".
+static func bonus_text(bonus: Dictionary) -> String:
+	var stat := String(bonus.stat)
+	return "+%d%% %s" % [roundi(float(bonus.amount) * 100), "crit" if stat == "crit" else stat.to_upper()]
+
+
+## The name of a cleared thing ("state:VA" or "region:us_appalachia"): "Virginia", "Appalachia".
+static func cleared_name(key: String) -> String:
+	var what := key.get_slice(":", 1)
+	return STATE_NAMES.get(what, what) if key.begins_with("state:") else REGIONS.get(what, {}).get("name", what)
+
+
 ## Territories freed that get their own moment on the map.
 const LIBERATION_MILESTONES := [5, 10, 25, 50, 75, 100, 150, 200, 300, 500]
 const STATE_NAMES := {

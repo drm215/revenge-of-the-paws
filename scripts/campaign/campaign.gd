@@ -30,6 +30,8 @@ var under_attack := -1  # territory index the horde is attacking, or -1
 var last_liberated := -1  # territory index most recently taken from the horde, or -1
 var last_event := ""
 var _liberation := {}  # the moment waiting to play on the map (take_liberation), if any
+var cleared: Array = []  # "state:VA", "region:us_appalachia": every ZIP area freed (shared on a team)
+var _states := {}  # territory index -> its US state, worked out once
 var warlords: Array = []  # [{id, name, title, at (territory id), nest, loot, assaulting (territory id or "")}]
 var uses_zip_data := false
 var legends: Array[String] = []  # legend ids with a lair on this map
@@ -711,6 +713,38 @@ func take_liberation() -> Dictionary:
 	return moment
 
 
+## Territory `i` was just freed: has its state now had every ZIP area freed, and with it its region?
+## Recorded once, for good (land lost later doesn't take it back).
+func _check_cleared(i: int) -> void:
+	var state := _state_of(i)
+	if state == "" or "state:" + state in cleared:
+		return
+	var total := ZipDB.state_areas(state)
+	if total <= 0 or state_freed(state) < total:
+		return
+	cleared.append("state:" + state)
+	var moment := ""
+	var region := ZipDB.region_for_state(state)
+	var region_states: Array = ZipDB.STATE_REGIONS.get(region, [])
+	if not region_states.is_empty() and "region:" + region not in cleared \
+			and region_states.all(func(s: String) -> bool: return ZipDB.state_areas(s) <= 0 or "state:" + s in cleared):
+		cleared.append("region:" + region)
+		moment = "%s IS CLEARED!" % String(GameData.REGIONS[region].name).to_upper()
+	last_event += "\nEvery ZIP area in %s is free! Everyone here claims a bonus." % GameData.STATE_NAMES.get(state, state)
+	if not replaying and not _liberation.is_empty():
+		_liberation.milestone = moment if moment != "" else "%s IS CLEARED!" % String(GameData.STATE_NAMES.get(state, state)).to_upper()
+		_liberation.milestone_big = true
+
+
+## How many of `state`'s ZIP areas are held right now.
+func state_freed(state: String) -> int:
+	var n := 0
+	for k in territories.size():
+		if territories[k].owned and _state_of(k) == state:
+			n += 1
+	return n
+
+
 func _liberation_moment(i: int) -> Dictionary:
 	var t := territories[i]
 	var moment := {"territory": t.id, "from": _attacked_from(i), "banner": "%s IS FREE!" % t.name.to_upper(), "milestone": "", "milestone_big": false, "rescued": ""}
@@ -753,10 +787,23 @@ func _attacked_from(i: int) -> Vector2:
 func _state_of(i: int) -> String:
 	if not uses_zip_data:
 		return ""
-	var row := ZipDB.lookup(territories[i].id)
-	if row.is_empty():
-		row = ZipDB.row_near(territories[i].lonlat.y, territories[i].lonlat.x)
-	return String(row.get("state", ""))
+	if not _states.has(i):
+		var row := ZipDB.lookup(territories[i].id)
+		if row.is_empty():
+			row = ZipDB.row_near(territories[i].lonlat.y, territories[i].lonlat.x)
+		_states[i] = String(row.get("state", ""))
+	return _states[i]
+
+
+## "Virginia: 34 of 903 freed" for territory `i`'s state ("" off the US map).
+func state_progress(i: int) -> String:
+	var state := _state_of(i)
+	var total := ZipDB.state_areas(state)
+	if state == "" or total <= 0:
+		return ""
+	if "state:" + state in cleared:
+		return "%s: cleared!" % GameData.STATE_NAMES.get(state, state)
+	return "%s: %d of %d ZIP areas freed" % [GameData.STATE_NAMES.get(state, state), state_freed(state), total]
 
 
 ## `xp`: what each of this player's fighters earned; linked teammates get a share of it. A legend
@@ -821,6 +868,7 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 				GameData.ANIMALS[t.recruit].name, where, profile.level_of(t.recruit)]
 			_liberation["rescued"] = t.recruit
 		last_event += _reveal_beyond(i)
+		_check_cleared(i)
 		if not warlord.is_empty():
 			_kill_warlord(warlord, rewards)
 			if not _liberation.is_empty():
@@ -868,6 +916,7 @@ func _to_cfg() -> ConfigFile:
 		met[t.id] = t.met_level
 	cfg.set_value("campaign", "met_levels", met)
 	cfg.set_value("campaign", "warlords", warlords)
+	cfg.set_value("campaign", "cleared", cleared)
 	cfg.set_value("campaign", "under_attack", territories[under_attack].id if under_attack >= 0 else "")
 	cfg.set_value("campaign", "last_liberated", territories[last_liberated].id if last_liberated >= 0 else "")
 	return cfg
@@ -914,6 +963,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	for t in territories:
 		t.threat += int(spread.get(t.id, 0))
 	warlords = cfg.get_value("campaign", "warlords", [])
+	cleared = cfg.get_value("campaign", "cleared", [])
 	# Territories a save doesn't date (saves from before this, a new teammate's ground) start from now.
 	var met: Dictionary = cfg.get_value("campaign", "met_levels", {})
 	for t in territories:

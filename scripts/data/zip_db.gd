@@ -30,6 +30,7 @@ static var _states: PackedStringArray
 static var _lat: PackedFloat32Array
 static var _lon: PackedFloat32Array
 static var _index := {}  # zip -> row
+static var _state_areas := {}  # state -> how many ZIP areas it has (data/state_areas.json)
 
 
 static func _ensure_loaded() -> void:
@@ -50,6 +51,14 @@ static func _ensure_loaded() -> void:
 		_states.append(p[2])
 		_lat.append(p[3].to_float())
 		_lon.append(p[4].to_float())
+
+
+## How many ZIP areas (map territories) state `state` has in all: freeing every one clears it.
+static func state_areas(state: String) -> int:
+	if _state_areas.is_empty():
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/state_areas.json"))
+		_state_areas = parsed if parsed is Dictionary else {"": 0}
+	return int(_state_areas.get(state, 0))
 
 
 ## {zip, place, state, lat, lon, region} or {} if unknown.

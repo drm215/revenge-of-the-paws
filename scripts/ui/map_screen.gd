@@ -18,6 +18,8 @@ signal raid_requested
 signal saves_requested
 ## Delve into this region's dungeon.
 signal dungeon_requested
+## Claim the bonus for a cleared state or region.
+signal bonus_requested
 signal auto_toggled
 ## The liberation and the horde's moves have finished playing.
 signal liberation_done
@@ -29,6 +31,7 @@ var horde_news: Array = []  # Campaign.horde_news(): the horde's moves to play a
 var celebrating := false
 var _siege_button := Button.new()
 var _delve := Button.new()  # home: into the region's dungeon
+var _bonus_button := Button.new()  # a cleared state's or region's bonus is waiting
 
 var _map := MapView.new()
 var _status := Label.new()
@@ -218,6 +221,8 @@ func _select(i: int) -> void:
 		_action.set_meta("mode", "patrol")
 	elif t.owned:
 		_info_body.text = "Liberated. Survivors here reinforce your pack.\nPatrol for an easier fight (threat %d) that earns XP." % maxi(1, t.threat - 1)
+		if campaign.state_progress(i) != "":
+			_info_body.text += "\n" + campaign.state_progress(i)
 		var chain := campaign.cut_by(i)
 		if chain > 0:
 			_info_body.text += "\nChokepoint: lose it and %d territor%s are cut off from home." % [chain, "y" if chain == 1 else "ies"]
@@ -269,6 +274,8 @@ func _select(i: int) -> void:
 			_info_body.text += "\nThe horde has spread here: threat +%d." % campaign.spread[t.id]
 		if campaign.has_frontier(i):
 			_info_body.text += "\nOn the frontier: liberate it to reveal what lies beyond."
+		if campaign.state_progress(i) != "":
+			_info_body.text += "\n" + campaign.state_progress(i)
 		var survivor := campaign.pending_recruit(i)
 		if survivor != "":
 			var a: Dictionary = GameData.ANIMALS[survivor]
@@ -605,6 +612,14 @@ func _build_ui() -> void:
 	_raid_button.add_theme_color_override("font_color", Retro.CYAN)
 	_raid_button.pressed.connect(raid_requested.emit)
 	col.add_child(_raid_button)
+	var waiting := profile.bonuses_waiting(campaign.cleared)
+	_bonus_button.visible = not waiting.is_empty()
+	if not waiting.is_empty():
+		_bonus_button.text = "%s cleared! Claim your bonus" % GameData.cleared_name(waiting[0])
+	_bonus_button.custom_minimum_size = Vector2(0, 64)
+	_bonus_button.add_theme_color_override("font_color", Retro.YELLOW)
+	_bonus_button.pressed.connect(bonus_requested.emit)
+	col.add_child(_bonus_button)
 	Retro.text(_event, 20, Retro.ORANGE)
 	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_news_box.add_child(_event)

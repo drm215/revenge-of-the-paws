@@ -185,6 +185,12 @@ The apocalypse starts **where you actually live**.
   by one: a game this device doesn't have downloads, the newer copy of each game wins, the same
   game changed on both devices asks which to keep, and deleting a game deletes its cloud copy.
   Only the game being played restarts when its copy downloads.
+- **Clearing states and regions:** free every ZIP area that's really in a state (counted by
+  `tools/build_state_areas.py`: Virginia has 903, DC 57) and the state is cleared; clear every
+  state of a region and the region is too (`Campaign.cleared`, shared on a team). Each player on
+  the map then gets one permanent bonus, rolled at random (`GameData.CLEAR_BONUSES`: +8% HP, ATK or
+  DEF, +10% SPD or +5% crit; double for a region), and gives it to any critter of theirs. Once
+  each, for good. A territory's info shows its state's progress.
 - **Dungeons** (Delve, at home): each region has one, set in its best-known wild place (the
   Everglades, the Old Coal Mine, the Paris Catacombs...; `GameData.DUNGEONS`). Endless waves that climb
   0.6 zombie levels a wave; every 5th wave adds a Brute (two on screen at most: each past that

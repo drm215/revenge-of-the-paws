@@ -45,6 +45,9 @@ var auto_battle := false  # auto mode: fight territories far below the leader wi
 var siege_claimed: Array[int] = []  # weeks claimed before sieges had stages: the first stage's reward
 var siege_rewards := {}  # siege week -> how many of its stages have been claimed
 var siege_seen := {}  # siege week -> how many of its stages the map has announced
+var bonuses := {}  # critter id -> {stat: share}: permanent bonuses from clearing states and regions
+var bonus_offers := {}  # cleared key -> {stat, amount}: rolled once, waiting for a critter
+var bonuses_taken: Array = []  # cleared keys whose bonus this player has given out
 var dungeon_best := {}  # region -> the deepest dungeon wave cleared
 var dungeon_paid := {}  # region -> the deepest wave whose reward has been paid (each pays once)
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
@@ -144,6 +147,11 @@ func build_unit(unit_id: String) -> Combatant:
 	c.skill_mods = skill_steps
 	c.apply_level(level_of(unit_id))
 	c.apply_stat_mods(stats)
+	var bonus: Dictionary = bonuses.get(unit_id, {})
+	if not bonus.is_empty():
+		c.scale_stats(1.0 + float(bonus.get("hp", 0.0)), 1.0 + float(bonus.get("atk", 0.0)), 1.0 + float(bonus.get("def", 0.0)))
+		c.spd = maxi(1, roundi(c.spd * (1.0 + float(bonus.get("spd", 0.0)))))
+		c.crit += float(bonus.get("crit", 0.0))
 	if equipped.has(unit_id):
 		c.equip(equipped[unit_id])
 	c.tags = GameData.tags_of(unit_id)
@@ -476,6 +484,9 @@ func save() -> void:
 	cfg.set_value("profile", "siege_rewards", siege_rewards)
 	cfg.set_value("profile", "siege_seen", siege_seen)
 	cfg.set_value("profile", "dungeon_best", dungeon_best)
+	cfg.set_value("profile", "bonuses", bonuses)
+	cfg.set_value("profile", "bonus_offers", bonus_offers)
+	cfg.set_value("profile", "bonuses_taken", bonuses_taken)
 	cfg.set_value("profile", "dungeon_paid", dungeon_paid)
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
@@ -516,6 +527,9 @@ static func load_saved() -> Profile:
 	p.siege_rewards = cfg.get_value("profile", "siege_rewards", {})
 	p.siege_seen = cfg.get_value("profile", "siege_seen", {})
 	p.dungeon_best = cfg.get_value("profile", "dungeon_best", {})
+	p.bonuses = cfg.get_value("profile", "bonuses", {})
+	p.bonus_offers = cfg.get_value("profile", "bonus_offers", {})
+	p.bonuses_taken = cfg.get_value("profile", "bonuses_taken", [])
 	p.dungeon_paid = cfg.get_value("profile", "dungeon_paid", {})
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
@@ -675,6 +689,35 @@ func clear_dungeon_wave(region: String, n: int) -> String:
 		lines.append("The pack gains %s level%s of XP." % ["half a" if xp_share == 0.5 else str(xp_share), "" if xp_share <= 1.0 else "s"])
 	save()
 	return "\n".join(lines)
+
+
+## Cleared states and regions (Campaign.cleared) whose bonus this player hasn't given out yet.
+func bonuses_waiting(cleared: Array) -> Array:
+	return cleared.filter(func(key: String) -> bool: return key not in bonuses_taken)
+
+
+## The bonus for clearing `key`: rolled the first time it's asked for, the same after that.
+func bonus_offer(key: String) -> Dictionary:
+	if not bonus_offers.has(key):
+		var bonus: Dictionary = GameData.CLEAR_BONUSES.pick_random().duplicate()
+		if key.begins_with("region:"):
+			bonus.amount = float(bonus.amount) * GameData.REGION_BONUS_SCALE
+		bonus_offers[key] = bonus
+		save()
+	return bonus_offers[key]
+
+
+## Gives `key`'s bonus to critter `id`, for good. False if it's already been given.
+func take_bonus(key: String, id: String) -> bool:
+	if key in bonuses_taken:
+		return false
+	var bonus := bonus_offer(key)
+	var mine: Dictionary = bonuses.get_or_add(id, {})
+	mine[bonus.stat] = float(mine.get(bonus.stat, 0.0)) + float(bonus.amount)
+	bonuses_taken.append(key)
+	bonus_offers.erase(key)
+	save()
+	return true
 
 
 ## The waves a dungeon run can start on: the first, and every checkpoint already cleared.
