@@ -189,6 +189,12 @@ func _run() -> void:
 	var gate: int = c.territories[c.home].neighbors[0]
 	c.territories[gate].dungeon = "us_florida"
 	c.territories[gate].owned = false
+	map._select(c.home)
+	var marker: Rect2 = map._map._dungeon_marker(gate)
+	map._map._select_at(Vector2(marker.get_center().x, marker.end.y - 2))
+	_check(map._map.selected == gate, "tapping the dungeon's name picks its land, whatever is drawn under it")
+	map._map._select_at(marker.position + Vector2(4, 4))
+	_check(map._map.selected == gate, "and so does tapping its doorway")
 	map._select(gate)
 	_check(not "Delve" in _buttons(map) and "DUNGEON: The Everglades" in map._info_body.text and "Free this land" in map._info_body.text, "the entrance shows, but only freed land opens it")
 	c.territories[gate].owned = true

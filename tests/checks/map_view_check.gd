@@ -138,6 +138,31 @@ func _run() -> void:
 	_view._select_at(_view._to_screen(target.site))
 	_check(picked[0] == _c.home, "a tap on home selects home (got %d)" % picked[0])
 
+	# Little areas and names are forgiving targets.
+	var speck := -1
+	var speck_ratio := 0.0
+	for k in _c.territories.size():
+		var mine := maxf(_view._bboxes[k].size.x, _view._bboxes[k].size.y)
+		var smallest_neighbor := INF
+		for n in _c.territories[k].neighbors:
+			smallest_neighbor = minf(smallest_neighbor, maxf(_view._bboxes[n].size.x, _view._bboxes[n].size.y))
+		if mine > 0.0 and smallest_neighbor / mine > speck_ratio:
+			speck_ratio = smallest_neighbor / mine
+			speck = k
+	var zoom_before: float = _view._zoom
+	var speck_size := maxf(_view._bboxes[speck].size.x, _view._bboxes[speck].size.y)
+	_view._zoom = 20.0 / (speck_size * _view._fit_scale)
+	var box: Rect2 = _view._screen_box(speck)
+	_view._label_hits.clear()  # names drawn at the old zoom
+	_check(speck_ratio > 2.0 and _view.territory_at(box.get_center() + Vector2(box.size.x / 2.0 + 12.0, 0)) == speck, "a tap just beside a tiny area (%s, %dx smaller than its neighbors) picks it" % [_c.territories[speck].id, roundi(speck_ratio)])
+	_view._zoom = zoom_before
+	_view.refresh()
+	await process_frame
+	await process_frame
+	var named: Array = _view._label_hits.filter(func(h: Array) -> bool: return h[1] != _c.home)
+	var hit: Array = named[-1]
+	_check(_view.territory_at(Vector2(hit[0].position.x + 2, hit[0].get_center().y)) == hit[1], "a tap on a name picks that area: " + _c.territories[hit[1]].label)
+
 	var parts_before: Array = _view._parts
 	_view.size = Vector2(700, 680)
 	await process_frame

@@ -51,6 +51,7 @@ var _dragging := false
 var _touches := {}  # finger index -> position, for pinch
 var _draw_order: Array[int] = []  # biggest areas first, so enclaves inside them stay visible
 var _bboxes: Array[Rect2] = []  # per territory, map space
+var _label_hits: Array = []  # [screen Rect2, territory index] for each name drawn, for taps
 var _full_bounds := Rect2()  # whole map, map space
 var _icons := {}  # animal id -> texture, for survivors waiting to be rescued
 var _parts: Array = []  # per territory: its rings as {closed (outline), points and tris (fill; no tris if it won't triangulate)}
@@ -495,8 +496,9 @@ func _draw_labels() -> void:
 		return
 	var font := Retro.pixel_font()
 	var view := Rect2(Vector2.ZERO, size).grow(LABEL_MARGIN)
-	var font_size := Retro.px(clampf(16 * sqrt(_zoom), 16, 26))
+	var font_size := _label_size()
 	var placed: Array[Rect2] = []  # labels already drawn; one that would overlap them is skipped
+	_label_hits.clear()
 	for i in _label_order():
 		var t := campaign.territories[i]
 		var c := _to_screen(t.site)
@@ -523,7 +525,7 @@ func _draw_labels() -> void:
 			if not is_home:
 				label = GameData.dungeon(t.dungeon).name
 				color = Retro.CYAN
-			var door := Rect2(c + (Vector2(14, -32) if is_home else Vector2(-11, -34)), Vector2(22, 24))
+			var door := _door(c, is_home)
 			_labels.draw_rect(door.grow(3), Retro.CYAN)
 			_labels.draw_rect(door, Color.BLACK)
 		var warlord := _has_warlord(i)
@@ -536,6 +538,7 @@ func _draw_labels() -> void:
 		var must_show := i in campaign.homes or i == selected or is_lair or warlord or t.dungeon != ""
 		if must_show or not placed.any(func(r: Rect2) -> bool: return r.intersects(label_box)):
 			placed.append(label_box)
+			_label_hits.append([label_box, i])
 			_text(font, c + Vector2(0, 4), label, font_size, color)
 		if t.cache != "" and campaign.loot_at(i) != "":
 			# A little treasure chest marks a trinket cache.
@@ -654,13 +657,83 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 
+const DUNGEON_TAP_SLOP := 12.0
+const SMALL_AREA := 30.0  # px across on screen: smaller areas are hard to hit, so...
+const SMALL_TAP_SLOP := 22.0  # ...a tap this close to one picks it
+
+
+## The doorway drawn for a dungeon whose territory's site is at screen point `c`.
+func _door(c: Vector2, beside_home: bool) -> Rect2:
+	return Rect2(c + (Vector2(14, -32) if beside_home else Vector2(-11, -34)), Vector2(22, 24))
+
+
+## Where a dungeon shows on screen: its doorway, and its name under it (a home keeps its own).
+func _dungeon_marker(i: int) -> Rect2:
+	var c := _to_screen(campaign.territories[i].site)
+	var is_home := i in campaign.homes
+	var box := _door(c, is_home)
+	if not is_home:
+		var size := _label_size()
+		var w := Retro.pixel_font().get_string_size(GameData.dungeon(campaign.territories[i].dungeon).name, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		box = box.merge(Rect2(c.x - w / 2.0, c.y + 4 - size, w, size * 1.3))
+	return box
+
+
+func _label_size() -> int:
+	return Retro.px(clampf(16 * sqrt(_zoom), 16, 26))
+
+
 func _select_at(screen_pos: Vector2) -> void:
+	var i := territory_at(screen_pos)
+	if i >= 0:
+		selected = i
+		refresh()
+		territory_selected.emit(i)
+
+
+## What a tap at `screen_pos` means, forgivingly: a dungeon's doorway or name; else a tiny area
+## close by (fingers are wider than a few pixels); else a name drawn there; else the area under it.
+func territory_at(screen_pos: Vector2) -> int:
+	for i in campaign.territories.size():
+		if campaign.territories[i].dungeon != "" and not _is_lair(i) and _dungeon_marker(i).grow(DUNGEON_TAP_SLOP).has_point(screen_pos):
+			return i
 	var p := _to_map(screen_pos)
+	var under := -1
 	for n in range(_draw_order.size() - 1, -1, -1):  # smallest first: enclaves win over what surrounds them
 		var i := _draw_order[n]
 		for ring in campaign.territories[i].parts:
 			if Geometry2D.is_point_in_polygon(p, ring):
-				selected = i
-				refresh()
-				territory_selected.emit(i)
-				return
+				under = i
+				break
+		if under >= 0:
+			break
+	if under >= 0 and _is_small(under):
+		return under  # zoomed out, everything is small: the one under the finger
+	var tiny := -1
+	var tiny_d := SMALL_TAP_SLOP
+	for i in campaign.territories.size():
+		if not _is_small(i):
+			continue
+		var d := _distance_to_rect(screen_pos, _screen_box(i))
+		if d < tiny_d:
+			tiny_d = d
+			tiny = i
+	if tiny >= 0 and tiny_d == 0.0:
+		return tiny
+	for k in range(_label_hits.size() - 1, -1, -1):  # the last drawn is on top
+		if _label_hits[k][0].has_point(screen_pos):
+			return _label_hits[k][1]
+	return tiny if tiny >= 0 else under
+
+
+func _screen_box(i: int) -> Rect2:
+	return Rect2(_to_screen(_bboxes[i].position), _bboxes[i].size * _view_scale())
+
+
+func _is_small(i: int) -> bool:
+	var box := _screen_box(i)
+	return maxf(box.size.x, box.size.y) <= SMALL_AREA
+
+
+func _distance_to_rect(pt: Vector2, r: Rect2) -> float:
+	return Vector2(maxf(maxf(r.position.x - pt.x, 0.0), pt.x - r.end.x), maxf(maxf(r.position.y - pt.y, 0.0), pt.y - r.end.y)).length()
