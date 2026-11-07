@@ -19,6 +19,7 @@ const ORDER_PREVIEW := 7
 const PARTY_SPRITE := {3: 150.0, 4: 120.0, 5: 104.0, 6: 90.0, 7: 56.0, 8: 56.0, 9: 52.0, 10: 52.0, 11: 48.0, 12: 48.0}  # by party size (raids bring up to 12)
 const RAID_WAVE_PAUSE := 1.5  # raids move on to the next wave by themselves, on every device
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
+const CROWD_SPRITE := 72.0  # five or six zombies (deep in a dungeon)
 ## Front-row cards sit this much closer to the middle of the field than back-row ones.
 const ROW_SHIFT := 44
 
@@ -132,16 +133,21 @@ func _show_take_control() -> void:
 
 func _start_wave() -> void:
 	for c in battle.enemies:
-		cards[c].get_parent().queue_free()
 		cards.erase(c)
+	for child in _enemy_col.get_children():
+		child.queue_free()
 	battle.start_next_wave()
+	# Deep dungeon waves bring more than four: compact cards, so the column still fits.
+	var crowd := battle.enemies.size() > GameData.MAX_ENEMIES
 	for c in battle.enemies:
 		var enemy_sprite: float = ENEMY_SPRITE[clampi(battle.enemies.size(), 1, 4)] * (0.65 if battle.party.size() > 4 else 1.0)
-		_add_card(c, _enemy_col, enemy_sprite, ROW_SHIFT)
+		_add_card(c, _enemy_col, CROWD_SPRITE if crowd else enemy_sprite, ROW_SHIFT, crowd)
 	_show_wave_label()
 	_overlay.hide()
 	if battle.dungeon != "" and battle.dungeon_wave() % GameData.DUNGEON_BRUTE_EVERY == 0:
 		_fx.callout("BRUTE WAVE!", Retro.ORANGE)
+	elif battle.dungeon != "" and GameData.dungeon_wave_name(battle.dungeon, battle.dungeon_wave()) != "":
+		_fx.callout(GameData.dungeon_wave_name(battle.dungeon, battle.dungeon_wave()) + "!", Retro.PINK)
 	await _fx.wave_started()
 	_run_turns()
 

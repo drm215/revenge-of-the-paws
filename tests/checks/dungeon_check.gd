@@ -66,12 +66,43 @@ func _run() -> void:
 	for n in [1, 4, 5, 9, 10, 15, 20, 30]:
 		var wave := GameData.dungeon_wave("us_florida", n)
 		var brutes := wave.count("brute")
-		var expected := mini(n / GameData.DUNGEON_BRUTE_EVERY, GameData.DUNGEON_BRUTES_ON_SCREEN)
-		_check(brutes == expected and wave.size() <= GameData.MAX_ENEMIES, "wave %d: %d Brute%s, %d zombies" % [n, brutes, "" if brutes == 1 else "s", wave.size()])
+		var expected := mini(n / GameData.DUNGEON_BRUTE_EVERY, GameData.DUNGEON_BRUTES_ON_SCREEN) if n % GameData.DUNGEON_BRUTE_EVERY == 0 else (1 if n >= GameData.DUNGEON_LONE_BRUTE_FROM else 0)
+		_check(brutes == expected and wave.size() == GameData.dungeon_wave_size(n), "wave %d: %d Brute%s, %d zombies" % [n, brutes, "" if brutes == 1 else "s", wave.size()])
 	_check(GameData.dungeon_brute_mult(10) == 1.0 and GameData.dungeon_brute_mult(15) > 1.0 and GameData.dungeon_brute_mult(25) > GameData.dungeon_brute_mult(15),
 		"past two Brutes, more Brutes means tougher ones")
 	_check(GameData.dungeon_mult(1) <= GameData.dungeon_mult(10) and GameData.dungeon_mult(10) < GameData.dungeon_mult(30), "deeper is stronger")
 	_check(GameData.dungeon_wave("us_florida", 1).all(func(z: String) -> bool: return z in ["shambler", "runner"]), "the first wave is the easy kind")
+	_check([1, 3, 7, 10, 20, 60].map(GameData.dungeon_wave_size) == [2, 3, 4, 5, 6, 6], "it fills up to six zombies deep down")
+	var kinds := {}
+	var repeats := 0
+	for n in range(1, 31):
+		var wave := GameData.dungeon_wave("us_appalachia", n)
+		for z in wave:
+			kinds[z] = true
+		var others := wave.filter(func(z: String) -> bool: return z != "brute")
+		if GameData.dungeon_wave_name("us_appalachia", n) == "":
+			var distinct := {}
+			for z in others:
+				distinct[z] = true
+			repeats += others.size() - distinct.size()
+	_check(kinds.size() >= 8, "the first 30 waves bring every kind of zombie: %s" % [kinds.keys()])
+	_check(repeats == 0, "a mixed wave doesn't double up while there's another kind to send")
+	var named: Array = range(1, 41).filter(func(n: int) -> bool: return GameData.dungeon_wave_name("us_appalachia", n) != "")
+	_check(named == [8, 13, 18, 23, 28, 33, 38], "named waves between the Brute waves: %s" % [named])
+	var swarm := -1
+	for n in range(8, 200, 5):
+		if GameData.dungeon_wave_name("us_florida", n) == "SWARM":
+			swarm = n
+			break
+	_check(swarm > 0 and GameData.dungeon_wave("us_florida", swarm).filter(func(z: String) -> bool: return z != "brute").all(func(z: String) -> bool: return z == "runner"), "a Swarm is all runners (wave %d)" % swarm)
+	var bloaters := 0
+	var riots := 0
+	for n in range(7, 60):
+		if GameData.dungeon_wave_name("us_florida", n) == "":
+			bloaters += GameData.dungeon_wave("us_florida", n).count("bloater")
+		if GameData.dungeon_wave_name("us_appalachia", n) == "":
+			riots += GameData.dungeon_wave("us_appalachia", n).count("riot")
+	_check(bloaters > 30 and riots > 30, "each has its signature zombie: bloaters in the Everglades (%d), riot gear in the mine (%d)" % [bloaters, riots])
 
 	# A run: endless, numbered from where it started, with its terrain.
 	var p := _profile()
@@ -81,6 +112,7 @@ func _run() -> void:
 	b.configure(cfg)
 	b.start_next_wave()
 	_check(b.dungeon_wave() == 11, "a run from the checkpoint starts at wave 11")
+	_check(is_equal_approx(b.xp_mult, GameData.dungeon_mult(11) * GameData.DUNGEON_XP_SHARE), "kills pay a share of their usual XP (x%.2f)" % b.xp_mult)
 	for k in 6:
 		for z in b.enemies:
 			z.hp = 0

@@ -236,6 +236,7 @@ func start_next_wave() -> void:
 		if wave_index >= _waves.size():
 			_waves.append(GameData.dungeon_wave(dungeon, dungeon_wave()))
 		_zombie_mult = GameData.dungeon_mult(dungeon_wave())
+		xp_mult = _zombie_mult * GameData.DUNGEON_XP_SHARE
 	enemies.clear()
 	var wave: Array = _waves[wave_index]
 	var totals := {}
@@ -245,7 +246,7 @@ func start_next_wave() -> void:
 	for zombie_id in wave:
 		var z := Combatant.from_data(zombie_id, GameData.enemy(zombie_id), false)
 		if totals[zombie_id] > 1:
-			z.display_name += " " + "ABCD"[seen.get(zombie_id, 0)]
+			z.display_name += " " + "ABCDEFGH"[seen.get(zombie_id, 0)]
 			seen[zombie_id] = seen.get(zombie_id, 0) + 1
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
 		if zombie_id == "warlord" and warlord_name != "":

@@ -1243,26 +1243,88 @@ static func dungeon_mult(n: int) -> float:
 	return level_strength(roundi(n * DUNGEON_LEVELS_PER_WAVE) - DUNGEON_LEVEL_LAG)
 
 
-## Wave `n` of `region`'s dungeon: the same every run. Brutes join every DUNGEON_BRUTE_EVERY waves;
-## the rest come from a mix that grows nastier the deeper it goes.
+## Each dungeon's own kind of zombie, by its terrain: it turns up more often there.
+const DUNGEON_SIGNATURE := {"water": "bloater", "mountain": "riot", "desert": "runner", "forest": "screamer", "urban": "plague"}
+## The wave a zombie type first shows up in a dungeon.
+const DUNGEON_UNLOCK := {"shambler": 1, "runner": 1, "bloater": 3, "plague": 3, "screamer": 5, "medic": 5, "riot": 7}
+## Named waves, one between each pair of Brute waves from DUNGEON_THEMES_FROM on: who they're made of.
+const DUNGEON_THEMES := {
+	"SWARM": ["runner"],
+	"PLAGUE WARD": ["plague", "plague", "medic"],
+	"RIOT LINE": ["riot", "riot", "screamer"],
+	"BLOAT TIDE": ["bloater"],
+	"THE CHOIR": ["screamer", "screamer", "medic"],
+}
+const DUNGEON_THEMES_FROM := 8
+const DUNGEON_FIVE_FROM := 10  # dungeon waves from here send five zombies...
+const DUNGEON_SIX_FROM := 20  # ...and from here, six
+const DUNGEON_MAX_ENEMIES := 6
+## Kills in a dungeon pay this share of their usual XP: runs are free and endless, so the treasure
+## for reaching new depths is the real prize.
+const DUNGEON_XP_SHARE := 0.25
+const DUNGEON_LONE_BRUTE_FROM := 11  # past here, waves between Brute waves bring one Brute too
+
+
+## Wave `n` of `region`'s dungeon: the same every run. Every DUNGEON_BRUTE_EVERY waves is a Brute wave;
+## between them, a mix that grows nastier the deeper it goes (as few repeats as it can manage, and
+## the dungeon's signature zombie often), or now and then a named wave of one kind.
 static func dungeon_wave(region: String, n: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:%d" % [region, n])
-	var size := 2 if n <= 2 else 3 if n <= 6 else MAX_ENEMIES
-	var brutes := mini(n / DUNGEON_BRUTE_EVERY, mini(size, DUNGEON_BRUTES_ON_SCREEN))
-	var pool: Array[String] = ["shambler", "runner"]
-	if n >= 3:
-		pool.append_array(["bloater", "plague"])
-	if n >= 8:
-		pool.append_array(["screamer", "medic"])
-	if n >= 12:
-		pool.append_array(["riot", "riot"])
+	var size := dungeon_wave_size(n)
+	var brutes := 0
+	if n % DUNGEON_BRUTE_EVERY == 0:
+		brutes = mini(n / DUNGEON_BRUTE_EVERY, mini(size, DUNGEON_BRUTES_ON_SCREEN))
+	elif n >= DUNGEON_LONE_BRUTE_FROM:
+		brutes = 1
 	var wave: Array = []
-	for k in size - brutes:
-		wave.append(pool[rng.randi_range(0, pool.size() - 1)])
+	var theme := dungeon_wave_name(region, n)
+	if theme != "":
+		var kinds: Array = DUNGEON_THEMES[theme]
+		for k in size - brutes:
+			wave.append(kinds[k % kinds.size()])
+	else:
+		var pool: Array[String] = []
+		for id: String in DUNGEON_UNLOCK:
+			if n >= DUNGEON_UNLOCK[id]:
+				pool.append(id)
+		var signature: String = DUNGEON_SIGNATURE.get(dungeon(region).get("terrain", ""), "")
+		var bag: Array[String] = []
+		while wave.size() < size - brutes:
+			if bag.is_empty():
+				bag = pool.duplicate()
+				# Shuffled with the wave's own seed, so every run (and every device) agrees.
+				for k in range(bag.size() - 1, 0, -1):
+					var j := rng.randi_range(0, k)
+					var swap := bag[k]
+					bag[k] = bag[j]
+					bag[j] = swap
+				if signature in pool and rng.randf() < 0.6:
+					bag.erase(signature)
+					bag.push_front(signature)
+			wave.append(bag.pop_front())
 	for k in brutes:
 		wave.append("brute")
 	return wave
+
+
+## How many zombies wave `n` of a dungeon sends: it fills up past what a map battle ever brings.
+static func dungeon_wave_size(n: int) -> int:
+	if n <= 2:
+		return 2
+	if n <= 6:
+		return 3
+	if n < DUNGEON_FIVE_FROM:
+		return MAX_ENEMIES
+	return 5 if n < DUNGEON_SIX_FROM else DUNGEON_MAX_ENEMIES
+
+
+## The name of wave `n` if it's one of the named kind ("SWARM"...), else "".
+static func dungeon_wave_name(region: String, n: int) -> String:
+	if n < DUNGEON_THEMES_FROM or n % DUNGEON_BRUTE_EVERY != 3:
+		return ""
+	var names := DUNGEON_THEMES.keys()
+	return names[absi(hash(region) + n / DUNGEON_BRUTE_EVERY) % names.size()]
 
 
 ## How much tougher a dungeon's Brutes are on wave `n`: one step for each Brute the schedule adds past

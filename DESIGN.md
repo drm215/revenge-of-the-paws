@@ -191,6 +191,11 @@ The apocalypse starts **where you actually live**.
   the map then gets one permanent bonus, rolled at random (`GameData.CLEAR_BONUSES`: +8% HP, ATK or
   DEF, +10% SPD or +5% crit; double for a region), and gives it to any critter of theirs. Once
   each, for good. A territory's info shows its state's progress.
+- **Dungeon waves**: 2 zombies at first, then 3, 4, 5 (wave 10) and 6 (wave 20). Every 5th wave is a
+  Brute wave; past wave 10 the others bring a lone Brute. Mixed waves avoid repeats, favour the
+  dungeon's signature zombie (by terrain: bloaters in water, riot gear in the mountains...), and
+  between Brute waves from wave 8 comes a named wave of one kind (Swarm, Plague Ward, Riot Line,
+  Bloat Tide, The Choir). Kills pay a quarter of their usual XP; new depths pay the treasure.
 - **Perfect waves**: clear a wave with no animal taking any damage and the whole pack gets +10% ATK
   (stacking to +30% over perfect waves in a row) until any animal is hurt. The wave banner shows it.
 - **Dungeons** (Enter, from the entrance's territory once it's held): each region has one, set in
