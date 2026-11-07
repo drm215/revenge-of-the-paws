@@ -799,7 +799,7 @@ func state_progress(i: int) -> String:
 		return ""
 	if "state:" + state in cleared:
 		return "%s: cleared!" % GameData.STATE_NAMES.get(state, state)
-	return "%s: %d of %d ZIP areas freed" % [GameData.STATE_NAMES.get(state, state), state_freed(state), total]
+	return ""  # no counts on screen: only a cleared state says so
 
 
 ## `xp`: what each of this player's fighters earned; linked teammates get a share of it. A legend

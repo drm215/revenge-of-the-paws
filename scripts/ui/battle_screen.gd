@@ -19,6 +19,7 @@ const ORDER_PREVIEW := 7
 const PARTY_SPRITE := {3: 150.0, 4: 120.0, 5: 104.0, 6: 90.0, 7: 56.0, 8: 56.0, 9: 52.0, 10: 52.0, 11: 48.0, 12: 48.0}  # by party size (raids bring up to 12)
 const RAID_WAVE_PAUSE := 1.5  # raids move on to the next wave by themselves, on every device
 const ENEMY_SPRITE := {1: 160.0, 2: 140.0, 3: 124.0, 4: 104.0}
+const FORMATION_COLUMN_MAX := 7  # big packs: more than this and cards go two to a row
 const CROWD_SPRITE := 72.0  # five or six zombies (deep in a dungeon)
 ## Front-row cards sit this much closer to the middle of the field than back-row ones.
 const ROW_SHIFT := 44
@@ -98,20 +99,26 @@ func _new_game() -> void:
 	add_child(_fx)
 	_fx.watch(self)
 
-	# Big raids: two cards per row, and the pack's side of the field gets more room.
-	var big := battle.party.size() > 4  # raids of 2+ players: compact cards, two per row
+	# Big packs: compact cards, staggered like the horde's (front row toward the middle, back row
+	# toward the edge); one to a row while they fit down the field, else two.
+	var big := battle.party.size() > 4
 	_party_col.size_flags_stretch_ratio = 1.3 if big else 1.0
-	var row: HBoxContainer
-	for k in battle.party.size():
-		var holder: Container = _party_col
-		if big:
-			if k % 2 == 0:
-				row = HBoxContainer.new()
-				row.add_theme_constant_override("separation", 4)
-				_party_col.add_child(row)
-			holder = row
-		var sprite: float = minf(PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], 56.0) if big else PARTY_SPRITE[clampi(battle.party.size(), 3, 12)]
-		_add_card(battle.party[k], holder, sprite, 8 if big else ROW_SHIFT, big)
+	if big:
+		var pairs := battle.party.size() > FORMATION_COLUMN_MAX
+		var sprite := 72.0 if not pairs else minf(PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], 56.0)
+		var row: HBoxContainer
+		for k in battle.party.size():
+			var holder: Container = _party_col
+			if pairs:
+				if k % 2 == 0:
+					row = HBoxContainer.new()
+					row.add_theme_constant_override("separation", 4)
+					_party_col.add_child(row)
+				holder = row
+			_add_card(battle.party[k], holder, sprite, 8 if pairs else ROW_SHIFT, true)
+	else:
+		for c in battle.party:
+			_add_card(c, _party_col, PARTY_SPRITE[clampi(battle.party.size(), 3, 12)], ROW_SHIFT)
 	if auto:
 		was_auto = true
 		_show_take_control()

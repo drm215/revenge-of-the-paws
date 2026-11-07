@@ -287,8 +287,8 @@ func _select(i: int) -> void:
 
 
 func _refresh_status() -> void:
-	_status.text = "Held %d / %d  ·  Pack strength +%d%%  ·  Counterattack every %d turns" % [
-		campaign.owned_count(), campaign.territories.size(), roundi(campaign.held_bonus() * 100), campaign.counter_interval()]
+	_status.text = "Pack strength +%d%%  ·  Counterattack every %d turns" % [
+		roundi(campaign.held_bonus() * 100), campaign.counter_interval()]
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var event := campaign.last_event
 	if campaign.is_liberated():

@@ -54,7 +54,7 @@ func _run() -> void:
 	var dc := _dc(c)
 	_check(dc.size() >= 5, "the DC map has DC land (%d of 57)" % dc.size())
 	var first: int = dc.filter(func(k: int) -> bool: return not c.territories[k].owned)[0]
-	_check(c.state_progress(first).begins_with("Washington, DC: ") and "of 57" in c.state_progress(first), "its info shows the state's progress: " + c.state_progress(first))
+	_check(c.state_progress(first) == "" and c.state_freed("DC") < 57, "no count on screen while it's being freed")
 
 	# Clearing it: as if this map had all of DC (the rest of the region's states too, so it clears).
 	ZipDB.state_areas("DC")
