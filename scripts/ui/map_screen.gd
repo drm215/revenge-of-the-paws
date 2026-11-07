@@ -653,10 +653,10 @@ func _build_ui() -> void:
 	col.add_child(legend_row)
 	legend_row.add_child(legend)
 	var guide := Button.new()
-	guide.text = "Zombies"
+	guide.text = "Guide"
 	guide.custom_minimum_size = Vector2(130, 52)
 	guide.add_theme_font_size_override("font_size", Retro.px(15))
-	guide.pressed.connect(ZombieGuide.open.bind(self))
+	guide.pressed.connect(Glossary.open.bind(self))
 	legend_row.add_child(guide)
 	var sound := get_node_or_null("/root/Sound")
 	if sound:
