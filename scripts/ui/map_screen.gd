@@ -47,6 +47,7 @@ var _info_scroll := ScrollContainer.new()
 var _news := ScrollContainer.new()
 var _news_box := VBoxContainer.new()
 var _info_title := Label.new()
+var _info_where := Label.new()  # beside the title: the territory's state and region
 var _info_body := Label.new()
 var _action := Button.new()
 var _ping := Button.new()  # team: point teammates at the selected territory
@@ -192,11 +193,32 @@ func _map_banner(text: String, font_size: int, color: Color, y_share: float, und
 	return label
 
 
+## The name keeps its full width (up to most of the panel); state and region take what's left.
+func _fit_heading() -> void:
+	var font := _info_title.get_theme_font("font")
+	var w := font.get_string_size(_info_title.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _info_title.get_theme_font_size("font_size")).x
+	_info_title.custom_minimum_size.x = minf(ceilf(w) + 2.0, 470.0)
+
+
+## Where territory `i` is, for its heading: "VA · Appalachia" (just the region off the US map).
+func where(i: int) -> String:
+	var parts: PackedStringArray = []
+	var state := campaign._state_of(i) if campaign.uses_zip_data else ""
+	if state != "":
+		parts.append(state)
+	var region: String = GameData.REGIONS.get(campaign.territories[i].region, {}).get("name", "")
+	if region != "":
+		parts.append(region)
+	return " · ".join(parts)
+
+
 func _select(i: int) -> void:
 	_map.selected = i
 	_map.refresh()
 	var t := campaign.territories[i]
 	_info_title.text = t.name + (("  " + t.id) if campaign.uses_zip_data else "")
+	_info_where.text = where(i)
+	_fit_heading()
 	_action.visible = campaign.is_actionable(i)
 	_delve.visible = t.owned and t.dungeon != ""
 	_action.set_meta("mode", "attack")
@@ -238,6 +260,7 @@ func _select(i: int) -> void:
 		var warlord := campaign.warlord_at(i)
 		if not warlord.is_empty():
 			_info_title.text = String(warlord.name)
+			_fit_heading()
 			_info_body.text = "WARLORD: %s, %s. Win here to kill it and take its %s.\n%s" % [warlord.name, warlord.title, GameData.trinket(warlord.loot).name, _info_body.text]
 		if t.boss != "":
 			_info_body.text += "\nA raid boss: it matches your pack. At %d%% HP it calls for help, at %d%% it enrages, and it winds up Cataclysm (stun it to cancel, Guard to halve)." % [
@@ -251,6 +274,7 @@ func _select(i: int) -> void:
 		if t.boss != "":
 			var legend: Dictionary = GameData.LEGENDS[t.boss]
 			_info_title.text = "Lair of the %s" % legend.name
+			_fit_heading()
 			_info_body.text = "%s\n%s" % [legend.lore, _info_body.text]
 		_action.text = "Attack!"
 		var loot := campaign.loot_at(i)
@@ -675,9 +699,17 @@ func _build_ui() -> void:
 	var info := VBoxContainer.new()
 	info.add_theme_constant_override("separation", 4)
 	panel.add_child(info)
+	var heading := HBoxContainer.new()
+	heading.add_theme_constant_override("separation", 14)
+	info.add_child(heading)
 	Retro.title(_info_title, 16, Retro.WHITE)
 	_info_title.clip_text = true
-	info.add_child(_info_title)
+	heading.add_child(_info_title)
+	Retro.text(_info_where, 18, Retro.FOG)
+	_info_where.clip_text = true
+	_info_where.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_info_where.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	heading.add_child(_info_where)
 	Retro.text(_info_body, 19)
 	_info_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_body.custom_minimum_size = Vector2(0, 26)

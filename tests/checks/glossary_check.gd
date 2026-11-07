@@ -41,6 +41,8 @@ func _run() -> void:
 	map.size = Vector2(720, 1280)
 	root.add_child(map)
 	await process_frame
+	map._select(map.campaign.home)
+	_check(map._info_where.text == "VA · Appalachia" and map._info_where.is_visible_in_tree(), "the info heading says where: " + map._info_where.text)
 	var guide: Array = map.find_children("*", "Button", true, false).filter(func(b: Button) -> bool: return b.text == "Guide")
 	_check(not guide.is_empty(), "the map has a Guide button")
 	guide[0].pressed.emit()
