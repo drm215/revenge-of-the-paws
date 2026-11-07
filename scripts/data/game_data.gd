@@ -16,8 +16,9 @@ const PARTY_SIZE := 3
 ## Animals the pack holds, pet included: PARTY_SIZE fight, the rest are reserves (duties, XP share).
 ## More wait in the Stable, where they don't level; bringing one back costs a map turn.
 const PACK_LIMIT := 6
-## Rescued animals join at this share of the strongest pack's level.
-const RECRUIT_LEVEL_SHARE := 0.5
+## Rescued animals join at this share of the strongest pack's level (a quarter: useful soon, but
+## they need training to fight beside the pack).
+const RECRUIT_LEVEL_SHARE := 0.25
 
 ## Pets lead the pack: their stats are multiplied, and every other living ally gets the aura bonus.
 const PET_STAT_MULT := 1.15

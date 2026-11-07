@@ -72,7 +72,7 @@ func _init() -> void:
 	q.unlock(["moose"] if "moose" not in q.unlocked else ["bison"])
 	var recruit: String = q.unlocked[-1]
 	_check(recruit in q.stable, "recruit %s waits in the Stable when the pack is full" % recruit)
-	_check(q.level_of(recruit) == maxi(1, roundi(strongest * 0.5)), "recruit joined at Lv %d (strongest pack Lv %d)" % [q.level_of(recruit), strongest])
+	_check(q.level_of(recruit) == maxi(1, roundi(strongest * GameData.RECRUIT_LEVEL_SHARE)), "recruit joined at Lv %d (strongest pack Lv %d)" % [q.level_of(recruit), strongest])
 
 	# Bringing one back needs a free slot and costs a turn; sending is free.
 	var c := Campaign.create(q)

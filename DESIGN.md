@@ -109,7 +109,7 @@ The apocalypse starts **where you actually live**.
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and
-  it joins at half the strongest pack's level. The **Pack** screen swaps who fights beside the pet.
+  it joins at a quarter of the strongest pack's level. The **Pack** screen swaps who fights beside the pet.
 - **The pack holds 6** (`PACK_LIMIT`, pet included): 3 fight, the rest are reserves. Everyone
   else waits in the **Stable**: no fighting, no XP, no duties. A recruit goes to the Stable when the
   pack is full. Sending a reserve to the Stable is free; bringing one back takes a map turn and needs
