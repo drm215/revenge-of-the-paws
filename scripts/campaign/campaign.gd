@@ -235,7 +235,7 @@ func has_frontier(i: int) -> bool:
 
 ## Only territories still linked to home count.
 func held_bonus() -> float:
-	return minf(GameData.MAX_HELD_BONUS, (supplied().size() - homes.size()) * GameData.HELD_TERRITORY_BONUS)
+	return GameData.held_bonus(supplied().size() - homes.size())
 
 
 ## Attacks launch from held land that's still linked to home.

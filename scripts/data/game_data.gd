@@ -1533,9 +1533,15 @@ const AUTO_XP_SHARE := 0.5
 const AUTO_DELAY := 2.5
 
 
-## Risk-style reinforcements: every territory held beyond home strengthens the pack (HP/ATK).
-const HELD_TERRITORY_BONUS := 0.01
-const MAX_HELD_BONUS := 0.15
+## Risk-style reinforcements: land held beyond home, linked to it, strengthens the pack (HP/ATK):
+## +1% for every HELD_PER_PERCENT territories, up to MAX_HELD_BONUS. Slow to build, big when built.
+const HELD_PER_PERCENT := 20
+const MAX_HELD_BONUS := 0.30
+
+
+## The pack's bonus for holding `linked` territories beyond home (0.05 = +5%).
+static func held_bonus(linked: int) -> float:
+	return minf(MAX_HELD_BONUS, 0.01 * floori(maxi(0, linked) / float(HELD_PER_PERCENT)))
 ## Each failed attack thins the horde in that territory, down to a floor, so nothing walls you forever.
 const ATTRITION_PER_LOSS := 0.08
 const MIN_ATTRITION := 0.7

@@ -55,7 +55,7 @@ func _init() -> void:
 		if not c.territories[y].owned and not c.territories[a].neighbors.has(y) and not c.territories[home].neighbors.has(y):
 			beyond = y
 	_check(beyond >= 0 and c.can_attack(beyond), "can attack beyond b while linked")
-	var bonus_linked := c.held_bonus()
+	var linked_before := c.supplied().size()
 
 	# Counterattacks go for the chokepoint most of the time.
 	var hits := 0
@@ -81,7 +81,9 @@ func _init() -> void:
 	_check(c.is_cut_off(b) and not c.supplied().has(b), "b is cut off after a falls")
 	_check("Cut off from home" in c.last_event, "event says so: " + c.last_event.replace("\n", " | "))
 	_check(not c.can_attack(beyond), "can't attack from cut-off b")
-	_check(c.held_bonus() < bonus_linked, "held bonus drops (%.2f -> %.2f)" % [bonus_linked, c.held_bonus()])
+	_check(c.supplied().size() < linked_before, "cut-off land stops counting toward pack strength (%d -> %d linked)" % [linked_before, c.supplied().size()])
+	_check(GameData.held_bonus(19) == 0.0 and is_equal_approx(GameData.held_bonus(20), 0.01) and is_equal_approx(GameData.held_bonus(220), 0.11) and is_equal_approx(GameData.held_bonus(1000), GameData.MAX_HELD_BONUS),
+		"pack strength: +1%% per %d held, up to +%d%%" % [GameData.HELD_PER_PERCENT, roundi(GameData.MAX_HELD_BONUS * 100)])
 	_check(c.turns_until_lost(b) == 2, "falls in 2 turns")
 	c.under_attack = b
 	_check(c.battle_config(b).threat == c.territories[b].threat + 1, "defending cut-off b is 1 threat harder")

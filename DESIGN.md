@@ -68,7 +68,8 @@ The apocalypse starts **where you actually live**.
   winding up Cataclysm, which hits the whole pack unless the legend is stunned (cancels it) or the
   pack Guards (halves it). Worked out from HP alone, so every raid device agrees. Tuned so the
   simulator's AI wins about 10% of the time at Lv 10 and above; real players should do better.
-- **Reinforcements:** every territory held beyond home gives the pack +2.5% HP/ATK (max +40%).
+- **Reinforcements:** land held beyond home and linked to it gives the pack +1% HP/ATK per 20
+  territories (max +30%): slow to build, big on a large map. The Guide spells it out.
 - **Warlords:** from turn 10, nests raise named champions ("Rotjaw, the Butcher of Lebanon") that
   march toward home every 4 turns, one at a time per nest, raising threat where they tread. They're
   on the map: win where one stands to kill it for its treasure. If one reaches held land it attacks,
