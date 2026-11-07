@@ -16,6 +16,8 @@ signal weak_hit(target: Combatant)
 signal legend_phase(legend: Combatant, phase: int)
 ## A legend called `fresh` to the fight, in the place of the fallen `replaced` (or null).
 signal reinforced(fresh: Combatant, replaced: Combatant)
+## A legend's Last Gasp: `turns_left` of its turns until it lands (0: landing now).
+signal last_gasp(legend: Combatant, turns_left: int)
 ## The pack's perfect-wave streak changed: `stacks` > 0 is a fresh perfect wave, 0 means it's lost.
 signal perfect_changed(stacks: int)
 
@@ -58,7 +60,8 @@ var _legends: Array[Combatant] = []
 var warlord_name := ""  # the warlord in this fight, if any
 var dungeon := ""  # a dungeon run: the region whose dungeon this is; its waves never end
 var dungeon_start := 1  # the dungeon wave the run began on
-var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged
+var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged, 3 = Last Gasp
+var _last_gasp := {}  # Combatant -> its turns left before its Last Gasp lands
 var perfect := 0  # perfect waves in a row (capped at PERFECT_MAX_STACKS); the pack's ATK bonus, until hurt
 var perfect_waves := 0  # how many perfect waves this fight, for the log
 var _wave_hurt := false  # an animal has taken damage this wave
@@ -321,6 +324,15 @@ func next_turn() -> Combatant:
 			_apply_damage(actor, maxi(1, roundi(actor.max_hp * INFECTION_DAMAGE)), false)
 			if not actor.is_alive():
 				continue
+		if _last_gasp.has(actor):  # counts on every turn it gets, stunned or not
+			_last_gasp[actor] -= 1
+			if _last_gasp[actor] <= 0:
+				_last_gasp[actor] = GameData.LEGEND_LAST_GASP_TURNS
+				_unleash_last_gasp(actor)
+				_end_turn(actor)
+				continue
+			log_message.emit("[color=#e43b44][b]Last Gasp in %d![/b][/color]" % _last_gasp[actor])
+			last_gasp.emit(actor, _last_gasp[actor])
 		if actor.has_status("stunned"):
 			log_message.emit("%s is stunned!" % actor.display_name)
 			if actor.winding != "":
@@ -747,7 +759,24 @@ func _advance_legend(legend: Combatant) -> void:
 			legend.display_name, roundi((GameData.LEGEND_ENRAGE_ATK - 1.0) * 100)])
 		status_changed.emit(legend)
 		legend_phase.emit(legend, 2)
+	if phase < 3 and legend.hp_ratio() <= GameData.LEGEND_LAST_GASP_AT:
+		phase = 3
+		_last_gasp[legend] = GameData.LEGEND_LAST_GASP_TURNS
+		log_message.emit("[color=#e43b44][b]%s begins its LAST GASP![/b] In %d of its turns it hits every animal for %d%% of their HP, and nothing stops it. Kill it first![/color]" % [
+			legend.display_name, GameData.LEGEND_LAST_GASP_TURNS, roundi(GameData.LEGEND_LAST_GASP_DAMAGE * 100)])
+		_legend_phase[legend] = phase
+		legend_phase.emit(legend, 3)
+		last_gasp.emit(legend, GameData.LEGEND_LAST_GASP_TURNS)
 	_legend_phase[legend] = phase
+
+
+## The Last Gasp lands: every animal loses LEGEND_LAST_GASP_DAMAGE of its max HP, whatever its DEF or
+## Guard. Then the count starts again.
+func _unleash_last_gasp(legend: Combatant) -> void:
+	log_message.emit("[color=#e43b44][b]%s's LAST GASP tears through the pack![/b][/color]" % legend.display_name)
+	last_gasp.emit(legend, 0)
+	for c in living(party):
+		_apply_damage(c, maxi(1, roundi(c.max_hp * GameData.LEGEND_LAST_GASP_DAMAGE)), false)
 
 
 ## One more zombie for the legend: in a fallen zombie's place, or a free one (4 at most). Gives no XP,

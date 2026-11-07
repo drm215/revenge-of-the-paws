@@ -716,7 +716,7 @@ const ZOMBIE_TIPS := [
 	"Kill first: Medics, then Screamers, then anything winding up.",
 	"Counterattacks are rare but dangerous: they match your pack, and if you lose, the land falls.",
 	"Warlords march out of Horde Nests toward your home, on the map for all to see. Hunt one down for its treasure before it reaches your land.",
-	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it. After a stun, a legend can't be stunned again for 2 of its turns.",
+	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it. After a stun, a legend can't be stunned again for 2 of its turns. At 10% HP it starts its Last Gasp: in 3 of its turns it hits the whole pack for 70% of their HP, and nothing stops it but killing it.",
 ]
 
 ## Zombie weak points: animals with the tag (kind, terrain or role) deal ZOMBIE_WEAK_MULT damage to
@@ -1395,6 +1395,12 @@ const LEGEND_ADDS_AT := 0.66
 const LEGEND_ADDS := ["runner", "shambler"]
 const LEGEND_ENRAGE_AT := 0.33
 const LEGEND_ENRAGE_ATK := 1.3
+## Last Gasp: below LEGEND_LAST_GASP_AT of its HP a legend counts down LEGEND_LAST_GASP_TURNS of
+## its own turns, then hits every animal for LEGEND_LAST_GASP_DAMAGE of its max HP (DEF and Guard
+## don't help, and stuns don't stop the count): kill it first. If it survives, it counts again.
+const LEGEND_LAST_GASP_AT := 0.10
+const LEGEND_LAST_GASP_TURNS := 3
+const LEGEND_LAST_GASP_DAMAGE := 0.7
 ## A legend shakes off a stun: for this many of its own turns after one, it can't be stunned again
 ## (no stun-locking a raid boss; a well-timed stun still cancels Cataclysm).
 const LEGEND_STUN_PROOF := 2

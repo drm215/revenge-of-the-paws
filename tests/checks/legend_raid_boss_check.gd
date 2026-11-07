@@ -94,17 +94,19 @@ func _run() -> void:
 	_check(legend.hp_ratio() <= 0.31, "enraging doesn't heal it (%.0f%% HP)" % (legend.hp_ratio() * 100))
 	_check(absf(float(legend.atk) / atk - GameData.LEGEND_ENRAGE_ATK) < 0.05, "at 30%: enraged (%d to %d attack)" % [atk, legend.atk])
 	var enraged := legend.atk
-	_hurt_to(b, legend, 0.1)
+	_hurt_to(b, legend, 0.15)
 	_check(legend.atk == enraged, "once only")
 	_check(int(b.report().legends[0].phase) == 2, "the battle log records how far it got")
+	_hurt_to(b, legend, 0.08)
+	_check(int(b.report().legends[0].phase) == 3, "below 10%: its Last Gasp, in the log too")
 
 	# One huge hit runs through both, with no error; a killing blow doesn't summon anything.
 	b = _fight()
 	legend = b.enemies[0]
 	joined.clear()
 	b.reinforced.connect(func(fresh: Combatant, gone: Combatant) -> void: joined.append([fresh, gone]))
-	_hurt_to(b, legend, 0.1)
-	_check(joined.size() >= 1 and int(b.report().legends[0].phase) == 2, "one huge hit runs through both phases")
+	_hurt_to(b, legend, 0.05)
+	_check(joined.size() >= 1 and int(b.report().legends[0].phase) == 3, "one huge hit runs through every phase")
 	b = _fight()
 	joined.clear()
 	b.reinforced.connect(func(fresh: Combatant, gone: Combatant) -> void: joined.append([fresh, gone]))

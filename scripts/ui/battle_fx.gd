@@ -16,6 +16,7 @@ const SLOW_SEC := 0.85
 const LEGEND_SLOW_SEC := 1.5
 const CALLOUT_GAP := 64.0
 const ENRAGE_MUSIC_SPEED := 1.12
+const LAST_GASP_MUSIC_SPEED := 1.25  # the race is on
 const SURVIVED_DELAY := 0.8
 
 var screen: BattleScreen
@@ -28,6 +29,7 @@ var _last_tick := 0
 var _warning: Array[Control] = []  # Cataclysm's banner and the dark behind it, while it's coming
 var _cataclysm_landing := false
 var _warned_card: Control  # the legend's card, lifted above the dark
+var _gasp_banner: Label  # "LAST GASP IN 2!" while a legend's Last Gasp counts down
 
 
 ## Watches `of`'s battle.
@@ -42,6 +44,10 @@ func watch(of: BattleScreen) -> void:
 	b.weak_hit.connect(func(_c: Combatant) -> void: _sound("weak"))
 	b.status_changed.connect(_on_status)
 	b.legend_phase.connect(_on_legend_phase)
+	b.last_gasp.connect(_on_last_gasp)
+	b.died.connect(func(c: Combatant) -> void:
+		if c.is_boss:
+			_clear_gasp())
 	b.perfect_changed.connect(_on_perfect)
 	b.reinforced.connect(func(_fresh: Combatant, _old: Combatant) -> void:
 		_sound("arrive")
@@ -331,6 +337,13 @@ func _legend_entrance(legend: Combatant) -> void:
 
 func _on_legend_phase(legend: Combatant, phase: int) -> void:
 	_sound("roar", 0.08, -3.0)
+	if phase == 3:
+		_add_shake(MAX_SHAKE)
+		callout("LAST GASP!", Retro.RED)
+		var sound := get_node_or_null("/root/Sound")
+		if sound:
+			sound.music_speed(LAST_GASP_MUSIC_SPEED)
+		return
 	if phase == 1:
 		_add_shake(16.0)
 		callout("REINFORCEMENTS!", Retro.PINK)
@@ -348,6 +361,49 @@ func _on_legend_phase(legend: Combatant, phase: int) -> void:
 	var pulse := glow.create_tween().set_loops()
 	pulse.tween_property(glow, "color:a", 0.16, 0.5).set_trans(Tween.TRANS_SINE)
 	pulse.tween_property(glow, "color:a", 0.03, 0.5).set_trans(Tween.TRANS_SINE)
+
+
+## The Last Gasp countdown: a banner pinned at the top of the field, ticking down on each of the
+## legend's turns; at 0 the screen burns and heaves.
+func _on_last_gasp(_legend: Combatant, turns_left: int) -> void:
+	if turns_left <= 0:
+		_clear_gasp()
+		_sound("finish")
+		_sound("roar")
+		_add_shake(MAX_SHAKE)
+		_warp(0.3, 0.4)
+		var burn := _cover(Color(Retro.RED, 0.75), 15)
+		var fade := burn.create_tween().set_ignore_time_scale(true)
+		fade.tween_property(burn, "color:a", 0.0, 0.6)
+		fade.tween_callback(burn.queue_free)
+		callout("LAST GASP!", Retro.RED)
+		return
+	if _gasp_banner == null or not is_instance_valid(_gasp_banner):
+		_gasp_banner = Label.new()
+		Retro.title(_gasp_banner, 24, Retro.RED)
+		_gasp_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_gasp_banner.add_theme_color_override("font_outline_color", Retro.INK)
+		_gasp_banner.add_theme_constant_override("outline_size", 12)
+		_gasp_banner.z_index = 18
+		_gasp_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		screen.add_child(_gasp_banner)
+		_gasp_banner.size = Vector2(screen.size.x, 60)
+		_gasp_banner.position = Vector2(0, screen.size.y * 0.2)
+		_gasp_banner.pivot_offset = _gasp_banner.size / 2.0
+		var pulse := _gasp_banner.create_tween().set_loops()
+		pulse.tween_property(_gasp_banner, "modulate", Color(1.6, 1.6, 1.6), 0.25)
+		pulse.tween_property(_gasp_banner, "modulate", Color.WHITE, 0.25)
+	_gasp_banner.text = "LAST GASP IN %d!" % turns_left
+	_gasp_banner.scale = Vector2.ONE * 1.6
+	_gasp_banner.create_tween().set_ignore_time_scale(true).tween_property(_gasp_banner, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_sound("windup")
+	_add_shake(8.0)
+
+
+func _clear_gasp() -> void:
+	if _gasp_banner and is_instance_valid(_gasp_banner):
+		_gasp_banner.queue_free()
+	_gasp_banner = null
 
 
 ## Cataclysm is coming: the screen darkens around the legend, and a banner says what to do about it.
