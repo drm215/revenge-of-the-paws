@@ -286,6 +286,7 @@ func _number(c: Combatant, text: String, color: Color, font_size: int) -> void:
 	label.add_theme_color_override("font_outline_color", Retro.INK)
 	label.add_theme_constant_override("outline_size", 10)
 	label.position = s.position + Vector2(s.size.x / 2.0 - 40, s.size.y * 0.2)
+	label.position.x = clampf(label.position.x, 10.0, size.x - label.get_combined_minimum_size().x - 10.0)  # on screen
 	var t := _tween().set_parallel()
 	t.tween_property(label, "position:y", label.position.y - 80, 1.0).set_ease(Tween.EASE_OUT)
 	t.tween_property(label, "modulate:a", 0.0, 0.6).set_delay(0.6)
