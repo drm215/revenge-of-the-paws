@@ -44,6 +44,9 @@ var _selected_skill := ""
 var _targets: Array[Combatant] = []
 
 var _wave_label := Label.new()
+var _recap: LegendRecap  # a legend fight's big moments, replayed when it's over
+## Replay legend fights when they end (tests that drive whole fights switch it off).
+static var play_recaps := true
 var _order_label := RichTextLabel.new()
 var _enemy_col := VBoxContainer.new()
 var _log := RichTextLabel.new()
@@ -86,6 +89,8 @@ func _new_game() -> void:
 			config.get("condition", ""), config.get("region", ""))
 		battle.configure(config)
 	battle.log_message.connect(_on_log)
+	_recap = LegendRecap.new()
+	_recap.watch(battle)
 	battle.acting.connect(func(c: Combatant) -> void: _card(c).lunge())
 	battle.damaged.connect(_on_damaged)
 	battle.healed.connect(_on_healed)
@@ -254,6 +259,9 @@ func _execute(target: Combatant) -> void:
 func _show_outcome() -> void:
 	_set_active(null)
 	_fx.outcome(battle.outcome())
+	if play_recaps and _recap and _recap.has_legend() and battle.outcome() in [Battle.Outcome.VICTORY, Battle.Outcome.DEFEAT]:
+		await get_tree().create_timer(1.0, true, false, true).timeout  # the last blow lands first
+		await LegendRecapScene.play(self, _recap, battle.outcome() == Battle.Outcome.VICTORY)
 	if battle.outcome() == Battle.Outcome.VICTORY and _legend_drop() != "":
 		await _fx.legend_loot(_legend_drop())
 	match battle.outcome():

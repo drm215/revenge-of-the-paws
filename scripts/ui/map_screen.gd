@@ -239,7 +239,7 @@ func _select(i: int) -> void:
 		_info_body.text = "%s's home: your teammate's pack began here.\nIt links your shared land like your own home does." % campaign.home_owner(i)
 		_action.visible = false
 	elif i == campaign.home:
-		_info_body.text = "Home. Rest here to heal injuries and clear fatigue (takes a turn)."
+		_info_body.text = "Home. Rest to heal injuries and fatigue (1 turn)."
 		_action.text = "Rest"
 		_action.visible = true
 		_action.set_meta("mode", "rest")
@@ -701,7 +701,7 @@ func _build_ui() -> void:
 	col.add_child(_map)
 
 	var legend := Label.new()
-	legend.text = "Green: yours · Orange: attack, darker is tougher · Purple: legend lair · Drag/pinch to move & zoom"
+	legend.text = "Green: yours · Orange: attack (darker is tougher) · Purple: legend lair"
 	Retro.text(legend, 17, Retro.FOG)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	legend.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -74,6 +74,7 @@ func _past_entrance(waves: Array, extra := {}) -> BattleScreen:
 
 func _run() -> void:
 	root.theme = Retro.make_theme()
+	BattleScreen.play_recaps = false  # (the replay has its own check: legend_recap_check)
 	Profile.save_path = "user://le_profile.cfg"
 	Campaign.save_path = "user://le_campaign.cfg"
 	var sound: Node = root.get_node("Sound")

@@ -1934,7 +1934,7 @@ static func row_hint(row := "", bird := false) -> String:
 		"back":
 			return "Back row: safe from single-target attacks while %d or more allies stand in front. %s Area attacks and Runners still reach it." % [SCREEN_SIZE,
 				"As a bird, it still hits at full strength." if bird else "Its own single-target hits are %d%% softer." % softer]
-	return "Rows: while %d or more stand in front, the back row can't be hit by single-target attacks, but hits %d%% softer. Tap Row to switch." % [SCREEN_SIZE, softer]
+	return "Back row: safe while %d+ stand in front; hits %d%% softer." % [SCREEN_SIZE, softer]
 
 
 ## A skill's numbers in words, e.g. "One foe · Power 170% · Crit +25% · Cooldown 2".

@@ -71,7 +71,11 @@ The apocalypse starts **where you actually live**.
   stunned the Wampus Cat on over half its turns).
   Below 10% HP comes the **Last Gasp** (`LEGEND_LAST_GASP_*`): a countdown of 3 of its turns, shown
   big on screen, then every animal loses 70% of its max HP (DEF, Guard and stuns don't help; the
-  count runs even while it's stunned). Kill it first; if it survives, it counts again. Worked out from HP alone, so every raid device agrees. Tuned so the
+  count runs even while it's stunned). Kill it first; if it survives, it counts again.
+  When a legend fight ends, win or lose, a **replay** plays (`LegendRecap` records it,
+  `LegendRecapScene` shows it): the entrance, every phase, Cataclysms and the Last Gasp, the
+  biggest blows each way, knockouts and the final blow, then an end card with the rounds and the
+  MVP. About 20 seconds; it moves on by itself and a tap skips it. Worked out from HP alone, so every raid device agrees. Tuned so the
   simulator's AI wins about 10% of the time at Lv 10 and above; real players should do better.
 - **Reinforcements:** land held beyond home and linked to it gives the pack +1% HP/ATK per 20
   territories (max +30%): slow to build, big on a large map. The Guide spells it out.

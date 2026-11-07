@@ -132,16 +132,18 @@ func _perks_here(id: String) -> Dictionary:
 
 ## What the pack is walking into: place, terrain, home turf, and the waves if a scout is out.
 func _fight_summary() -> String:
-	var lines: PackedStringArray = [battle_config.place]
+	# Where, and who it favours, on one line: "Regina · Streets: city animals +15% · Appalachia +10%".
+	var top: PackedStringArray = [battle_config.place]
 	var cond: String = battle_config.get("condition", "")
 	if cond != "":
 		var c: Dictionary = GameData.CONDITIONS[cond]
-		lines.append("%s: %s +%d%%" % [c.name, c.who, roundi(GameData.CONDITION_BONUS * 100)])
+		top.append("%s: %s +%d%%" % [c.name, c.who, roundi(GameData.CONDITION_BONUS * 100)])
 	var region: String = battle_config.get("region", "")
 	if GameData.REGIONS.has(region):
-		lines.append("Home turf: %s animals +%d%%" % [GameData.REGIONS[region].name, roundi(GameData.HOME_TURF_BONUS * 100)])
+		top.append("%s +%d%%" % [GameData.REGIONS[region].name, roundi(GameData.HOME_TURF_BONUS * 100)])
+	var lines: PackedStringArray = [" · ".join(top)]
 	if profile.duties.has("scout"):
-		lines.append("Scouted: " + GameData.waves_text(battle_config.waves))
+		lines.append("Waves: " + GameData.waves_text(battle_config.waves))
 		var weak: PackedStringArray = []
 		for wave: Array in battle_config.waves:
 			for id: String in wave:
@@ -150,9 +152,9 @@ func _fight_summary() -> String:
 				if line != "" and line not in weak:
 					weak.append(line)
 		if not weak.is_empty():
-			lines.append("Weak spots: " + ", ".join(weak))
+			lines.append("Weak: " + ", ".join(weak))
 	else:
-		lines.append("%d wave%s (put a benched animal on scout duty to see them)" % [battle_config.waves.size(), "" if battle_config.waves.size() == 1 else "s"])
+		lines.append("%d wave%s (a benched scout would show them)" % [battle_config.waves.size(), "" if battle_config.waves.size() == 1 else "s"])
 	return "\n".join(lines)
 
 

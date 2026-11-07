@@ -58,6 +58,7 @@ var _uses := {}  # Combatant -> {skill id: times}
 var _wave_rounds: Array[int] = []
 var _legends: Array[Combatant] = []
 var warlord_name := ""  # the warlord in this fight, if any
+var last_skill := ""  # the name of the move being used right now (for the legend recap)
 var dungeon := ""  # a dungeon run: the region whose dungeon this is; its waves never end
 var dungeon_start := 1  # the dungeon wave the run began on
 var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called for help, 2 = enraged, 3 = Last Gasp
@@ -386,6 +387,7 @@ func valid_targets(actor: Combatant, skill_id: String) -> Array[Combatant]:
 
 func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 	var skill := actor.skill_data(skill_id)
+	last_skill = String(skill.get("name", skill_id))
 	acting.emit(actor)
 	var used: Dictionary = _uses.get_or_add(actor, {})
 	used[skill_id] = int(used.get(skill_id, 0)) + 1
