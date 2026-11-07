@@ -231,6 +231,7 @@ const STATUSES := {
 	"guard": {"name": "Guard"},
 	"infected": {"name": "Infected"},
 	"stunned": {"name": "Stunned"},
+	"stun_proof": {"name": "Stun-proof"},
 	"weakened": {"name": "Weakened"},
 	"frenzied": {"name": "Frenzied"},
 }
@@ -714,7 +715,7 @@ const ZOMBIE_TIPS := [
 	"Kill first: Medics, then Screamers, then anything winding up.",
 	"Counterattacks are rare but dangerous: they match your pack, and if you lose, the land falls.",
 	"Warlords march out of Horde Nests toward your home, on the map for all to see. Hunt one down for its treasure before it reaches your land.",
-	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it.",
+	"Legends always match your pack. At 66% HP they call for help, at 33% they enrage for good, and they keep winding up Cataclysm: save a stun or a Guard for it. After a stun, a legend can't be stunned again for 2 of its turns.",
 ]
 
 ## Zombie weak points: animals with the tag (kind, terrain or role) deal ZOMBIE_WEAK_MULT damage to
@@ -1393,6 +1394,9 @@ const LEGEND_ADDS_AT := 0.66
 const LEGEND_ADDS := ["runner", "shambler"]
 const LEGEND_ENRAGE_AT := 0.33
 const LEGEND_ENRAGE_ATK := 1.3
+## A legend shakes off a stun: for this many of its own turns after one, it can't be stunned again
+## (no stun-locking a raid boss; a well-timed stun still cancels Cataclysm).
+const LEGEND_STUN_PROOF := 2
 const LEGEND_WEAK_MULT := 1.5
 const LEGEND_RESIST_MULT := 0.6
 

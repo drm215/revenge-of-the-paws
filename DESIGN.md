@@ -66,7 +66,9 @@ The apocalypse starts **where you actually live**.
 - **Legends fight like raid bosses** (`GameData.LEGEND_*`, `Battle._advance_legend`): below 66% HP
   they call a Runner and a Shambler (no XP), below 33% they hit 30% harder for good, and they keep
   winding up Cataclysm, which hits the whole pack unless the legend is stunned (cancels it) or the
-  pack Guards (halves it). Worked out from HP alone, so every raid device agrees. Tuned so the
+  pack Guards (halves it). After a stun a legend is stun-proof for `LEGEND_STUN_PROOF` (2) of its
+  turns, Knockdown included, so it can't be stun-locked (a fox's Dirty Trick plus heavy hits once
+  stunned the Wampus Cat on over half its turns). Worked out from HP alone, so every raid device agrees. Tuned so the
   simulator's AI wins about 10% of the time at Lv 10 and above; real players should do better.
 - **Reinforcements:** land held beyond home and linked to it gives the pack +1% HP/ATK per 20
   territories (max +30%): slow to build, big on a large map. The Guide spells it out.

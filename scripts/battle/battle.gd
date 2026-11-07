@@ -330,6 +330,10 @@ func next_turn() -> Combatant:
 				actor.winding = ""
 				status_changed.emit(actor)
 			_end_turn(actor)
+			if actor.is_boss and actor.is_alive():
+				actor.add_status("stun_proof", GameData.LEGEND_STUN_PROOF)
+				log_message.emit("[color=#c99bff]%s shakes it off: it can't be stunned for %d turns.[/color]" % [actor.display_name, GameData.LEGEND_STUN_PROOF])
+				status_changed.emit(actor)
 			continue
 		return actor
 	current = null
@@ -425,7 +429,7 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 			status_changed.emit(t)
 		if t.is_alive():
 			for effect: Dictionary in skill.get("apply", []):
-				if effect.status in t.immune:
+				if effect.status in t.immune or (effect.status == "stunned" and t.has_status("stun_proof")):
 					continue
 				if effect.status == "infected" and _weak_point(t, actor) == "immune":
 					continue  # scavengers shrug off a Plague Carrier's rot
@@ -667,7 +671,7 @@ func _deal_damage(src: Combatant, dst: Combatant, power: float, crit_bonus: floa
 	_dealt[src] = int(_dealt.get(src, 0)) + amount
 	_defusing = false
 	var knockdown := src.is_player and single and power >= GameData.KNOCKDOWN_POWER
-	if knockdown and dst.is_alive() and dst.has_status("weakened") and "stunned" not in dst.immune:
+	if knockdown and dst.is_alive() and dst.has_status("weakened") and "stunned" not in dst.immune and not dst.has_status("stun_proof"):
 		dst.add_status("stunned", 1)
 		status_changed.emit(dst)
 		combos.append("Knockdown")

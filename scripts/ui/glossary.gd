@@ -42,6 +42,7 @@ static func sections() -> Array:
 			["Guard", "Braced: a wound-up attack does half damage to it."],
 			["Taunt", "Draws the zombies' single-target attacks to this animal."],
 			["Stunned", "Loses its next turn, and any attack it was winding up is cancelled."],
+			["Stun-proof", "A legend that's just been stunned shakes it off: it can't be stunned again for %d of its turns." % GameData.LEGEND_STUN_PROOF],
 			["Weakened", "Hits for %s of its usual damage." % pct.call(GameData.WEAKENED_ATK_MULT)],
 			["Infected", "Loses %s of its max HP at the start of each of its turns. Moves that cure clear it." % pct.call(Battle.INFECTION_DAMAGE)],
 			["Frenzied", "A Screamer's rally: zombies hit %s harder." % pct.call(GameData.FRENZIED_ATK_MULT - 1.0)],
