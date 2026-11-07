@@ -224,6 +224,13 @@ The apocalypse starts **where you actually live**.
   side: `server/siege.sql`.
 - **Sync**: every save goes to the cloud at once (`Cloud.SYNC_DELAY` only gathers one action's
   saves), and a save made while a sync is running goes up right after it.
+- **Sync safety**: when the game being played can't back up (an upload refused, or more than
+  `Cloud.BACKUP_WARN_MINUTES` with changes the cloud hasn't), the map shows a red warning; tap to
+  retry. Every failure (read, upload, conflict, a cloud copy replacing different progress, an
+  expired login) is reported to `sync_events` (server/sync_events.sql), and battle logs carry the
+  save slot, minutes without a backup and the last upload error. A cloud copy that replaces a
+  different copy on the device keeps the old one; the save picker offers it back.
+  server/admin_queries.sql finds players whose fights arrive but whose saves don't.
 - **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
   setup (including whether it was an assault or had a warlord), each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
   legend's stats and HP left, rounds per wave) with the cloud sync, queued while offline (newest

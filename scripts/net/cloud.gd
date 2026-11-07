@@ -20,6 +20,12 @@ signal reset_requested
 const SYNC_DELAY := 0.1
 const BATTLE_LOG_KEEP := 30
 const RETRY_DELAY := 30.0
+## The map warns once the game being played has gone this long without reaching the cloud.
+const BACKUP_WARN_MINUTES := 30
+## Sync trouble reports (server/sync_events.sql) waiting to be sent: the newest this many.
+const SYNC_EVENT_KEEP := 50
+## The same trouble (kind, game, error code) is reported at most this often.
+const EVENT_REPEAT_SECONDS := 600.0
 
 ## Supabase project; tests point this at a fake server (and Profile/Campaign.save_path elsewhere).
 var state_path := "user://cloud.cfg"
@@ -37,6 +43,10 @@ var _expires_at := 0.0
 var _user_id := ""
 var _synced := {}  # saved game (slot) -> server updated_at of the cloud copy this device last matched
 var _dirty := {}  # saved games changed here since they last synced
+var _dirty_since := {}  # saved game -> unix time it first changed without reaching the cloud
+var _upload_failed := {}  # saved game -> why its last upload failed (gone once one lands)
+var _sync_events: Array = []  # trouble reports not yet sent (see _report)
+var _event_seen := {}  # "kind:slot:code" -> unix time last reported
 var _deleted: Array = []  # saved games deleted here whose cloud copy still has to go
 var _busy := false
 var _refreshing := false  # a login refresh is on its way; everyone else waits for its answer
@@ -79,18 +89,56 @@ func signed_in() -> bool:
 
 ## Called after every local save (of the game being played).
 func mark_dirty() -> void:
-	var slot := Saves.slot_of(Profile.save_path)
+	mark_slot_dirty(Saves.slot_of(Profile.save_path))
+
+
+## Saved game `slot` changed here and has to go up (a restored backup, as well as every save).
+func mark_slot_dirty(slot: String) -> void:
 	if slot == "":
 		return
+	if not _dirty.get(slot, false) or not _dirty_since.has(slot):
+		_dirty_since[slot] = Time.get_unix_time_from_system()
 	_dirty[slot] = true
 	_store_state()
 	if signed_in():
 		_timer.start(SYNC_DELAY)
 
 
+## How long saved game `slot` (default: the one being played) has had changes the cloud hasn't, in
+## minutes (0 when it's backed up).
+func unsynced_minutes(slot := "") -> int:
+	if slot == "":
+		slot = Saves.slot_of(Profile.save_path)
+	if not _dirty.get(slot, false) or not _dirty_since.has(slot):
+		return 0
+	return int((Time.get_unix_time_from_system() - float(_dirty_since[slot])) / 60.0)
+
+
+## What the map should warn about the game being played ("" when it's safely backed up, or when
+## nobody is logged in to back it up to).
+func backup_trouble() -> String:
+	var slot := Saves.slot_of(Profile.save_path)
+	if not signed_in() or slot == "":
+		return ""
+	if String(_upload_failed.get(slot, "")) != "":
+		return "Your game isn't backed up: %s. Tap to try again." % String(_upload_failed[slot]).trim_suffix(".")
+	var minutes := unsynced_minutes(slot)
+	if minutes >= BACKUP_WARN_MINUTES:
+		return "Your game hasn't backed up for %s. Tap to try again." % (("%d minutes" % minutes) if minutes < 120 else ("%d hours" % (minutes / 60)))
+	return ""
+
+
+## Tries to back up again now (the map's warning).
+func retry() -> void:
+	_timer.stop()
+	sync()
+
+
 ## A saved game was deleted here: delete its cloud copy too (now, or once back online).
 func forget(slot: String) -> void:
 	_dirty.erase(slot)
+	_dirty_since.erase(slot)
+	_upload_failed.erase(slot)
 	_synced.erase(slot)
 	if slot not in _deleted:
 		_deleted.append(slot)
@@ -234,6 +282,7 @@ func _refresh_login() -> bool:
 		_take_session(r.data)
 		return true
 	if r.code == 400 or r.code == 401:
+		_report("session_expired", Saves.slot_of(Profile.save_path), r)
 		log_out()
 		_set_status("Your session expired. Log in again to keep syncing.")
 	_note_error("refresh", r)
@@ -257,6 +306,7 @@ func sync() -> void:
 		await _sync_once()
 		await _send_siege()
 		await _send_battle_logs()
+		await _send_sync_events()
 	await _send_dungeon_records()
 	_busy = false
 
@@ -277,6 +327,7 @@ func _sync_once(retried := false) -> void:
 	if not r.ok or not r.data is Array:
 		if signed_in():
 			_note_error("read", r)
+			_report("read", "", r)
 			_set_status("Offline. Will sync when back online." + _last_error)
 			_timer.start(RETRY_DELAY)
 		return
@@ -312,6 +363,8 @@ func _sync_once(retried := false) -> void:
 				_mark_synced(slot, String(row.updated_at))
 				continue
 			_pending = row
+			_report("conflict", slot, {}, {"device": summary(FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)), _local_campaign(slot)),
+				"cloud": summary(String(row.profile), String(row.get("campaign", ""))), "cloud_saved": String(row.updated_at)})
 			_show_conflict()
 			return  # one question at a time; the rest syncs after it's answered
 	# Games the cloud doesn't have yet.
@@ -345,12 +398,15 @@ func _upload(slot: String, expected: String, retried := false) -> void:
 		_mark_synced(slot, String(r.data[0].updated_at))
 		_set_status("Saved to the cloud.")
 		if body.profile != FileAccess.get_file_as_string(Saves.path(slot, Saves.PROFILE)) or body.campaign != _local_campaign(slot):
-			_dirty[slot] = true  # saved again while this was on its way
-			_store_state()
+			mark_slot_dirty(slot)  # saved again while this was on its way
 	elif not retried and (r.code == 409 or (r.ok and r.data is Array)):
+		_report("upload_race", slot, r, {"expected": expected})
 		await _sync_once(true)  # another device saved first (insert clashed, or the update matched nothing)
 	else:
 		_note_error("upload", r)
+		_upload_failed[slot] = "no connection." if r.code == 0 else "%s (%d)" % [_error_text(r), r.code]
+		_report("upload", slot, r, {"expected": expected, "retried": retried, "bytes": String(body.profile).length() + String(body.campaign).length()})
+		_store_state()
 		_set_status("Cloud save failed. Will retry." + _last_error)
 		_timer.start(RETRY_DELAY)
 
@@ -379,6 +435,14 @@ func _apply(cloud: Dictionary) -> void:
 	var slot := String(cloud.get("slot", "")) if String(cloud.get("slot", "")) != "" else _slot_in(String(cloud.profile))
 	var active := Saves.slot_of(Profile.save_path)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(Saves.DIR + "/" + slot))
+	# Replacing a different copy of this game here: keep that copy first, so it can be put back.
+	var local_path := Saves.path(slot, Saves.PROFILE)
+	if FileAccess.file_exists(local_path):
+		var before := FileAccess.get_file_as_string(local_path)
+		if before != String(cloud.profile) or _local_campaign(slot) != String(cloud.get("campaign", "")):
+			Saves.back_up(slot)
+			_report("download_over", slot, {}, {"before": summary(before, _local_campaign(slot)),
+				"after": summary(String(cloud.profile), String(cloud.get("campaign", ""))), "cloud_saved": String(cloud.get("updated_at", ""))})
 	_write(Saves.path(slot, Saves.PROFILE), cloud.profile)
 	if String(cloud.get("campaign", "")) != "":
 		_write(Saves.path(slot, Saves.CAMPAIGN), cloud.campaign)
@@ -403,6 +467,8 @@ static func _slot_in(profile_text: String) -> String:
 func _mark_synced(slot: String, updated_at: String) -> void:
 	_synced[slot] = updated_at
 	_dirty.erase(slot)
+	_dirty_since.erase(slot)
+	_upload_failed.erase(slot)
 	last_synced_unix = Time.get_unix_time_from_system()
 	_store_state()
 
@@ -421,6 +487,11 @@ static func summary(profile_text: String, campaign_text: String) -> String:
 		parts.append(String(p.get_value("profile", "town", "")))
 		if String(p.get_value("profile", "pet_name", "")) != "":
 			parts.append(String(p.get_value("profile", "pet_name")))
+		var top := 0
+		for xp in (p.get_value("profile", "xp", {}) as Dictionary).values():
+			top = maxi(top, GameData.level_for_xp(int(xp)))
+		if top > 0:
+			parts.append("best Lv %d" % top)
 	var c := ConfigFile.new()
 	if campaign_text != "" and c.parse(campaign_text) == OK:
 		parts.append("%d territories" % (c.get_value("campaign", "owned", []) as Array).size())
@@ -474,6 +545,7 @@ func _resolve_conflict(use_cloud: bool) -> void:
 	_conflict_ui = null
 	var cloud := _pending
 	_pending = {}
+	_report("conflict_choice", String(cloud.slot), {}, {"kept": "cloud" if use_cloud else "device"})
 	if use_cloud:
 		_apply(cloud)
 	else:
@@ -551,6 +623,11 @@ func siege_add(points: int, pack_name: String) -> void:
 ## Only the newest BATTLE_LOG_KEEP wait offline.
 func log_battle(report: Dictionary) -> void:
 	report["at"] = Time.get_datetime_string_from_system(true)
+	var slot := Saves.slot_of(Profile.save_path)
+	report["slot"] = slot
+	report["signed_in"] = signed_in()
+	report["unsynced_minutes"] = unsynced_minutes(slot)
+	report["sync_error"] = String(_upload_failed.get(slot, ""))
 	_battle_logs.append(report)
 	if _battle_logs.size() > BATTLE_LOG_KEEP:
 		_battle_logs = _battle_logs.slice(-BATTLE_LOG_KEEP)
@@ -572,6 +649,38 @@ func _send_battle_logs() -> void:
 			if r.code == 0 or r.code == 401 or r.code == 403 or r.code == 429 or r.code >= 500:
 				return
 		_battle_logs.pop_front()
+		_store_state()
+
+
+## Notes sync trouble for the server's sync_events table (sent with the next sync, kept while
+## offline): `kind` (read, upload, upload_race, conflict, conflict_choice, download_over,
+## session_expired), the saved game, the failed request `r` if any, and what else helps trace it.
+func _report(kind: String, slot: String, r := {}, detail := {}) -> void:
+	var code := int(r.get("code", 0))
+	var key := "%s:%s:%d" % [kind, slot, code]
+	var now := Time.get_unix_time_from_system()
+	if now - float(_event_seen.get(key, -EVENT_REPEAT_SECONDS)) < EVENT_REPEAT_SECONDS:
+		return
+	_event_seen[key] = now
+	_sync_events.append({"slot": slot, "kind": kind, "code": code,
+		"message": (_error_text(r) if not r.is_empty() else "").left(300),
+		"detail": detail.merged({"at": Time.get_datetime_string_from_system(true), "device": OS.get_name(),
+			"unsynced_minutes": unsynced_minutes(slot) if slot != "" else 0, "signed_in": signed_in()})})
+	if _sync_events.size() > SYNC_EVENT_KEEP:
+		_sync_events = _sync_events.slice(-SYNC_EVENT_KEEP)
+	_store_state()
+
+
+func _send_sync_events() -> void:
+	if _sync_events.is_empty() or not await _ensure_token():
+		return
+	while not _sync_events.is_empty():
+		var r := await _request(HTTPClient.METHOD_POST, "/rest/v1/sync_events", _sync_events[0], true, ["Prefer: return=minimal"])
+		if not r.ok:
+			# Not now (offline, signed out, too many): later. Anything else won't ever go: drop it.
+			if r.code == 0 or r.code == 401 or r.code == 403 or r.code == 429 or r.code >= 500:
+				return
+		_sync_events.pop_front()
 		_store_state()
 
 
@@ -655,6 +764,9 @@ func _store_state() -> void:
 	cfg.set_value("cloud", "synced", _synced)
 	cfg.set_value("cloud", "last_synced_unix", last_synced_unix)
 	cfg.set_value("cloud", "dirty_games", _dirty)
+	cfg.set_value("cloud", "dirty_since", _dirty_since)
+	cfg.set_value("cloud", "upload_failed", _upload_failed)
+	cfg.set_value("cloud", "sync_events", _sync_events)
 	cfg.set_value("cloud", "deleted", _deleted)
 	cfg.set_value("cloud", "siege_pending", _siege_pending)
 	cfg.set_value("cloud", "siege_name", _siege_name)
@@ -673,6 +785,12 @@ func _load_state() -> void:
 	_synced = cfg.get_value("cloud", "synced", {})  # (games sync one by one now; older state is dropped)
 	last_synced_unix = cfg.get_value("cloud", "last_synced_unix", 0.0)
 	_dirty = cfg.get_value("cloud", "dirty_games", {})
+	_dirty_since = cfg.get_value("cloud", "dirty_since", {})
+	_upload_failed = cfg.get_value("cloud", "upload_failed", {})
+	_sync_events = cfg.get_value("cloud", "sync_events", [])
+	for slot: String in _dirty:  # changed before this was tracked: count from now
+		if _dirty[slot] and not _dirty_since.has(slot):
+			_dirty_since[slot] = Time.get_unix_time_from_system()
 	_deleted = cfg.get_value("cloud", "deleted", [])
 	_siege_pending = cfg.get_value("cloud", "siege_pending", {})
 	_siege_name = cfg.get_value("cloud", "siege_name", "")

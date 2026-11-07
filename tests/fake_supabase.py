@@ -318,6 +318,14 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if self.path == "/rest/v1/sync_events":
+            if not self._authed():
+                return self._send(401, {"message": "new row violates row-level security policy"})
+            state.setdefault("sync_events", []).append(body)
+            self.send_response(201)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.path == "/rest/v1/siege_hits":
             if not self._authed():
                 return self._send(401, {"message": "new row violates row-level security policy"})
@@ -347,6 +355,8 @@ class H(BaseHTTPRequestHandler):
             state["others"] = body
             return self._send(200, {})
         if self.path.startswith("/rest/v1/saves"):
+            if slow.get("save_status"):  # uploads refused (reads still work)
+                return self._send(slow["save_status"], {"message": "refused for the test"})
             uid = self._user()
             slot = body.get("slot", "save_cloud")
             if any(r["user"] == uid and r["slot"] == slot for r in state["saves"]):
@@ -379,6 +389,8 @@ class H(BaseHTTPRequestHandler):
         q = parse_qs(urlparse(self.path).query)
         want = q.get("updated_at", [""])[0].removeprefix("eq.")
         if self.path.startswith("/rest/v1/saves") and self._user():
+            if slow.get("save_status"):
+                return self._send(slow["save_status"], {"message": "refused for the test"})
             rows = [r for r in self._save_rows() if r["updated_at"] == want]
             if rows:
                 rows[0].update(body, updated_at=stamp())

@@ -7,6 +7,9 @@ extends RefCounted
 const DIR := "user://saves"
 const PROFILE := "profile.cfg"
 const CAMPAIGN := "campaign.cfg"
+## A copy of a game kept before a cloud copy replaced it on this device (see back_up).
+const BACKUP_PROFILE := "profile.before_download.cfg"
+const BACKUP_CAMPAIGN := "campaign.before_download.cfg"
 
 
 ## The one save from before slots becomes the first slot (once).
@@ -84,10 +87,40 @@ static func describe(id: String) -> Dictionary:
 		"detail": " · ".join(bits), "played": played}
 
 
+## Keeps a copy of slot `id` as it is now, before a cloud copy replaces it (one copy: the latest).
+static func back_up(id: String) -> void:
+	for pair in [[PROFILE, BACKUP_PROFILE], [CAMPAIGN, BACKUP_CAMPAIGN]]:
+		DirAccess.remove_absolute(_abs(path(id, pair[1])))
+		if FileAccess.file_exists(path(id, pair[0])):
+			DirAccess.copy_absolute(_abs(path(id, pair[0])), _abs(path(id, pair[1])))
+
+
+## The copy kept before the last download: {"detail", "when"} (unix time), or {} if there isn't one.
+static func backup_info(id: String) -> Dictionary:
+	var p := ConfigFile.new()
+	if p.load(path(id, BACKUP_PROFILE)) != OK:
+		return {}
+	var top := 1
+	for xp in (p.get_value("profile", "xp", {}) as Dictionary).values():
+		top = maxi(top, GameData.level_for_xp(int(xp)))
+	return {"detail": "best Lv %d" % top, "when": FileAccess.get_modified_time(path(id, BACKUP_PROFILE))}
+
+
+## Puts back the copy kept before the last download (the caller sends it to the cloud).
+static func restore_backup(id: String) -> bool:
+	if not FileAccess.file_exists(path(id, BACKUP_PROFILE)):
+		return false
+	for pair in [[BACKUP_PROFILE, PROFILE], [BACKUP_CAMPAIGN, CAMPAIGN]]:
+		if FileAccess.file_exists(path(id, pair[0])):
+			DirAccess.remove_absolute(_abs(path(id, pair[1])))
+			DirAccess.rename_absolute(_abs(path(id, pair[0])), _abs(path(id, pair[1])))
+	return true
+
+
 ## Deletes a slot and everything in it (its cloud copy too).
 static func delete(id: String) -> void:
 	var had_game := FileAccess.file_exists(path(id, PROFILE))
-	for file in [PROFILE, CAMPAIGN]:
+	for file in [PROFILE, CAMPAIGN, BACKUP_PROFILE, BACKUP_CAMPAIGN]:
 		DirAccess.remove_absolute(_abs(path(id, file)))
 	DirAccess.remove_absolute(_abs(DIR + "/" + id))
 	if had_game:

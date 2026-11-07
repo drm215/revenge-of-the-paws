@@ -95,6 +95,26 @@ func _card(info: Dictionary) -> Control:
 	var when := Retro.text(Label.new(), 17, Retro.FOG)
 	when.text = "Last played " + _when(int(info.played))
 	text.add_child(when)
+	var backup := Saves.backup_info(String(info.id))
+	if not backup.is_empty():
+		# A cloud copy replaced this game here: its old copy can come back.
+		var undo := Button.new()
+		undo.text = "Restore the copy from before the last download (%s, %s)" % [backup.detail, _when(int(backup.when))]
+		undo.flat = true
+		undo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		undo.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		undo.add_theme_color_override("font_color", Retro.CYAN)
+		undo.add_theme_font_size_override("font_size", Retro.px(15))
+		undo.pressed.connect(func() -> void:
+			if not undo.text.begins_with("Sure?"):
+				undo.text = "Sure? This replaces the game above with that copy (and backs it up to the cloud)."
+				return
+			if Saves.restore_backup(String(info.id)):
+				var cloud := get_node_or_null("/root/Cloud")
+				if cloud:
+					cloud.mark_slot_dirty(String(info.id))
+			_build())
+		text.add_child(undo)
 	var buttons := VBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
 	row.add_child(buttons)

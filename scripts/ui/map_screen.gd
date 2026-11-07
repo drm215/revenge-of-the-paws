@@ -35,6 +35,7 @@ var _bonus_button := Button.new()  # a cleared state's or region's bonus is wait
 
 var _map := MapView.new()
 var _status := Label.new()
+var _backup_warning := Button.new()  # the game isn't reaching the cloud: say so, tap to retry
 var _event := Label.new()
 ## The map always keeps MAP_MIN_HEIGHT; the news (and team feed) above it and the territory info
 ## below it are only as tall as their text, up to a cap, and scroll past that.
@@ -69,6 +70,15 @@ func _ready() -> void:
 		_on_raid()
 	_map.territory_selected.connect(_select)
 	_refresh_status()
+	var cloud := get_node_or_null("/root/Cloud")
+	if cloud:
+		cloud.status_changed.connect(func(_text: String) -> void: _refresh_backup_warning())
+		var check := Timer.new()  # minutes pass without any sync news
+		check.wait_time = 30.0
+		check.autostart = true
+		check.timeout.connect(_refresh_backup_warning)
+		add_child(check)
+	_refresh_backup_warning()
 	_select(campaign.under_attack if campaign.under_attack >= 0 else campaign.home)
 	if campaign.under_attack >= 0 and not horde_news.any(func(n: Dictionary) -> bool: return n.kind == "attack"):
 		_map.focus.call_deferred(campaign.under_attack)
@@ -308,6 +318,15 @@ func _select(i: int) -> void:
 		_info_body.text += "\nDUNGEON: %s. %s" % [d.name, "Enter for endless waves and rewards (free, no injuries)." if t.owned else "Free this land to enter."]
 	_ping.text = "Unping" if _map.pings.has(t.id) else "Ping"
 	_fit_info()
+
+
+## Shows the warning while the game being played isn't backed up (see Cloud.backup_trouble).
+func _refresh_backup_warning() -> void:
+	var cloud := get_node_or_null("/root/Cloud")
+	var trouble: String = cloud.backup_trouble() if cloud else ""
+	_backup_warning.visible = trouble != ""
+	if trouble != "":
+		_backup_warning.text = trouble
 
 
 func _refresh_status() -> void:
@@ -601,6 +620,20 @@ func _build_ui() -> void:
 	col.add_child(title)
 	Retro.text(_status, 22)
 	col.add_child(_status)
+	_backup_warning.visible = false
+	_backup_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_backup_warning.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_backup_warning.add_theme_font_size_override("font_size", Retro.px(18))
+	_backup_warning.add_theme_color_override("font_color", Retro.WHITE)
+	_backup_warning.add_theme_stylebox_override("normal", Retro.box(Color("8a2433"), Retro.RED, Retro.BORDER, 0, 8))
+	_backup_warning.add_theme_stylebox_override("hover", Retro.box(Color("8a2433"), Retro.RED, Retro.BORDER, 0, 8))
+	_backup_warning.add_theme_stylebox_override("pressed", Retro.box(Color("6e1c29"), Retro.RED, Retro.BORDER, 0, 8))
+	_backup_warning.pressed.connect(func() -> void:
+		_backup_warning.text = "Trying to back up..."
+		var c := get_node_or_null("/root/Cloud")
+		if c:
+			c.retry())
+	col.add_child(_backup_warning)
 	var lines: PackedStringArray = []
 	var names: PackedStringArray = []
 	for t in campaign.territories:
