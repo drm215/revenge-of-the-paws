@@ -565,6 +565,11 @@ func _show_details(unit_id: String) -> void:
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	head.add_child(name_label)
 	head.add_child(_tile_text(("Lv %d · %s · %s" % [level, data.name, data.role]) if is_pet else ("Lv %d · %s" % [level, data.role]), 20, Retro.YELLOW))
+	var title := GameData.level_title(level)
+	if not title.is_empty():
+		head.add_child(_tile_text(title.name.to_upper() + (" · next title at Lv %d" % (GameData.TITLE_FROM + GameData.TITLE_EVERY * (GameData.LEVEL_TITLES.find(title) + 1)) if title != GameData.LEVEL_TITLES[-1] else ""), 18, title.color))
+	elif level >= GameData.TITLE_FROM - GameData.TITLE_EVERY:
+		head.add_child(_tile_text("First title (Veteran) at Lv %d" % GameData.TITLE_FROM, 18, Retro.FOG))
 	head.add_child(_tile_text("XP %d / %d to Lv %d" % [profile.xp.get(unit_id, 0), GameData.xp_to_reach(level + 1), level + 1], 18, Retro.FOG))
 	col.add_child(_tile_text("\"%s\"" % data.desc, 20, Retro.FOG))
 
@@ -741,6 +746,14 @@ func _show_picker(unit_id: String, unit_name: String) -> void:
 		overlay.queue_free()
 		_show_fusion())
 	row.add_child(fuse)
+	var upgrade := Button.new()
+	upgrade.text = "Upgrade"
+	upgrade.custom_minimum_size = Vector2(0, 84)
+	upgrade.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	upgrade.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_show_upgrade())
+	row.add_child(upgrade)
 	var cancel := Button.new()
 	cancel.text = "Cancel"
 	cancel.custom_minimum_size = Vector2(0, 84)
@@ -822,6 +835,73 @@ func _show_fusion(first := "") -> void:
 	cancel.custom_minimum_size = Vector2(0, 84)
 	cancel.pressed.connect(overlay.queue_free)
 	col.add_child(cancel)
+
+
+## Upgrade: two copies of a trinket become one a tier better (GameData.TIER_*). Shows each trinket
+## with what it would become; tap one that can be upgraded to do it.
+func _show_upgrade(note := "") -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Retro.INK
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	margin.add_theme_constant_override("margin_top", 40)
+	overlay.add_child(margin)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	margin.add_child(col)
+	var title := Retro.title(Label.new(), 18)
+	title.text = "Upgrade trinkets"
+	col.add_child(title)
+	col.add_child(_tile_text(note if note != "" else "Two copies make one a tier better (up to +%d): bigger bonuses, smaller drawbacks." % GameData.MAX_TRINKET_TIER,
+		20, Retro.CYAN if note != "" else Retro.MIST))
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	Retro.touch_scroll(scroll)
+	col.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	var ids: Array[String] = []
+	for trinket_id in profile.trinkets:
+		if trinket_id not in ids:
+			ids.append(trinket_id)
+	ids.sort_custom(func(a: String, b: String) -> bool: return profile.upgrade_block(a) == "" and profile.upgrade_block(b) != "")
+	for trinket_id in ids:
+		var block := profile.upgrade_block(trinket_id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.GOLD if block == "" else Retro.NIGHT, Retro.BORDER, 2, 10))
+		var box := VBoxContainer.new()
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(box)
+		var copies := profile.trinkets.count(trinket_id)
+		var name_label := Retro.title(Label.new(), 13, Retro.WHITE if block == "" else Retro.FOG)
+		name_label.text = GameData.trinket(trinket_id).name + ((" x%d" % copies) if copies > 1 else "")
+		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(name_label)
+		box.add_child(_tile_text(GameData.trinket_effects(trinket_id), 19, Retro.YELLOW if block == "" else Retro.FOG))
+		if block == "":
+			var better := GameData.upgraded_id(trinket_id)
+			box.add_child(_tile_text("Tap to upgrade: %s (%s)" % [GameData.trinket(better).name, GameData.trinket_effects(better)], 18, Retro.CYAN))
+			Retro.on_tap(card, func() -> void:
+				var made := profile.upgrade_trinket(trinket_id)
+				profile.save()
+				overlay.queue_free()
+				_refresh()
+				_show_upgrade("Made the %s." % GameData.trinket(made).name))
+		else:
+			box.add_child(_tile_text(block, 18, Retro.ORANGE))
+		list.add_child(card)
+	var done := Button.new()
+	done.text = "Done"
+	done.custom_minimum_size = Vector2(0, 84)
+	done.pressed.connect(overlay.queue_free)
+	col.add_child(done)
 
 
 func _confirm_fusion(a: String, b: String) -> void:

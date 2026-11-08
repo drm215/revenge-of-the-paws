@@ -980,10 +980,19 @@ const CACHE_TRINKETS := ["rusty_dog_tag", "lucky_bottle_cap", "duct_tape_armor",
 ## immunities, and the one wave-start effect either has (can_fuse() keeps it to one).
 static func trinket(id: String) -> Dictionary:
 	if not id.begins_with(FUSED_PREFIX):
-		return TRINKETS[id]
+		var tier := trinket_tier(id)
+		if tier == 0:
+			return TRINKETS[id]
+		var base: Dictionary = TRINKETS[id.get_slice(TIER_SEP, 0)].duplicate()
+		for key in ["hp", "atk", "def", "spd", "crit", "lifesteal", "thorns", "regen"]:
+			if base.has(key):
+				var v: float = base[key]
+				base[key] = v * (1.0 + TIER_GAIN * tier) if v > 0.0 else v * (1.0 - TIER_EASE * tier)
+		base.name = "%s +%d" % [base.name, tier]
+		return base
 	var parts := id.trim_prefix(FUSED_PREFIX).split("+")
-	var a: Dictionary = TRINKETS[parts[0]]
-	var b: Dictionary = TRINKETS[parts[1]]
+	var a: Dictionary = trinket(parts[0])
+	var b: Dictionary = trinket(parts[1])
 	var t := {"name": "%s + %s" % [a.name, b.name], "flavor": "Two trinkets bound together with wire and hope."}
 	for key in ["hp", "atk", "def", "spd", "crit", "lifesteal", "thorns", "regen"]:
 		if a.has(key) or b.has(key):
@@ -1000,13 +1009,39 @@ static func trinket(id: String) -> Dictionary:
 
 
 const FUSED_PREFIX := "fuse:"
+## Upgrading: two copies of a trinket make one a tier better ("id@2" is tier 2), up to
+## MAX_TRINKET_TIER. Each tier makes its bonuses TIER_GAIN bigger and its drawbacks TIER_EASE
+## smaller. Fused trinkets can't be upgraded, but upgraded ones can be fused.
+const TIER_SEP := "@"
+const MAX_TRINKET_TIER := 3
+const TIER_GAIN := 0.5
+const TIER_EASE := 0.25
+
+
+static func trinket_tier(id: String) -> int:
+	if id.begins_with(FUSED_PREFIX) or TIER_SEP not in id:
+		return 0
+	return int(id.get_slice(TIER_SEP, 1))
+
+
+static func upgraded_id(id: String) -> String:
+	return "%s%s%d" % [id.get_slice(TIER_SEP, 0), TIER_SEP, trinket_tier(id) + 1]
+
+
+## Why a trinket can't be upgraded ("" if it can, given two copies).
+static func upgrade_block(id: String) -> String:
+	if id.begins_with(FUSED_PREFIX):
+		return "A fused trinket can't be upgraded."
+	if trinket_tier(id) >= MAX_TRINKET_TIER:
+		return "Fully upgraded."
+	return ""
 
 
 ## Why two trinkets can't be fused ("" if they can).
 static func fuse_block(a: String, b: String) -> String:
 	if a.begins_with(FUSED_PREFIX) or b.begins_with(FUSED_PREFIX):
 		return "A fused trinket can't be fused again."
-	if TRINKETS[a].has("start") and TRINKETS[b].has("start"):
+	if trinket(a).has("start") and trinket(b).has("start"):
 		return "Both act at the start of a wave; only one can."
 	return ""
 
@@ -1051,6 +1086,25 @@ const MAX_THREAT := 5
 const THREAT_ZOMBIE_MULT := {1: 1.0, 2: 1.15, 3: 1.38, 4: 1.62, 5: 1.9}
 
 ## Leveling: every animal in the pack (pet included) earns XP from each fight it's part of.
+## Titles past Lv 50: one every TITLE_EVERY levels, shown (and colored) on the battle card and in Pack.
+const TITLE_FROM := 60
+const TITLE_EVERY := 10
+const LEVEL_TITLES := [
+	{"name": "Veteran", "color": Color("2ce8f5")},
+	{"name": "Elite", "color": Color("63c74d")},
+	{"name": "Champion", "color": Color("feae34")},
+	{"name": "Legendary", "color": Color("f77622")},
+	{"name": "Mythic", "color": Color("f6a0e0")},
+]
+
+
+## The title an animal of `level` has earned ({} below TITLE_FROM). Mythic is the last.
+static func level_title(level: int) -> Dictionary:
+	if level < TITLE_FROM:
+		return {}
+	return LEVEL_TITLES[mini((level - TITLE_FROM) / TITLE_EVERY, LEVEL_TITLES.size() - 1)]
+
+
 const XP_STEP := 120  # XP to go from level L to L+1 is XP_STEP * L
 const LEVEL_GROWTH := {"hp": 0.06, "atk": 0.045, "def": 0.03}  # per level above 1
 const DEFEAT_XP_SHARE := 0.5  # a retreat still teaches something

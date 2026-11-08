@@ -212,6 +212,12 @@ The apocalypse starts **where you actually live**.
   dungeon's signature zombie (by terrain: bloaters in water, riot gear in the mountains...), and
   between Brute waves from wave 8 comes a named wave of one kind (Swarm, Plague Ward, Riot Line,
   Bloat Tide, The Choir). Kills pay a quarter of their usual XP; new depths pay the treasure.
+- **Titles** (`LEVEL_TITLES`): past Lv 50, one every 10 levels from Lv 60: Veteran, Elite, Champion,
+  Legendary, then Mythic from 100 on. The battle card colors the name and shows the title in place
+  of the role; Pack shows it with the next one; the level-up line announces it.
+- **Trinket upgrades** (`TIER_*`): two copies of a trinket make one a tier better ("id@2"), up to +3:
+  each tier +50% of its bonuses and -25% of its drawbacks. Whoever wore a copy wears the new one.
+  Upgraded trinkets can be fused; fused ones can't be upgraded. Pack > trinket > Upgrade.
 - **Brute targets** (`EYEING_ZOMBIES`: Brutes, warlords): at the end of each of its turns (and as its
   wave starts) it picks the reachable animal with the least HP, logs "Brute eyes X" and tags that
   card "BRUTE'S TARGET"; its next single-target hit goes there unless a taunt pulls it away.

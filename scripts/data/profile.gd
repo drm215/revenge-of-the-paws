@@ -239,8 +239,9 @@ func after_battle(fought: Array[String], downed: Array[String], amount: int, won
 		if rested.has(id):
 			gain = roundi(amount * GameData.RESTED_XP)
 			lines.append("%s was well rested: +%d XP" % [unit_name(id), gain])
+		var before := level_of(id)
 		if add_xp(id, gain) > 0:
-			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
+			lines.append("%s reached Lv %d!%s" % [unit_name(id), level_of(id), title_line(id, before)])
 	var bench_amount := roundi(amount * GameData.BENCH_XP_SHARE)
 	var benched := 0
 	for id in active():
@@ -396,6 +397,14 @@ func active() -> Array[String]:
 	return out
 
 
+## " Now a Veteran!" when an animal's level-up from `before` earned a new title ("" if not).
+func title_line(id: String, before: int) -> String:
+	var now := GameData.level_title(level_of(id))
+	if now.is_empty() or now == GameData.level_title(before):
+		return ""
+	return " Now a %s!" % now.name
+
+
 ## The pet and every animal not in the Stable (active() leaves the pet out).
 func everyone() -> Array[String]:
 	var out := pack_ids()
@@ -486,6 +495,38 @@ func fuse(a: String, b: String) -> String:
 	var fused := GameData.fused_id(a, b)
 	trinkets.append(fused)
 	return fused
+
+
+## Why a trinket can't be upgraded right now ("" if it can).
+func upgrade_block(id: String) -> String:
+	var block := GameData.upgrade_block(id)
+	if block != "":
+		return block
+	if trinkets.count(id) < 2:
+		return "Needs a second copy."
+	return ""
+
+
+## Two copies of a trinket become one a tier better. Whoever wore a copy wears the new one.
+## Returns the new trinket's id, or "" if it can't be upgraded.
+func upgrade_trinket(id: String) -> String:
+	if upgrade_block(id) != "":
+		return ""
+	var wearer := ""
+	for unit_id in equipped:
+		if equipped[unit_id] == id:
+			wearer = unit_id
+			break
+	for k in 2:
+		trinkets.erase(id)
+	for unit_id in equipped.keys():
+		if equipped[unit_id] == id and trinkets_free(id) < 0:
+			equipped.erase(unit_id)
+	var better := GameData.upgraded_id(id)
+	trinkets.append(better)
+	if wearer != "":
+		equipped[wearer] = better
+	return better
 
 
 ## How many copies of a trinket nobody is wearing.

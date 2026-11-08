@@ -113,6 +113,10 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	elif c.is_player:
 		tag.text = "Lv %d %s" % [c.level, c.role]
 		tag.add_theme_color_override("font_color", Retro.FOG)
+	var title := GameData.level_title(c.level) if c.is_player else {}
+	if not title.is_empty():
+		_name_label.add_theme_color_override("font_color", title.color)
+		tag.text = "Lv %d %s" % [c.level, title.name]
 	if tag.text != "" and not compact:
 		info.add_child(tag)
 

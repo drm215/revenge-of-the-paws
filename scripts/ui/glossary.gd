@@ -70,6 +70,8 @@ static func sections() -> Array:
 			["Catch-up", "On a team, a pack below the team's strongest earns +%s XP per level behind, up to +%s, from its own fights and sweeps. It fades as the gap closes." % [pct.call(GameData.CATCH_UP_PER_LEVEL), pct.call(GameData.CATCH_UP_MAX)]],
 			["New animals","Survivors you rescue join at %s of your strongest animal's level, so they need some training." % pct.call(GameData.RECRUIT_LEVEL_SHARE)],
 			["Trinkets", "Gear for one animal each: from caches, legends, sieges and dungeons. Equip from Pack."],
+			["Upgrade", "Two copies of a trinket make one a tier better, up to +%d: each tier gives +%s more of its bonuses and %s less of its drawbacks. Upgraded trinkets can still be fused." % [GameData.MAX_TRINKET_TIER, pct.call(GameData.TIER_GAIN), pct.call(GameData.TIER_EASE)]],
+			["Titles", "Past Lv 50 an animal earns a title every %d levels, from Lv %d: Veteran, Elite, Champion, Legendary, then Mythic. Its name takes the title's color in battle." % [GameData.TITLE_EVERY, GameData.TITLE_FROM]],
 		]],
 		["The map", [
 			["Level", "How strong a territory's zombies are, fixed when you discover it. Only the horde spreading or a lost counter defense raises it."],
