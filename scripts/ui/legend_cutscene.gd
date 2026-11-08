@@ -342,6 +342,8 @@ func _legend_art(at: Vector2, side: float) -> TextureRect:
 
 func _label(text: String, font_size: int, color: Color, is_title: bool) -> Label:
 	var label := Retro.title(Label.new(), font_size, color) if is_title else Retro.text(Label.new(), font_size, color)
+	if not is_title:
+		label.add_theme_font_override("font", Retro.pixel_font())  # the tale in pixels too, to match the titles
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_color_override("font_outline_color", Retro.INK)

@@ -346,6 +346,8 @@ func _wait(seconds: float) -> void:
 
 func _label(text: String, font_size: int, color: Color, is_title := true) -> Label:
 	var label := Retro.title(Label.new(), font_size, color) if is_title else Retro.text(Label.new(), font_size, color)
+	if not is_title:
+		label.add_theme_font_override("font", Retro.pixel_font())  # pixels throughout, like the cut scenes
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
