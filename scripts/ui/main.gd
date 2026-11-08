@@ -23,7 +23,49 @@ func _ready() -> void:
 			_show_account()  # a cloud download reloaded the game mid-reset
 			return
 	Saves.migrate()
+	_watch_for_update()
 	_show_saves()
+
+
+## Installed as an app (PWA), the game runs the version it cached until a new one is switched on:
+## when a deploy has been downloaded and is waiting, a bar at the top offers to restart into it.
+func _watch_for_update() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.pwa_update_available.connect(_show_update_bar)
+	if JavaScriptBridge.pwa_needs_update():
+		_show_update_bar()
+
+
+var _update_bar: CanvasLayer
+
+
+func _show_update_bar() -> void:
+	if _update_bar and is_instance_valid(_update_bar):
+		return
+	_update_bar = CanvasLayer.new()
+	_update_bar.layer = 50
+	add_child(_update_bar)
+	var button := Button.new()
+	button.text = "New version ready: tap to update"
+	button.add_theme_font_size_override("font_size", 20)
+	var look := StyleBoxFlat.new()
+	look.bg_color = Retro.GOLD
+	look.content_margin_top = 10
+	look.content_margin_bottom = 10
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		button.add_theme_stylebox_override(state, look)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color"]:
+		button.add_theme_color_override(state, Retro.INK)
+	button.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_update_bar.add_child(button)
+	button.pressed.connect(func() -> void:
+		button.disabled = true
+		button.text = "Updating..."
+		if _profile:
+			_profile.save()
+		await get_tree().create_timer(0.6).timeout  # let the save reach browser storage
+		JavaScriptBridge.pwa_update())
 
 
 var _horde_seen := {}  # Campaign.horde_snapshot() as the map last showed it
