@@ -90,6 +90,7 @@ func _run() -> void:
 	var turn: int = mc.turn
 	var xp_before: int = main._profile.xp.dog
 	main._profile.fatigue["black_bear"] = 1
+	main._profile.duties.erase("forage")  # a forager's random find would muddle the XP count
 	var expected: int = mc.sweep_xp(i)
 	map._sweep.pressed.emit()
 	for k in 6:
@@ -97,7 +98,9 @@ func _run() -> void:
 	mc = main._campaign
 	_check(mc.territories[i].owned, "Sweep frees it")
 	_check(mc.turn == turn + 1, "it takes a map turn")
-	_check(main._profile.xp.dog == xp_before + expected, "the pack gets the XP (+%d)" % expected)
+	_check(main._profile.xp.dog == xp_before + expected, "the pack gets the XP (+%d; dog went %d -> %d, turn %d -> %d, event: %s)" % [
+		expected, xp_before, main._profile.xp.dog, turn, mc.turn, mc.last_event.replace("
+", " | ")])
 	_check(main._profile.injuries.is_empty() and int(main._profile.fatigue.get("black_bear", 0)) == 1, "no injuries, and nobody tires")
 	_check(main._campaign.last_event.begins_with("Swept "), "the map says so: " + main._campaign.last_event.get_slice("\n", 0))
 	print("%d failure(s)" % _fails)
