@@ -75,6 +75,7 @@ static func sections() -> Array:
 			["Counterattack", "Every few turns (the top of the map says how often) the horde tries to retake a territory. Lose the defense and it falls."],
 			["Cut off", "Held land no longer linked to home: no strength bonus, no attacks from it, and it falls to the horde in a few turns unless you relink it."],
 			["Patrol", "An easier fight in land you hold, for XP."],
+			["Sweep", "Land %d or more levels below your fighting pack falls without a fight: 1 turn, no injuries, %s of the XP. Lairs, warlords and counterattacks are always fought." % [GameData.SWEEP_LEVEL_GAP, pct.call(GameData.SWEEP_XP_SHARE)]],
 			["Horde nest", "Where the horde spreads from (a pulsing red blot). Free it to stop the spread."],
 			["Warlord", "A named zombie marching from a nest toward your land. Hunt it down for its treasure."],
 			["Legend lair", "A cryptid boss in purple. Raid-hard, matched to your pack, with its own trinket."],

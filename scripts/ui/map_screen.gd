@@ -6,6 +6,8 @@ extends Control
 
 signal battle_requested(index: int)
 signal patrol_requested(index: int)
+## Take territory `index` without a fight (Campaign.can_sweep).
+signal sweep_requested(index: int)
 signal rest_requested
 signal pack_requested
 signal stable_requested
@@ -48,6 +50,7 @@ var _info_scroll := ScrollContainer.new()
 var _news := ScrollContainer.new()
 var _news_box := VBoxContainer.new()
 var _info_title := Label.new()
+var _sweep := Button.new()  # beside Attack! on land far below the pack
 var _info_where := Label.new()  # beside the title: the territory's state and region
 var _info_body := Label.new()
 var _action := Button.new()
@@ -231,6 +234,7 @@ func _select(i: int) -> void:
 	_fit_heading()
 	_action.visible = campaign.is_actionable(i)
 	_delve.visible = t.owned and t.dungeon != ""
+	_sweep.visible = false
 	_action.set_meta("mode", "attack")
 	if i == campaign.under_attack:
 		_info_body.text = "Under attack! Lv %d · threat %d. Lose this fight and the territory falls." % [campaign.territory_level(i), t.threat]
@@ -298,6 +302,9 @@ func _select(i: int) -> void:
 			_info_body.text += "\nScouted: " + GameData.waves_text(cfg.waves)
 		else:
 			_info_body.text += "\nWaves unknown: put a benched animal on scout duty."
+		if campaign.can_sweep(i):
+			_sweep.visible = true
+			_info_body.text = "Your pack far outclasses this land: Sweep takes it now (1 turn, no injuries, +%d XP each).\n%s" % [campaign.sweep_xp(i), _info_body.text]
 		if GameData.AUTO_MODE_ENABLED and profile.auto_battle and t.boss == "":
 			_info_body.text += "\nAuto mode takes this one once your leader is Lv %d." % (campaign.base_level(i) + GameData.AUTO_LEVEL_GAP)
 		if campaign.is_nest(i):
@@ -759,6 +766,14 @@ func _build_ui() -> void:
 	actions.add_theme_constant_override("separation", 10)
 	info.add_child(actions)
 	actions.add_child(_action)
+	_sweep.text = "Sweep"
+	_sweep.custom_minimum_size = Vector2(140, 60)
+	_sweep.add_theme_color_override("font_color", Retro.GREEN)
+	_sweep.visible = false
+	_sweep.pressed.connect(func() -> void:
+		if _map.selected >= 0 and campaign.can_sweep(_map.selected):
+			sweep_requested.emit(_map.selected))
+	actions.add_child(_sweep)
 	_ping.text = "Ping"
 	_ping.custom_minimum_size = Vector2(120, 60)
 	_ping.visible = campaign.is_team()

@@ -384,6 +384,25 @@ func battle_config(i: int) -> Dictionary:
 	}
 
 
+## Whether territory `i` can be swept: attackable now, far below the fighting pack's level, and not
+## a lair, a warlord's ground or a counterattack.
+func can_sweep(i: int) -> bool:
+	var t := territories[i]
+	if t.owned or t.boss != "" or i == under_attack or not can_attack(i) or not warlord_at(i).is_empty():
+		return false
+	return territory_level(i) <= profile.pack_level() - GameData.SWEEP_LEVEL_GAP
+
+
+## The XP each fighter gets for sweeping territory `i`: a share of what its zombies would pay.
+func sweep_xp(i: int) -> int:
+	var cfg := battle_config(i)
+	var total := 0.0
+	for wave: Array in cfg.waves:
+		for zombie_id: String in wave:
+			total += float(GameData.enemy(zombie_id).get("xp", 0)) * float(cfg.xp_mult)
+	return roundi(total * GameData.SWEEP_XP_SHARE)
+
+
 ## A legend raid on lair `i`: the lair's waves, with zombies caught up to the strongest critter any
 ## raider brings (`max_level`) rather than to this player's pack alone. Fixed for every device.
 func raid_config(i: int, max_level: int) -> Dictionary:

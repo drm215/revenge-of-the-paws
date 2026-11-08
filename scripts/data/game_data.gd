@@ -1547,6 +1547,11 @@ const AUTO_DELAY := 2.5
 ## Risk-style reinforcements: the pack starts at HELD_BASE_BONUS (HP/ATK), and land held beyond home,
 ## linked to it, adds 1% for every HELD_PER_PERCENT territories, up to MAX_HELD_BONUS in all.
 const HELD_BASE_BONUS := 0.05
+## Sweep: land this many levels or more below the fighting pack's level falls without a fight (a map
+## turn, no injuries), for SWEEP_XP_SHARE of the XP the fight would pay. Lairs, warlords and
+## counterattacks are always fought.
+const SWEEP_LEVEL_GAP := 8
+const SWEEP_XP_SHARE := 0.5
 const HELD_PER_PERCENT := 20
 const MAX_HELD_BONUS := 0.30
 

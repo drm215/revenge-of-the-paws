@@ -101,6 +101,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 			_show_map(_profile, false))
 	screen.battle_requested.connect(_show_battle)
 	screen.patrol_requested.connect(_show_battle.bind(true))
+	screen.sweep_requested.connect(_sweep)
 	screen.rest_requested.connect(func() -> void:
 		_campaign.rest()
 		_profile.save()
@@ -326,6 +327,25 @@ func _show_battle(territory: int, patrol := false) -> void:
 		_profile.save()
 		_start_battle(territory, patrol, config))
 	_swap(screen)
+
+
+## Takes land far below the pack without a fight: the fighters get a share of its XP, the map turn
+## passes and the liberation plays as usual.
+func _sweep(territory: int) -> void:
+	if not _campaign.can_sweep(territory):
+		return
+	var xp := _campaign.sweep_xp(territory)
+	var tired := _profile.fatigue.duplicate()
+	var lines := _profile.after_battle(_profile.pack_ids(), [], xp, true)
+	_profile.fatigue = tired  # no fight, so nobody tires
+	_campaign.resolve_battle(territory, true, xp)
+	_campaign.last_event = "Swept %s: +%d XP each.%s" % [_campaign.territories[territory].full_name(), xp,
+		("\n" + "\n".join(lines.slice(1))) if lines.size() > 1 else ""] + ("\n" + _campaign.last_event if _campaign.last_event != "" else "")
+	_profile.save()
+	if not _profile.units_with_new_points().is_empty():
+		_show_upgrades()
+	else:
+		_show_map(_profile)
 
 
 func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := false) -> void:
