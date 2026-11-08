@@ -212,6 +212,16 @@ The apocalypse starts **where you actually live**.
   dungeon's signature zombie (by terrain: bloaters in water, riot gear in the mountains...), and
   between Brute waves from wave 8 comes a named wave of one kind (Swarm, Plague Ward, Riot Line,
   Bloat Tide, The Choir). Kills pay a quarter of their usual XP; new depths pay the treasure.
+- **Brute targets** (`EYEING_ZOMBIES`: Brutes, warlords): at the end of each of its turns (and as its
+  wave starts) it picks the reachable animal with the least HP, logs "Brute eyes X" and tags that
+  card "BRUTE'S TARGET"; its next single-target hit goes there unless a taunt pulls it away.
+- **Well rested** (`RESTED_*`): an animal that sits out 5 battles in a row (in the pack, not the
+  Stable) is well rested for its next 3 fights: +15% ATK/DEF and x1.5 XP.
+- **The week** (siege weeks, Monday UTC): a **mutation** (`MUTATIONS`) changes every territory
+  fight, never legends: zombie HP/ATK/SPD, a boost for tagged animals, +crit, an extra zombie per
+  wave, or more XP. Tests set `PAWS_NO_MUTATION=1`. A **week goal** (`WEEK_GOALS`: free / win /
+  hold) is shared on the team map (`goal_progress`), `per_player` times the team size; finishing it
+  gives each player a cache trinket and half a level of XP for every animal (pet included).
 - **Perfect waves**: clear a wave with no animal taking any damage and the whole pack gets +10% ATK
   (stacking to +30% over perfect waves in a row) until any animal is hurt. The wave banner shows it.
 - **Dungeons** (Enter, from the entrance's territory once it's held): each region has one, set in

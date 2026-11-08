@@ -131,6 +131,11 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 		var gained := profile.collect_team_xp(_campaign.team_key(), int(_campaign.shared_xp.get(_campaign.my_id, 0)))
 		if gained > 0:
 			_campaign.last_event += "\nTeammates' battles next to your land earned your pack +%d XP each." % gained
+	var goal := _campaign.week_goal()
+	if goal.finished:
+		var reward := profile.claim_week_goal(int(goal.week))
+		if reward != "":
+			_campaign.last_event += ("\n" if _campaign.last_event != "" else "") + reward
 	_profile = profile
 	var screen := MapScreen.new()
 	screen.campaign = _campaign

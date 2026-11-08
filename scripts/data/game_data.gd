@@ -1585,6 +1585,48 @@ const CHOKEPOINT_CHANCE := 0.7
 ## ground by 1 (each area at most MAX_SPREAD, never above the nest's own threat), so the wave
 ## creeps out toward the pack. Liberating a nest stops it.
 const NEST_COUNT := 2
+## --- The week: a zombie mutation and a team goal ------------------------------------------------
+## Weeks run Monday to Monday UTC (siege weeks). Each week's mutation changes every territory fight
+## (not legends): "zombie" scales their HP/ATK/SPD, "tags" animals get +"atk"/"def", "crit" is
+## added to every animal, "extra" joins each wave that has room, "xp" scales the XP.
+const MUTATIONS := [
+	{"id": "frost", "name": "Frost Week", "desc": "Zombies are slower (-25% SPD) but tougher (+15% HP).", "zombie": {"hp": 1.15, "spd": 0.75}},
+	{"id": "blood_moon", "name": "Blood Moon", "desc": "Night animals +20% ATK.", "tags": ["night"], "atk": 0.2},
+	{"id": "heat_wave", "name": "Heat Wave", "desc": "Zombies hit harder (+15% ATK) but rot faster (-15% HP).", "zombie": {"atk": 1.15, "hp": 0.85}},
+	{"id": "fog", "name": "Fog", "desc": "Every animal lands more critical hits (+10% crit).", "crit": 0.1},
+	{"id": "swarm", "name": "Swarm Week", "desc": "Each wave brings an extra Shambler, and fights pay +25% XP.", "extra": "shambler", "xp": 1.25},
+	{"id": "pack_hunt", "name": "Pack Hunt", "desc": "Canines and felines +15% ATK and DEF.", "tags": ["canine", "feline"], "atk": 0.15, "def": 0.15},
+]
+## The week's goal, shared by the team (solo: just you): per_player times the team size. Finishing it
+## gives every player a cache trinket and WEEK_GOAL_XP of a level for each animal in the pack.
+const WEEK_GOALS := [
+	{"kind": "free", "per_player": 12, "text": "Free %d territories"},
+	{"kind": "wins", "per_player": 15, "text": "Win %d battles"},
+	{"kind": "hold", "per_player": 3, "text": "Hold %d counterattacks"},
+]
+const WEEK_GOAL_XP := 0.5
+## Tests set PAWS_NO_MUTATION=1 so fights don't change from week to week.
+static var mutations_off := OS.get_environment("PAWS_NO_MUTATION") == "1"
+static var mutation_override := {}  # tests: pretend it's this mutation's week
+
+
+static func week_now() -> int:
+	return siege_week(Time.get_unix_time_from_system())
+
+
+## The week's zombie mutation ({} when switched off).
+static func mutation(week: int) -> Dictionary:
+	if not mutation_override.is_empty():
+		return mutation_override
+	if mutations_off:
+		return {}
+	return MUTATIONS[posmod(week * 5 + 2, MUTATIONS.size())]
+
+
+static func week_goal(week: int) -> Dictionary:
+	return WEEK_GOALS[posmod(week, WEEK_GOALS.size())]
+
+
 ## Teams: when a teammate fights for a territory, every other member whose home links to theirs
 ## through held land gets this share of the battle's XP. No link, no XP.
 const TEAM_XP_SHARE := 0.1
@@ -1592,6 +1634,16 @@ const TEAM_XP_SHARE := 0.1
 ## level behind (its own fights, patrols and sweeps), up to CATCH_UP_MAX more: it fades as the gap
 ## closes. The shared map keeps each player's pack level from their latest fight.
 const CATCH_UP_PER_LEVEL := 0.1
+## Well rested: an animal that sits out RESTED_AFTER battles in a row (in the pack, not the Stable)
+## comes back well rested for its next RESTED_BATTLES fights: +RESTED_STATS ATK and DEF, and
+## RESTED_XP times the XP.
+const RESTED_AFTER := 5
+const RESTED_BATTLES := 3
+const RESTED_STATS := 0.15
+const RESTED_XP := 1.5
+## Brute-type zombies pick their next victim ahead of time and show it (the weakest animal they can
+## reach); a taunt still pulls them away.
+const EYEING_ZOMBIES := ["brute", "warlord"]
 const CATCH_UP_MAX := 1.0
 
 

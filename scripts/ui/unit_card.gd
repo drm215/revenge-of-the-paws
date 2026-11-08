@@ -207,8 +207,11 @@ func refresh() -> void:
 		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
 	for status in unit.statuses:
 		parts.append("%s %d" % [GameData.STATUSES[status].name, unit.statuses[status]])
+	var hunter: Combatant = battle.eyed_by(unit) if battle and unit.is_player and unit.is_alive() else null
+	if hunter:
+		parts.insert(0, "%s'S TARGET" % hunter.display_name.to_upper())
 	_status_label.text = " · ".join(parts)
-	_status_label.add_theme_color_override("font_color", Retro.ORANGE if unit.winding != "" else Retro.YELLOW)
+	_status_label.add_theme_color_override("font_color", Retro.RED if hunter else Retro.ORANGE if unit.winding != "" else Retro.YELLOW)
 	_status_label.visible = not parts.is_empty()
 	modulate = _rest_modulate()
 

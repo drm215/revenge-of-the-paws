@@ -95,6 +95,7 @@ func _new_game() -> void:
 	battle.damaged.connect(_on_damaged)
 	battle.healed.connect(_on_healed)
 	battle.status_changed.connect(func(c: Combatant) -> void: _card(c).refresh())
+	battle.eyeing_changed.connect(func(_z: Combatant) -> void: _refresh_cards())  # move the "target" tag
 	battle.died.connect(func(_c: Combatant) -> void: _refresh_cards())  # a fallen front-liner can expose the back row
 	battle.weak_hit.connect(func(c: Combatant) -> void: _float_text(_card(c), "WEAK SPOT!", Retro.CYAN, 18))
 	battle.reinforced.connect(_on_reinforced)

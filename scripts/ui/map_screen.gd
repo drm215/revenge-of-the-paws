@@ -37,6 +37,7 @@ var _bonus_button := Button.new()  # a cleared state's or region's bonus is wait
 
 var _map := MapView.new()
 var _status := Label.new()
+var _week := Label.new()  # this week's zombie mutation and goal
 var _backup_warning := Button.new()  # the game isn't reaching the cloud: say so, tap to retry
 var _event := Label.new()
 ## The map always keeps MAP_MIN_HEIGHT; the news (and team feed) above it and the territory info
@@ -340,6 +341,13 @@ func _refresh_status() -> void:
 	_status.text = "Pack strength +%d%%  ·  Counterattack every %d turns" % [
 		roundi(campaign.held_bonus() * 100), campaign.counter_interval()]
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var parts: PackedStringArray = []
+	var mutation := GameData.mutation(GameData.week_now())
+	if not mutation.is_empty():
+		parts.append("%s: %s" % [mutation.name, mutation.desc])
+	var goal := campaign.week_goal()
+	parts.append("Week goal: %s (%s)" % [goal.text, "done!" if goal.finished else "%d/%d" % [goal.done, goal.target]])
+	_week.text = "  ·  ".join(parts)
 	var event := campaign.last_event
 	if campaign.is_liberated():
 		event = "Every territory is liberated. Your neighborhood is safe!"
@@ -627,6 +635,9 @@ func _build_ui() -> void:
 	col.add_child(title)
 	Retro.text(_status, 22)
 	col.add_child(_status)
+	Retro.text(_week, 19, Color("c99bff"))
+	_week.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_week)
 	_backup_warning.visible = false
 	_backup_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_backup_warning.alignment = HORIZONTAL_ALIGNMENT_LEFT

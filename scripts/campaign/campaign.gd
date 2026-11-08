@@ -50,6 +50,7 @@ var feed: Array = []  # team: recent moves [{who, text, turn}], newest last
 var me := ""  # this player's name in the team feed
 var my_id := ""  # this player's account id (team XP shares)
 var shared_xp := {}  # team: account id -> XP teammates' battles have earned them, all time
+var goal_progress := {}  # week (as text) -> how far the week's goal has come (shared on a team)
 var pack_levels := {}  # team: account id -> that player's pack level at their latest fight (catch-up)
 var replaying := false  # re-applying queued moves to newer team state: no rewards, no recording
 var on_action := Callable()  # team: told about each move so it can be sent to the server
@@ -163,6 +164,22 @@ func _share_xp(xp: int, raiders: Array = []) -> void:
 	for id in _home_of:
 		if id != my_id and id not in raiders and linked.has(_home_of[id]):
 			shared_xp[id] = int(shared_xp.get(id, 0)) + amount
+
+
+## Counts toward this week's goal when it's of `kind`.
+func _goal_tick(kind: String) -> void:
+	var week := GameData.week_now()
+	if GameData.week_goal(week).kind == kind:
+		goal_progress[str(week)] = int(goal_progress.get(str(week), 0)) + 1
+
+
+## This week's goal: {week, text, done, target, finished}.
+func week_goal() -> Dictionary:
+	var week := GameData.week_now()
+	var goal := GameData.week_goal(week)
+	var target := int(goal.per_player) * pace()  # pace(): the number of players
+	var done := mini(target, int(goal_progress.get(str(week), 0)))
+	return {"week": week, "text": String(goal.text) % target, "done": done, "target": target, "finished": done >= target}
 
 
 ## Records this player's pack level on the shared map, for teammates' catch-up. Also runs when the
@@ -384,6 +401,11 @@ func battle_config(i: int) -> Dictionary:
 	if i == under_attack:
 		rng.seed = hash("%s:assault:%d" % [t.id, turn])  # each assault is its own
 	var waves := GameData.generate_waves(threat, rng, t.boss)
+	var extra := String(GameData.mutation(GameData.week_now()).get("extra", "")) if t.boss == "" else ""
+	if extra != "":
+		for wave: Array in waves:
+			if wave.size() < GameData.MAX_ENEMIES:
+				wave.append(extra)
 	var warlord := warlord_at(i)
 	if not warlord.is_empty():
 		var last: Array = waves[-1]
@@ -405,6 +427,7 @@ func battle_config(i: int) -> Dictionary:
 		"legend": t.boss,
 		"loot": loot_at(i) if t.boss != "" else "",  # what beating this legend drops ("" if it's been taken)
 		"territory": t.id,
+		"mutation": GameData.mutation(GameData.week_now()) if t.boss == "" else {},
 	}
 
 
@@ -862,6 +885,8 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 	if i == under_attack:
 		under_attack = -1
 		if won:
+			_goal_tick("hold")
+			_goal_tick("wins")
 			last_event = "%s held! The horde falls back." % t.full_name()
 			if not warlord.is_empty():
 				_kill_warlord(warlord, rewards)
@@ -880,6 +905,8 @@ func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := 
 				warlord.at = t.id
 				warlord.assaulting = ""
 	elif won:
+		_goal_tick("free")
+		_goal_tick("wins")
 		t.owned = true
 		_ownership_changed()
 		last_liberated = i
@@ -954,6 +981,7 @@ func _to_cfg() -> ConfigFile:
 	cfg.set_value("campaign", "feed", feed)
 	cfg.set_value("campaign", "shared_xp", shared_xp)
 	cfg.set_value("campaign", "pack_levels", pack_levels)
+	cfg.set_value("campaign", "goal_progress", goal_progress)
 	var met := {}
 	for t in territories:
 		met[t.id] = t.met_level
@@ -1016,6 +1044,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	feed = cfg.get_value("campaign", "feed", [])
 	shared_xp = cfg.get_value("campaign", "shared_xp", {})
 	pack_levels = cfg.get_value("campaign", "pack_levels", {})
+	goal_progress = cfg.get_value("campaign", "goal_progress", {})
 	_ownership_changed()
 
 

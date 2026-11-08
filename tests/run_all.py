@@ -68,7 +68,7 @@ class Server:
 
 
 def environment(url: str, data: str) -> dict:
-    env = dict(os.environ, FAKE_SUPABASE_URL=url)
+    env = dict(os.environ, FAKE_SUPABASE_URL=url, PAWS_NO_MUTATION="1")  # fights stay the same every week
     # Where Godot keeps user:// on Windows and on Linux/Mac.
     env.update(APPDATA=data, XDG_DATA_HOME=data, HOME=data)
     return env

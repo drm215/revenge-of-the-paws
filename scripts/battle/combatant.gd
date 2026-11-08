@@ -35,6 +35,7 @@ var skills: Array[String] = []
 var traits: Dictionary = {}
 var statuses: Dictionary = {}  # status id -> turns remaining
 var cooldowns: Dictionary = {}  # skill id -> turns until ready
+var eyeing: Combatant  # Brutes: the animal it will go for next (GameData.EYEING_ZOMBIES)
 var winding := ""  # a zombie's telegraphed skill, released on its next turn unless it's stunned
 var fell_in_wave := -1  # the wave an animal was knocked out in: it sits out the next one
 var ally_of := ""  # raids: the name of the player whose critter this is (shown on its card)

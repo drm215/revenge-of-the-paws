@@ -18,6 +18,8 @@ signal legend_phase(legend: Combatant, phase: int)
 signal reinforced(fresh: Combatant, replaced: Combatant)
 ## A legend's Last Gasp: `turns_left` of its turns until it lands (0: landing now).
 signal last_gasp(legend: Combatant, turns_left: int)
+## A Brute picked its next victim (`actor.eyeing`, or null).
+signal eyeing_changed(actor: Combatant)
 ## The pack's perfect-wave streak changed: `stacks` > 0 is a fresh perfect wave, 0 means it's lost.
 signal perfect_changed(stacks: int)
 
@@ -43,6 +45,7 @@ var round_number := 0
 var current: Combatant
 var place := ""
 var xp_earned := 0  # from every zombie and legend the pack has defeated so far
+var mutation := {}  # the week's zombie mutation (GameData.MUTATIONS), from the battle config
 var xp_mult := 1.0  # XP per kill scales with the territory's own strength, not with pack-scaled zombies
 var kills := 0  # zombies and legends the pack destroyed (revived ones count once); hits the weekly siege
 var downed: Array[String] = []  # pack members knocked out at any point (they'll be injured)
@@ -101,6 +104,9 @@ func _init(profile: Profile, waves: Array = GameData.WAVES, zombie_mult := 1.0, 
 ## The rest of a Campaign battle config: XP scale and a legend's growth. Call before the first wave.
 func configure(cfg: Dictionary) -> void:
 	xp_mult = cfg.get("xp_mult", cfg.get("zombie_mult", 1.0))
+	mutation = cfg.get("mutation", {})
+	if not mutation.is_empty():
+		_apply_mutation()
 	boss_hp_mult = cfg.get("boss_hp", 1.0)
 	boss_atk_mult = cfg.get("boss_atk", 1.0)
 	warlord_name = cfg.get("warlord", "")
@@ -132,6 +138,23 @@ func add_pack(p: Profile, owner_id: String, owner_name: String, region := "") ->
 
 
 ## Injuries, fatigue, terrain, home turf and bonds: the reasons a lineup matters.
+## The week's mutation on the pack (the zombies get theirs as each wave starts) and the XP.
+func _apply_mutation() -> void:
+	xp_mult *= float(mutation.get("xp", 1.0))
+	var boosted: PackedStringArray = []
+	for c in party:
+		c.crit += float(mutation.get("crit", 0.0))
+		var tags: Array = mutation.get("tags", [])
+		if tags.any(func(tag: String) -> bool: return tag in c.tags):
+			c.scale_stats(1.0, 1.0 + float(mutation.get("atk", 0.0)), 1.0 + float(mutation.get("def", 0.0)))
+			c.notes.append(mutation.name)
+			boosted.append(c.display_name)
+	var line := "[color=#c99bff][b]%s:[/b] %s[/color]" % [mutation.name, mutation.desc]
+	if mutation.has("tags"):
+		line += " [color=#c99bff](%s)[/color]" % (", ".join(boosted) if not boosted.is_empty() else "nobody in this pack")
+	_perk_log.insert(0, line)
+
+
 func _apply_lineup(profile: Profile, region: String, units: Array[Combatant]) -> void:
 	var suited: PackedStringArray = []
 	var natives: PackedStringArray = []
@@ -143,6 +166,13 @@ func _apply_lineup(profile: Profile, region: String, units: Array[Combatant]) ->
 			hp *= 1.0 - GameData.INJURY_PENALTY
 			atk *= 1.0 - GameData.INJURY_PENALTY
 			c.notes.append("Injured")
+		if profile.rested.has(c.id):
+			atk *= 1.0 + GameData.RESTED_STATS
+			def *= 1.0 + GameData.RESTED_STATS
+			c.notes.append("Well rested")
+			_perk_log.append("[color=#2ce8f5]%s is well rested: +%d%% ATK/DEF and +%d%% XP (%d fight%s left)[/color]" % [
+				c.display_name, roundi(GameData.RESTED_STATS * 100), roundi((GameData.RESTED_XP - 1.0) * 100),
+				int(profile.rested[c.id]), "" if int(profile.rested[c.id]) == 1 else "s"])
 		var tired := profile.fatigue_penalty(c.id)
 		if tired > 0.0:
 			hp *= 1.0 - tired
@@ -253,6 +283,10 @@ func start_next_wave() -> void:
 			z.display_name += " " + "ABCDEFGH"[seen.get(zombie_id, 0)]
 			seen[zombie_id] = seen.get(zombie_id, 0) + 1
 		z.scale_stats(_zombie_mult, _zombie_mult, 1.0)
+		var mutated: Dictionary = mutation.get("zombie", {})
+		if not mutated.is_empty():
+			z.scale_stats(float(mutated.get("hp", 1.0)), float(mutated.get("atk", 1.0)), 1.0)
+			z.spd = maxi(1, roundi(z.spd * float(mutated.get("spd", 1.0))))
 		if zombie_id == "warlord" and warlord_name != "":
 			z.display_name = warlord_name
 		if zombie_id == "brute" and dungeon != "":
@@ -294,6 +328,32 @@ func start_next_wave() -> void:
 			leader.display_name, roundi(GameData.LEADER_AURA * 100)])
 	_announce_exposed(party)
 	_announce_exposed(enemies)
+	for z in enemies:
+		_eye(z)
+
+
+## A Brute picks its next victim: the animal it can reach with the least HP left. Shown on the card;
+## it follows through unless a taunt pulls it away (plan_enemy_action).
+func _eye(z: Combatant) -> void:
+	if z.id not in GameData.EYEING_ZOMBIES or not z.is_alive():
+		return
+	var best: Combatant = null
+	for c in reachable(z):
+		if best == null or c.hp < best.hp:
+			best = c
+	if best != z.eyeing:
+		z.eyeing = best
+		if best:
+			log_message.emit("[color=#e43b44]%s eyes %s.[/color]" % [z.display_name, best.display_name])
+		eyeing_changed.emit(z)
+
+
+## The zombie that has its eye on `c` (null if none).
+func eyed_by(c: Combatant) -> Combatant:
+	for z in living(enemies):
+		if z.eyeing == c:
+			return z
+	return null
 
 
 func outcome() -> Outcome:
@@ -486,6 +546,8 @@ func plan_enemy_action(actor: Combatant) -> Dictionary:
 	var target: Combatant = pool[rng.randi_range(0, pool.size() - 1)]
 	if not taunting.is_empty() or GameData.skill(skill_id).target != "enemy":
 		return {"skill": skill_id, "target": target}
+	if actor.eyeing and actor.eyeing in pool:
+		return {"skill": skill_id, "target": actor.eyeing}  # it said who it's after
 	var power: float = GameData.skill(skill_id).get("power", 0.0)
 	var kills: Array[Combatant] = []
 	var healers: Array[Combatant] = []
@@ -606,6 +668,8 @@ func _end_turn(actor: Combatant) -> void:
 	if not actor.statuses.is_empty():
 		actor.tick_statuses()
 		status_changed.emit(actor)
+	if not actor.is_player:
+		_eye(actor)
 
 
 ## The living leader of `owner`'s pack on this side (each player's pet leads their own pack).

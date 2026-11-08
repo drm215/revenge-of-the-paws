@@ -38,6 +38,9 @@ var tree := {}  # unit id -> tech-tree node ids bought (one point per level abov
 var just_leveled: Array[String] = []  # units that gained a level since the last tree visit (not saved)
 var injuries := {}  # unit id -> battles left injured
 var fatigue := {}  # unit id -> battles fought in a row
+var sat_out := {}  # unit id -> battles in a row it sat out (in the pack, not the Stable)
+var rested := {}  # unit id -> fights left well rested (GameData.RESTED_*)
+var goal_claimed: Array[int] = []  # weeks whose goal this pack has collected
 var duties := {}  # "scout" / "forage" / "guard" -> benched unit id
 var rows := {}  # unit id -> "front" / "back", where it differs from its role's default
 var fixes: Array[String] = []  # one-off save fixes already applied
@@ -232,7 +235,11 @@ func auto_fill_duties() -> void:
 func after_battle(fought: Array[String], downed: Array[String], amount: int, won := true) -> PackedStringArray:
 	var lines: PackedStringArray = ["+%d XP for the pack" % amount]
 	for id in fought:
-		if add_xp(id, amount) > 0:
+		var gain := amount
+		if rested.has(id):
+			gain = roundi(amount * GameData.RESTED_XP)
+			lines.append("%s was well rested: +%d XP" % [unit_name(id), gain])
+		if add_xp(id, gain) > 0:
 			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
 	var bench_amount := roundi(amount * GameData.BENCH_XP_SHARE)
 	var benched := 0
@@ -257,6 +264,7 @@ func after_battle(fought: Array[String], downed: Array[String], amount: int, won
 			fatigue.erase(id)
 	for id in fought:
 		fatigue[id] = fatigue.get(id, 0) + 1
+	_track_rest(fought, lines)
 
 	if duties.has("forage"):
 		var forager := unit_name(duties.forage)
@@ -269,6 +277,40 @@ func after_battle(fought: Array[String], downed: Array[String], amount: int, won
 				add_xp(id, GameData.FORAGE_XP)
 			lines.append("%s foraged supplies: +%d XP for the pack." % [forager, GameData.FORAGE_XP])
 	return lines
+
+
+## Well rested: fighters use up a fight of it; animals that sat out RESTED_AFTER in a row earn it.
+func _track_rest(fought: Array[String], lines: PackedStringArray) -> void:
+	for id in fought:
+		sat_out.erase(id)
+		if rested.has(id):
+			rested[id] = int(rested[id]) - 1
+			if int(rested[id]) <= 0:
+				rested.erase(id)
+	for id in active():
+		if id in fought:
+			continue
+		sat_out[id] = int(sat_out.get(id, 0)) + 1
+		if int(sat_out[id]) >= GameData.RESTED_AFTER and not rested.has(id):
+			rested[id] = GameData.RESTED_BATTLES
+			sat_out.erase(id)
+			lines.append("%s is well rested: +%d%% ATK/DEF and +%d%% XP for its next %d fights." % [unit_name(id),
+				roundi(GameData.RESTED_STATS * 100), roundi((GameData.RESTED_XP - 1.0) * 100), GameData.RESTED_BATTLES])
+
+
+## Collects the week's goal reward, once a week: a cache trinket and GameData.WEEK_GOAL_XP of a
+## level for every animal in the pack. Returns what was gained ("" if already collected).
+func claim_week_goal(week: int) -> String:
+	if week in goal_claimed:
+		return ""
+	goal_claimed.append(week)
+	var found: String = GameData.CACHE_TRINKETS.pick_random()
+	trinkets.append(found)
+	for id in everyone():
+		var level_cost := GameData.xp_to_reach(level_of(id) + 1) - GameData.xp_to_reach(level_of(id))
+		add_xp(id, roundi(level_cost * GameData.WEEK_GOAL_XP))
+	save()
+	return "Week goal complete! Found the %s (equip it from Pack), and the pack gains half a level of XP." % GameData.trinket(found).name
 
 
 ## The units that fight: the pet (if any) and the team.
@@ -350,6 +392,15 @@ func active() -> Array[String]:
 	var out: Array[String] = []
 	for id in unlocked:
 		if id not in stable:
+			out.append(id)
+	return out
+
+
+## The pet and every animal not in the Stable (active() leaves the pet out).
+func everyone() -> Array[String]:
+	var out := pack_ids()
+	for id in active():
+		if id not in out:
 			out.append(id)
 	return out
 
@@ -486,6 +537,9 @@ func save() -> void:
 	cfg.set_value("profile", "tree", tree)
 	cfg.set_value("profile", "injuries", injuries)
 	cfg.set_value("profile", "fatigue", fatigue)
+	cfg.set_value("profile", "sat_out", sat_out)
+	cfg.set_value("profile", "rested", rested)
+	cfg.set_value("profile", "goal_claimed", Array(goal_claimed))
 	cfg.set_value("profile", "duties", duties)
 	cfg.set_value("profile", "rows", rows)
 	cfg.set_value("profile", "auto_battle", auto_battle)
@@ -529,6 +583,9 @@ static func load_saved() -> Profile:
 	p.tree = cfg.get_value("profile", "tree", {})
 	p.injuries = cfg.get_value("profile", "injuries", {})
 	p.fatigue = cfg.get_value("profile", "fatigue", {})
+	p.sat_out = cfg.get_value("profile", "sat_out", {})
+	p.rested = cfg.get_value("profile", "rested", {})
+	p.goal_claimed.assign(cfg.get_value("profile", "goal_claimed", []))
 	p.duties = cfg.get_value("profile", "duties", {})
 	p.rows = cfg.get_value("profile", "rows", {})
 	p.auto_battle = cfg.get_value("profile", "auto_battle", false)
@@ -581,7 +638,7 @@ func claim_siege(week: int, broken: int) -> String:
 		if found != "":
 			trinkets.append(found)
 			lines.append("%s: found the %s! Equip it from Pack." % [stage.name, GameData.trinket(found).name])
-	for id in active():
+	for id in everyone():  # the pet too
 		var level_cost := GameData.xp_to_reach(level_of(id) + 1) - GameData.xp_to_reach(level_of(id))
 		if add_xp(id, roundi(level_cost * xp_share)) > 0:
 			lines.append("%s reached Lv %d!" % [unit_name(id), level_of(id)])
@@ -611,10 +668,10 @@ func snapshot(picks: Array = []) -> String:
 	var pet_in := has_pet() and pet_species in ids
 	var snap := {"pet_species": pet_species if pet_in else "", "pet_name": pet_name if pet_in else "",
 		"team": ids.filter(func(id: String) -> bool: return id != pet_species),
-		"xp": {}, "tree": {}, "equipped": {}, "rows": {}, "injuries": {}, "fatigue": {}}
+		"xp": {}, "tree": {}, "equipped": {}, "rows": {}, "injuries": {}, "fatigue": {}, "rested": {}}
 	for id: String in ids:
 		snap.xp[id] = int(xp.get(id, 0))
-		for field in ["tree", "equipped", "rows", "injuries", "fatigue"]:
+		for field in ["tree", "equipped", "rows", "injuries", "fatigue", "rested"]:
 			var source: Dictionary = get(field)
 			if source.has(id):
 				snap[field][id] = source[id]
@@ -639,6 +696,8 @@ static func from_snapshot(text: String) -> Profile:
 		p.injuries[id] = int(d.injuries[id])
 	for id in d.get("fatigue", {}):
 		p.fatigue[id] = int(d.fatigue[id])
+	for id in d.get("rested", {}):
+		p.rested[id] = int(d.rested[id])
 	return p
 
 
