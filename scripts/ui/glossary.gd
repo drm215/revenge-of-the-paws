@@ -65,7 +65,8 @@ static func sections() -> Array:
 			["Perks", "Bonuses from terrain, bonds, trinkets and the tech tree; the battle log spells them out."],
 			["Tired", "Each fight in a row costs %s (up to %s) until it sits one out or rests at home." % [pct.call(GameData.FATIGUE_STEP), pct.call(GameData.MAX_FATIGUE)]],
 			["Bench & duties", "Animals not fighting get %s of the XP and can take a duty: Scout shows every territory's waves, Forage finds the odd bit of XP or a trinket, Guard slows counterattacks." % pct.call(GameData.BENCH_XP_SHARE)],
-			["New animals", "Survivors you rescue join at %s of your strongest animal's level, so they need some training." % pct.call(GameData.RECRUIT_LEVEL_SHARE)],
+			["Catch-up", "On a team, a pack below the team's strongest earns +%s XP per level behind, up to +%s, from its own fights and sweeps. It fades as the gap closes." % [pct.call(GameData.CATCH_UP_PER_LEVEL), pct.call(GameData.CATCH_UP_MAX)]],
+			["New animals","Survivors you rescue join at %s of your strongest animal's level, so they need some training." % pct.call(GameData.RECRUIT_LEVEL_SHARE)],
 			["Trinkets", "Gear for one animal each: from caches, legends, sieges and dungeons. Equip from Pack."],
 		]],
 		["The map", [

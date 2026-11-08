@@ -380,7 +380,7 @@ func _sweep(territory: int) -> void:
 	var tired := _profile.fatigue.duplicate()
 	var lines := _profile.after_battle(_profile.pack_ids(), [], xp, true)
 	_profile.fatigue = tired  # no fight, so nobody tires
-	_campaign.resolve_battle(territory, true, xp)
+	_campaign.resolve_battle(territory, true, _campaign.sweep_xp(territory, false))
 	_campaign.last_event = "Swept %s: +%d XP each.%s" % [_campaign.territories[territory].full_name(), xp,
 		("\n" + "\n".join(lines.slice(1))) if lines.size() > 1 else ""] + ("\n" + _campaign.last_event if _campaign.last_event != "" else "")
 	_profile.save()
@@ -393,6 +393,8 @@ func _sweep(territory: int) -> void:
 func _start_battle(territory: int, patrol: bool, config: Dictionary, auto := false) -> void:
 	var screen := BattleScreen.new()
 	screen.profile = _profile
+	config["catch_up"] = _campaign.catch_up_mult()
+	config["behind"] = _campaign.levels_behind()
 	screen.config = config
 	screen.auto = auto
 	screen.finished.connect(func(won: bool) -> void:

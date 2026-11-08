@@ -491,8 +491,13 @@ func _award_xp(won: bool) -> String:
 	var fought: Array[String] = []
 	for c in battle.party:
 		fought.append(c.id)
-	xp_awarded = amount
-	return "\n".join(profile.after_battle(fought, battle.downed, amount, won))
+	xp_awarded = amount  # teammates' share comes from the plain amount
+	var catch_up := float(config.get("catch_up", 1.0))
+	var note := ""
+	if catch_up > 1.0:
+		amount = roundi(amount * catch_up)
+		note = "Catch-up: +%d%% XP (%d levels behind your team's strongest pack)\n" % [roundi((catch_up - 1.0) * 100), int(config.get("behind", 0))]
+	return note + "\n".join(profile.after_battle(fought, battle.downed, amount, won))
 
 
 # --- Feedback ---------------------------------------------------------------------------------

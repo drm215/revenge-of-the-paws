@@ -50,6 +50,7 @@ var feed: Array = []  # team: recent moves [{who, text, turn}], newest last
 var me := ""  # this player's name in the team feed
 var my_id := ""  # this player's account id (team XP shares)
 var shared_xp := {}  # team: account id -> XP teammates' battles have earned them, all time
+var pack_levels := {}  # team: account id -> that player's pack level at their latest fight (catch-up)
 var replaying := false  # re-applying queued moves to newer team state: no rewards, no recording
 var on_action := Callable()  # team: told about each move so it can be sent to the server
 
@@ -162,6 +163,29 @@ func _share_xp(xp: int, raiders: Array = []) -> void:
 	for id in _home_of:
 		if id != my_id and id not in raiders and linked.has(_home_of[id]):
 			shared_xp[id] = int(shared_xp.get(id, 0)) + amount
+
+
+## Records this player's pack level on the shared map, for teammates' catch-up. Also runs when the
+## device replays its moves onto newer team state, where `profile` is still this player's.
+func _note_level() -> void:
+	if is_team() and my_id != "" and profile:
+		pack_levels[my_id] = profile.pack_level()
+
+
+## How many levels this player's pack trails the team's strongest (0 solo or when ahead).
+func levels_behind() -> int:
+	if not is_team() or profile == null:
+		return 0
+	var top := 0
+	for id in pack_levels:
+		if id != my_id:
+			top = maxi(top, int(pack_levels[id]))
+	return maxi(0, top - profile.pack_level())
+
+
+## The XP multiplier for this player's own fights: GameData.catch_up_mult(levels_behind()).
+func catch_up_mult() -> float:
+	return GameData.catch_up_mult(levels_behind())
 
 
 ## True if this player's home and `other` are joined by an unbroken chain of held land.
@@ -393,14 +417,15 @@ func can_sweep(i: int) -> bool:
 	return territory_level(i) <= profile.pack_level() - GameData.SWEEP_LEVEL_GAP
 
 
-## The XP each fighter gets for sweeping territory `i`: a share of what its zombies would pay.
-func sweep_xp(i: int) -> int:
+## The XP each fighter gets for sweeping territory `i`: a share of what its zombies would pay, with
+## catch-up (`boosted`; teammates' share comes from the plain amount).
+func sweep_xp(i: int, boosted := true) -> int:
 	var cfg := battle_config(i)
 	var total := 0.0
 	for wave: Array in cfg.waves:
 		for zombie_id: String in wave:
 			total += float(GameData.enemy(zombie_id).get("xp", 0)) * float(cfg.xp_mult)
-	return roundi(total * GameData.SWEEP_XP_SHARE)
+	return roundi(total * GameData.SWEEP_XP_SHARE * (catch_up_mult() if boosted else 1.0))
 
 
 ## A legend raid on lair `i`: the lair's waves, with zombies caught up to the strongest critter any
@@ -435,6 +460,7 @@ func patrol_config(i: int) -> Dictionary:
 
 func resolve_patrol(i: int, won: bool) -> void:
 	_act({"do": "patrol", "t": territories[i].id, "won": won})
+	_note_level()
 	turn += 1
 	last_event = ("Patrol cleared the stragglers around %s." if won else "The patrol around %s fell back.") % territories[i].full_name()
 	_end_turn()
@@ -825,6 +851,7 @@ func state_progress(i: int) -> String:
 ## raid passes its `raiders` (they got their XP and trinkets from the raid) and no `rewards` here.
 func resolve_battle(i: int, won: bool, xp := 0, raiders: Array = [], rewards := true) -> void:
 	_act({"do": "battle", "t": territories[i].id, "won": won, "xp": xp, "raiders": raiders})
+	_note_level()
 	turn += 1
 	var t := territories[i]
 	var warlord := warlord_at(i)
@@ -926,6 +953,7 @@ func _to_cfg() -> ConfigFile:
 	cfg.set_value("campaign", "cleared_nests", Array(cleared_nests))
 	cfg.set_value("campaign", "feed", feed)
 	cfg.set_value("campaign", "shared_xp", shared_xp)
+	cfg.set_value("campaign", "pack_levels", pack_levels)
 	var met := {}
 	for t in territories:
 		met[t.id] = t.met_level
@@ -987,6 +1015,7 @@ func _load_cfg(cfg: ConfigFile) -> void:
 	cleared_nests.assign(cfg.get_value("campaign", "cleared_nests", []))
 	feed = cfg.get_value("campaign", "feed", [])
 	shared_xp = cfg.get_value("campaign", "shared_xp", {})
+	pack_levels = cfg.get_value("campaign", "pack_levels", {})
 	_ownership_changed()
 
 

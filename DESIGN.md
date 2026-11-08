@@ -157,7 +157,10 @@ The apocalypse starts **where you actually live**.
   survivor and trinket. After each battle for a territory (attack or defense, won or lost; not
   patrols), every other member whose home links to the fighter's through held land is owed 10% of
   its XP (`TEAM_XP_SHARE`), for every animal in their pack; no link, no XP. The shared map keeps
-  each player's running total (`shared_xp`) and each profile what it has collected (`team_xp`). Join with a 6-character code. Moves apply at once on the device and queue;
+  each player's running total (`shared_xp`) and each profile what it has collected (`team_xp`).
+  **Catch-up**: the shared map also keeps each player's pack level from their latest fight or
+  patrol (`pack_levels`); a pack below the team's strongest earns +10% XP per level behind, up to
+  double (`CATCH_UP_*`), on its own fights, patrols and sweeps (not on what it shares). Join with a 6-character code. Moves apply at once on the device and queue;
   Team.flush() replays them on the newest shared map (no rewards on replay) and saves it only if
   the version is unchanged, retrying on a teammate's newer map. A territory a teammate already
   freed just costs the turn. The map shows teammates' homes (cyan) and a feed of recent moves;

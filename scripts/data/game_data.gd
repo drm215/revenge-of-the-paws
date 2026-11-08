@@ -1588,6 +1588,16 @@ const NEST_COUNT := 2
 ## Teams: when a teammate fights for a territory, every other member whose home links to theirs
 ## through held land gets this share of the battle's XP. No link, no XP.
 const TEAM_XP_SHARE := 0.1
+## Catch-up: on a team, a pack below the team's strongest earns CATCH_UP_PER_LEVEL more XP per
+## level behind (its own fights, patrols and sweeps), up to CATCH_UP_MAX more: it fades as the gap
+## closes. The shared map keeps each player's pack level from their latest fight.
+const CATCH_UP_PER_LEVEL := 0.1
+const CATCH_UP_MAX := 1.0
+
+
+## The XP multiplier for a pack `behind` levels below the team's strongest.
+static func catch_up_mult(behind: int) -> float:
+	return 1.0 + clampf(behind * CATCH_UP_PER_LEVEL, 0.0, CATCH_UP_MAX)
 ## Legend raids (teams): up to 4 players fight a legend together, 3 critters each, each player
 ## controlling their own. The legend grows with the players who fight: (HP, ATK) multipliers, tuned
 ## by simulation so every raid size wins about as often as one pack does alone (~60% at Lv 5-6).
