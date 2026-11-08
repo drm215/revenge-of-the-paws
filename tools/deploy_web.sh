@@ -13,6 +13,11 @@ cd "$ROOT"
 if [ -z "${SKIP_TESTS:-}" ]; then
 	GODOT="$GODOT" "${PYTHON:-python}" tests/run_all.py
 fi
+# The slim engine (tools/build_web_template.sh) that export_presets.cfg points at.
+if [ ! -f build/web_template/web_nothreads_release.zip ]; then
+	echo "Missing build/web_template/web_nothreads_release.zip: run tools/build_web_template.sh first (about 25 min)."
+	exit 1
+fi
 mkdir -p build/web
 touch build/.gdignore  # keep the Godot editor from importing the build output
 rm -f build/web/*.import
