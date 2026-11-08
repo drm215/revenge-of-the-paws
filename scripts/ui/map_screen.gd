@@ -726,7 +726,7 @@ func _build_ui() -> void:
 	col.add_child(_map)
 
 	var legend := Label.new()
-	legend.text = "Green: yours · Orange: attack (darker is tougher) · Purple: legend lair"
+	legend.text = "Green: yours · Orange: attack (darker is tougher) · Purple: legend lair (grey once beaten)"
 	Retro.text(legend, 17, Retro.FOG)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	legend.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -1,16 +1,19 @@
 class_name LegendRecapScene
 extends Control
 
-## The legend fight, replayed: a short cut scene after it's over, win or lose. The pack stands on the
-## left and the legend on the right; each big moment (LegendRecap.beats) plays out with a lunge, the
-## damage, and a caption, and the fallen stay down. An end card names the result, the rounds and the
-## pack's MVP. It plays by itself and moves on by itself; a tap skips it.
+## The legend fight's last moment, replayed: a short, dramatic cut scene after it's over. On a win the
+## animal that struck the final blow rushes the legend in slow motion, the frame freezes on the hit
+## and the legend drops; on a loss the legend fells the last animal standing. Then an end card names
+## the result, the rounds and the pack's MVP. It moves on by itself; a tap skips it.
 
 signal finished
 
-const BEAT_TIME := 1.7  # seconds per moment
-const END_TIME := 4.0  # seconds the end card stays up
-const INTRO_TIME := 2.0
+const INTRO_TIME := 0.8  # the title, before the blow
+const SLOW_RUSH := 1.1  # the attacker closing in, slowed
+const FREEZE := 0.5  # the frame held on the hit
+const SLOW_FALL := 1.0  # the loser going down
+const BEAT_TIME := 1.2  # the caption after
+const END_TIME := 3.0  # seconds the end card stays up
 
 var recap: LegendRecap
 var won := false
@@ -85,15 +88,12 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 
-## The pack in a column on the left (two columns if it's a big raid), the legend big on the right.
+## The two who matter: whoever struck the last blow (or, in a loss, the last animal to fall) on the
+## left, the legend big on the right.
 func _place_cast() -> void:
 	var b := recap.battle
-	var pack := b.party
-	var columns := 1 if pack.size() <= 6 else 2
-	var rows := ceili(pack.size() / float(columns))
-	var top := 210.0
-	var height := size.y - top - 320.0
-	# The battlefield, lit, so dark sprites still read.
+	var top := 230.0
+	var height := size.y - top - 340.0
 	var field_color: Color = GameData.CONDITION_FIELD.get(b.condition, Retro.SWAMP)
 	var field := Panel.new()
 	field.add_theme_stylebox_override("panel", Retro.box(field_color, field_color.lightened(0.2), Retro.BORDER, 0, 0))
@@ -101,20 +101,18 @@ func _place_cast() -> void:
 	field.size = Vector2(size.x - 28, height + 20)
 	field.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stage.add_child(field)
-	var cell := minf(height / maxf(rows, 1), 170.0)
-	var column_w := minf((size.x * 0.48) / columns, cell * 1.6)
-	for k in pack.size():
-		var c: Combatant = pack[k]
-		var at := Vector2(24 + (k % columns) * column_w, top + (k / columns) * cell + (height - rows * cell) / 2.0)
-		_add_sprite(c, at, Vector2(column_w, cell * 0.78))
-		var tag := _label(_name(c), 14, Retro.MIST, false)
-		tag.position = at + Vector2(0, cell * 0.74)
-		tag.size = Vector2(column_w, 20)
+	var legend := recap.legend
+	var big := minf(size.x * 0.52, height)
+	_add_sprite(legend, Vector2(size.x - big - 30, top + (height - big) / 2.0), Vector2(big, big))
+	var hero := _hero()
+	if hero:
+		var small := minf(size.x * 0.3, height * 0.6)
+		_add_sprite(hero, Vector2(40, top + height - small - 20), Vector2(small, small))
+		var tag := _label(_name(hero), 16, Retro.MIST, false)
+		tag.position = _home[hero] + Vector2(0, small)
+		tag.size = Vector2(small, 22)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tag.clip_text = true
-	var legend := recap.legend
-	var big := minf(size.x * 0.5, height)
-	_add_sprite(legend, Vector2(size.x - big - 30, top + (height - big) / 2.0), Vector2(big, big))
 
 
 func _add_sprite(c: Combatant, at: Vector2, box: Vector2) -> void:
@@ -138,17 +136,53 @@ func _add_sprite(c: Combatant, at: Vector2, box: Vector2) -> void:
 	_home[c] = at
 
 
+## The moment replayed: the legend's death on a win, the last knockout on a loss ({} if none).
+func moment() -> Dictionary:
+	for k in range(recap.events.size() - 1, -1, -1):
+		var e: Dictionary = recap.events[k]
+		if (won and e.kind == "final") or (not won and e.kind == "ko"):
+			return e
+	return {}
+
+
+## Whoever is on the left: the animal that struck the last blow, or the last one to fall.
+func _hero() -> Combatant:
+	var e := moment()
+	if e.is_empty():
+		return null
+	var who: Combatant = e.src if won else e.dst
+	return who if who and who.is_player else null
+
+
+## How hard the last blow hit (0 if it isn't known).
+func _last_hit() -> Dictionary:
+	var e := moment()
+	for k in range(recap.events.size() - 1, -1, -1):
+		var h: Dictionary = recap.events[k]
+		if int(h.seq) > int(e.get("seq", 0)):
+			continue
+		if (won and h.kind == "hit") or (not won and h.kind == "smash" and h.dst == e.get("dst")):
+			return h
+	return {}
+
+
 func _run() -> void:
 	var legend := recap.legend
-	var place := recap.battle.place if recap.battle.place != "" else "its lair"
-	_round.text = "THE BATTLE OF " + place.to_upper()
-	_caption.text = "The %s rises to meet the pack." % legend.display_name
-	_pop(_sprites[legend], 1.25)
+	var e := moment()
+	var hero := _hero()
+	var hit := _last_hit()
+	_round.text = "THE FINAL BLOW" if won else "THE LAST STAND"
+	_round.add_theme_color_override("font_color", Retro.GOLD if won else Retro.RED)
+	_caption.text = ("Wave %d, round %d..." % [int(e.wave) + 1, maxi(1, int(e.round))]) if not e.is_empty() else ""
+	_pop(_sprites[legend], 1.15)
 	await _wait(INTRO_TIME)
-	for beat in recap.beats():
-		if _skipped:
-			break
-		_play_beat(beat)
+	if not _skipped:
+		await _strike(legend, hero, hit)
+	if not _skipped:
+		if won:
+			_caption.text = ("%s's %s fells the %s!" % [_name(hero), e.skill, legend.display_name]) if hero else "The %s falls!" % legend.display_name
+		else:
+			_caption.text = ("%s is the last to fall." % _name(hero)) if hero else "The pack falls."
 		await _wait(BEAT_TIME)
 	if not _skipped:
 		_ending()
@@ -157,53 +191,42 @@ func _run() -> void:
 	finished.emit()
 
 
-func _play_beat(e: Dictionary) -> void:
-	var src: Combatant = e.src
-	var dst: Combatant = e.dst
-	var legend := recap.legend
-	_round.text = "WAVE %d · ROUND %d" % [int(e.wave) + 1, maxi(1, int(e.round))]
-	match String(e.kind):
-		"hit":
-			_lunge(src, legend)
-			_flash(legend, Color(1.8, 1.8, 1.8))
-			_number(legend, ("CRIT %d!" if e.crit else "%d") % e.amount, Retro.YELLOW if e.crit else Retro.PINK, 30 if e.crit else 24)
-			_caption.text = "%s's %s hits the %s for %d%s" % [_name(src), e.skill, legend.display_name, e.amount, "!" if e.crit else "."]
-		"smash":
-			_lunge(legend, dst)
-			_flash(dst, Color(1.8, 0.5, 0.5))
-			_number(dst, "%d" % e.amount, Retro.RED, 26)
-			_caption.text = "The %s's %s slams %s for %d." % [legend.display_name, e.skill, _name(dst), e.amount]
-		"ko":
-			_fall(dst)
-			_caption.text = "%s is knocked out%s." % [_name(dst), (" by the " + _name(src)) if src and not src.is_player else ""]
-		"phase1":
-			_shake(14.0)
-			_caption.text = "Worn down, the %s calls the horde for help!" % legend.display_name
-		"phase2":
-			_shake(20.0)
-			_sprites[legend].modulate = Color(1.7, 0.55, 0.5)
-			_pop(_sprites[legend], 1.2)
-			_caption.text = "The %s is ENRAGED!" % legend.display_name
-		"phase3":
-			_shake(24.0)
-			_caption.text = "At its last 10%%, the %s begins its LAST GASP..." % legend.display_name
-		"cataclysm":
-			_lunge(legend, null)
-			_burn(Color(Retro.RED, 0.5))
-			_caption.text = "CATACLYSM! The %s's fury sweeps the whole pack." % legend.display_name
-		"interrupt":
-			_number(legend, "INTERRUPTED!", Retro.GREEN, 26)
-			_caption.text = "The pack stuns the %s mid-Cataclysm!" % legend.display_name
-		"gasp":
-			_lunge(legend, null)
-			_burn(Color(Retro.RED, 0.75))
-			_shake(26.0)
-			_caption.text = "The LAST GASP tears through the pack!"
-		"final":
-			_lunge(src, legend)
-			_flash(legend, Color(2.5, 2.5, 2.5))
-			_fall(legend)
-			_caption.text = "%s's %s fells the %s!" % [_name(src), e.skill, legend.display_name] if src else "The %s falls!" % legend.display_name
+## The blow itself, in slow motion: the attacker closes in, everything freezes on the hit in a white
+## flash, then the loser drops.
+func _strike(legend: Combatant, hero: Combatant, hit: Dictionary) -> void:
+	var src: Combatant = hero if won else legend
+	var dst: Combatant = legend if won else hero
+	var sound := get_node_or_null("/root/Sound")
+	if src and _sprites.has(src):
+		var s: TextureRect = _sprites[src]
+		var aim: Vector2 = _home[dst] if dst and _home.has(dst) else s.position + Vector2(200 if src.is_player else -200, 0)
+		var close: Vector2 = s.position.lerp(aim, 0.55)
+		if sound:
+			sound.play("swoosh", 0.0, -2.0)
+		var t := _tween()
+		t.tween_property(s, "position", close, SLOW_RUSH).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		t.parallel().tween_property(s, "scale", Vector2.ONE * 1.25, SLOW_RUSH)
+		await _wait(SLOW_RUSH)
+	if _skipped:
+		return
+	if sound:
+		sound.play("finish")
+		sound.play("roar" if won else "down")
+	_burn(Color(1, 1, 1, 0.85))
+	_shake(28.0)
+	var amount := int(hit.get("amount", 0))
+	if amount > 0:
+		_number(dst, ("CRIT %d!" if hit.get("crit", false) else "%d!") % amount, Retro.YELLOW if hit.get("crit", false) else Retro.PINK, 40)
+	await _wait(FREEZE)
+	if dst and _sprites.has(dst):
+		var d: TextureRect = _sprites[dst]
+		var t := _tween().set_parallel()
+		t.tween_property(d, "rotation", deg_to_rad(90.0 if not dst.is_player else -90.0), SLOW_FALL).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		t.tween_property(d, "modulate", Color(0.4, 0.4, 0.45, 0.6), SLOW_FALL)
+		t.tween_property(d, "position:y", d.position.y + 40, SLOW_FALL)
+	if src and _sprites.has(src):
+		_tween().tween_property(_sprites[src], "scale", Vector2.ONE, 0.5)
+	await _wait(SLOW_FALL)
 
 
 ## The last card: who won, how long it took, and who carried the pack.

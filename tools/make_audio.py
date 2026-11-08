@@ -183,6 +183,13 @@ def sfx():
     t.noise(0, 0.14, 0.45, period=8)
     t.write("thud", 1.0)
 
+    t = Track(2.4)  # thunder, in a legend's cut scenes: a sharp crack, then a long rumble
+    t.noise(0, 0.12, 0.9, period=1)
+    t.noise(0.04, 2.3, 0.75, period=14, decay=0.6)
+    t.noise(0.1, 2.2, 0.4, period=30, decay=0.9)
+    t.tone(0.05, 2.3, 48, triangle, 0.5, slide=-8, decay=0.7)
+    t.write("thunder", 1.0)
+
     t = Track(1.3)  # treasure: a run of coins and a shining chord
     for k, m in enumerate([76, 79, 84, 88, 91, 96]):
         t.tone(k * 0.07, 0.22, note(m), square, 0.3, duty=0.125)

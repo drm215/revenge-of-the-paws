@@ -72,8 +72,9 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	var scene: LegendRecapScene = host.get_child(0)
-	_check(scene._caption.text.begins_with("The Wampus Cat rises"), "it opens on the legend: " + scene._caption.text)
-	_check(scene._sprites.size() == b.party.size() + 1, "with the pack and the legend on stage")
+	_check(scene._round.text == "THE FINAL BLOW" and scene._caption.text.begins_with("Wave 1, round"), "it opens on the final blow: " + scene._caption.text)
+	_check(scene._sprites.size() == 2 and scene._sprites.has(fox) and scene._sprites.has(cat), "just the one who struck it and the legend on stage")
+	_check(scene._last_hit().get("src") == fox, "it knows the blow that did it")
 	var ev := InputEventMouseButton.new()
 	ev.button_index = MOUSE_BUTTON_LEFT
 	ev.pressed = true
@@ -82,7 +83,7 @@ func _run() -> void:
 		await process_frame
 	_check(done[0] and not is_instance_valid(scene) or scene.is_queued_for_deletion(), "a tap skips it and it goes away")
 
-	# Left alone, it plays every beat and the end card, then moves on by itself.
+	# Left alone, it plays the blow and the end card, then moves on by itself.
 	done[0] = false
 	var lose := [false]
 	var watch := func() -> void:
@@ -91,7 +92,8 @@ func _run() -> void:
 	watch.call()
 	await process_frame
 	var scene2: LegendRecapScene = host.get_child(-1)
-	var total := LegendRecapScene.INTRO_TIME + LegendRecapScene.BEAT_TIME * r.beats().size()
+	_check(scene2._round.text == "THE LAST STAND" and scene2._sprites.has(bear), "a loss replays the last animal to fall")
+	var total := LegendRecapScene.INTRO_TIME + LegendRecapScene.SLOW_RUSH + LegendRecapScene.FREEZE + LegendRecapScene.SLOW_FALL + LegendRecapScene.BEAT_TIME
 	await create_timer(total + 0.5).timeout
 	_check(scene2._round.text == "DEFEAT" and "drives the pack back" in scene2._caption.text and "MVP" in scene2._caption.text, "the end card: %s / %s" % [scene2._round.text, scene2._caption.text.replace("\n", " | ")])
 	await create_timer(LegendRecapScene.END_TIME + 0.5).timeout

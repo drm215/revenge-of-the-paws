@@ -19,6 +19,7 @@ const UNDER_ATTACK := Retro.RED
 const BORDER := Retro.INK
 const SELECTED := Retro.YELLOW
 const LAIR := Color("f6a0e0")
+const BEATEN_LAIR := Color("a08aa0")  # a beaten legend's lair: its name, greyed
 const CUT_OFF := Color("2a4a33")  # held but cut off from home
 const NEST := Color("b8203a")
 const MIN_ZOOM := 0.3
@@ -528,6 +529,12 @@ func _draw_labels() -> void:
 			var door := _door(c, is_home)
 			_labels.draw_rect(door.grow(3), Retro.CYAN)
 			_labels.draw_rect(door, Color.BLACK)
+		if t.boss != "" and GameData.LEGENDS.has(t.boss):
+			# Every lair found shows its legend: bold while it lives, greyed once it's beaten.
+			if not is_lair:
+				label = GameData.LEGENDS[t.boss].name
+				color = BEATEN_LAIR
+			_lair_badge(c, t.boss, is_lair)
 		var warlord := _has_warlord(i)
 		if warlord:
 			label = String(campaign.warlord_at(i).name)
@@ -535,7 +542,7 @@ func _draw_labels() -> void:
 			_labels.draw_texture_rect(_icon("warlord"), Rect2(c + Vector2(-24, -56), Vector2(48, 48)), false)
 		var text_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 		var label_box := Rect2(c.x - text_w / 2.0, c.y + 4 - font_size, text_w, font_size * 1.3).grow(LABEL_GAP)
-		var must_show := i in campaign.homes or i == selected or is_lair or warlord or t.dungeon != ""
+		var must_show := i in campaign.homes or i == selected or t.boss != "" or warlord or t.dungeon != ""
 		if must_show or not placed.any(func(r: Rect2) -> bool: return r.intersects(label_box)):
 			placed.append(label_box)
 			_label_hits.append([label_box, i])
@@ -576,6 +583,21 @@ func _label_order() -> Array[int]:
 	order.sort_custom(func(a: int, b: int) -> bool:
 		return rank[a] < rank[b] if rank[a] != rank[b] else area[a] > area[b])
 	return order
+
+
+## A lair's mark above its name: the legend on a round badge, ringed in lair pink while it
+## lives, small and grey once it's beaten.
+func _lair_badge(c: Vector2, legend_id: String, alive: bool) -> void:
+	var r := 30.0 if alive else 21.0
+	var at := c + Vector2(0, -r - 14)
+	var ring := LAIR if alive else BEATEN_LAIR  # (the lair's outline pulses; labels draw once)
+	_labels.draw_circle(at, r + 3, BORDER)
+	_labels.draw_circle(at, r, ring)
+	_labels.draw_circle(at, r - 4, Color("2a1f33") if alive else Color("3a3440"))
+	if ResourceLoader.exists("res://art/pixel/%s.png" % legend_id):
+		var side := r * 2.3
+		_labels.draw_texture_rect(_icon(legend_id), Rect2(at - Vector2(side, side) / 2.0, Vector2(side, side)), false,
+			Color(1.35, 1.35, 1.35) if alive else Color(0.6, 0.6, 0.65, 0.9))
 
 
 func _icon(id: String) -> Texture2D:

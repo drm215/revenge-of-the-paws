@@ -46,7 +46,8 @@ var _targets: Array[Combatant] = []
 var _wave_label := Label.new()
 var _recap: LegendRecap  # a legend fight's big moments, replayed when it's over
 ## Replay legend fights when they end (tests that drive whole fights switch it off).
-static var play_recaps := true
+static var play_recaps := true  # also the legend's entrance and chapter cut scenes
+var cutscene_holds := 0  # cut scenes playing; the turns wait for them
 var _order_label := RichTextLabel.new()
 var _enemy_col := VBoxContainer.new()
 var _log := RichTextLabel.new()
@@ -167,6 +168,8 @@ func _start_wave() -> void:
 
 func _run_turns() -> void:
 	while true:
+		while cutscene_holds > 0 and is_inside_tree():
+			await get_tree().process_frame
 		var actor := battle.next_turn()
 		_refresh_cards()
 		if actor == null:
@@ -180,6 +183,8 @@ func _run_turns() -> void:
 			_begin_player_turn(actor)
 			return  # resumes from _execute() once the player picks a target
 		await get_tree().create_timer(AUTO_THINK_TIME if auto else ENEMY_THINK_TIME).timeout
+		while cutscene_holds > 0 and is_inside_tree():
+			await get_tree().process_frame
 		if not cards.has(actor) or not actor.is_alive() or battle.outcome() != Battle.Outcome.ONGOING:
 			return  # its wave ended while it was making up its mind
 		var plan := AutoBattle.pick_action(battle, actor) if actor.is_player else battle.plan_enemy_action(actor)

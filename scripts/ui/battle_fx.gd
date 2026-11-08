@@ -289,6 +289,10 @@ func wave_started() -> void:
 ## The lights go out and the music dies. Footfalls shake the ground, then the legend roars into view
 ## with its name. A tap skips it. Only the screen waits: the fight itself is untouched.
 func _legend_entrance(legend: Combatant) -> void:
+	if BattleScreen.play_recaps:
+		await LegendCutscene.play_entrance(screen, legend, screen.battle.place)
+		_add_shake(10.0)
+		return
 	_music("")
 	var dark := _cover(Color(0, 0, 0, 0), 16, true)
 	var skipped := _make_skippable(dark)
@@ -336,6 +340,13 @@ func _legend_entrance(legend: Combatant) -> void:
 
 
 func _on_legend_phase(legend: Combatant, phase: int) -> void:
+	if phase in [1, 2] and BattleScreen.play_recaps:
+		# The fight waits while the next chapter of the legend's story is told.
+		screen.cutscene_holds += 1
+		await LegendCutscene.play_chapter(screen, legend, phase)
+		screen.cutscene_holds -= 1
+		if not is_inside_tree():
+			return
 	_sound("roar", 0.08, -3.0)
 	if phase == 3:
 		_add_shake(MAX_SHAKE)

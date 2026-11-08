@@ -54,7 +54,7 @@ func _run() -> void:
 	var sound: Node = root.get_node("Sound")
 
 	for sound_name: String in ["hit", "crit", "heal", "down", "zombie_die", "groan", "swoosh", "bark", "meow", "combo", "weak", "wave_clear",
-			"victory", "defeat", "roar", "arrive", "windup", "finish", "thud", "loot", "liberate", "firework", "alarm", "horde", "music_map", "music_battle", "music_boss"]:
+			"victory", "defeat", "roar", "arrive", "windup", "finish", "thud", "thunder", "loot", "liberate", "firework", "alarm", "horde", "music_map", "music_battle", "music_boss"]:
 		if not ResourceLoader.exists("res://audio/%s.wav" % sound_name) or sound._stream(sound_name) == null:
 			_check(false, "missing sound: " + sound_name)
 	_check(sound._stream("hit").get_length() < 0.5, "effects are short")
@@ -151,7 +151,14 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	_check(s._fx._beat != null, "a legend's fight starts")
-	await _real_wait(3200)
+	var cut: Array = s.find_children("*", "LegendCutscene", false, false)
+	_check(cut.size() == 1, "with its entrance cut scene")
+	var tap := InputEventMouseButton.new()
+	tap.button_index = MOUSE_BUTTON_LEFT
+	tap.pressed = true
+	if not cut.is_empty():
+		cut[0]._gui_input(tap)
+	await _real_wait(1200)
 	_check(sound.current_music == "boss", "a legend brings its theme")
 	s.battle._apply_damage(s.battle.enemies[0], 9999999, false)
 	await process_frame
