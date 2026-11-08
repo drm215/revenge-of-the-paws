@@ -158,6 +158,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.account_requested.connect(_show_account)
 	screen.siege_requested.connect(_show_siege)
 	screen.dungeon_requested.connect(_show_dungeon)
+	screen.rematch_requested.connect(_show_rematch)
 	screen.bonus_requested.connect(_show_bonus)
 	screen.raid_requested.connect(_show_raid.bind(-1))
 	screen.saves_requested.connect(func() -> void:
@@ -373,6 +374,26 @@ func _show_battle(territory: int, patrol := false) -> void:
 	screen.fight.connect(func() -> void:
 		_profile.save()
 		_start_battle(territory, patrol, config))
+	_swap(screen)
+
+
+## A rematch with a beaten legend, for fun: ready the pack, fight, and back to the map with no XP,
+## loot, injuries or map turn.
+func _show_rematch(territory: int) -> void:
+	var config := _campaign.rematch_config(territory)
+	var screen := PackScreen.new()
+	screen.profile = _profile
+	screen.battle_config = config
+	screen.closed.connect(func() -> void:
+		_profile.save()
+		_show_map(_profile, false))
+	screen.fight.connect(func() -> void:
+		_profile.save()
+		var battle := BattleScreen.new()
+		battle.profile = _profile
+		battle.config = config
+		battle.finished.connect(func(_won: bool) -> void: _show_map(_profile, false))
+		_swap(battle))
 	_swap(screen)
 
 

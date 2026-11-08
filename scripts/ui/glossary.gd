@@ -77,6 +77,7 @@ static func sections() -> Array:
 			["Level", "How strong a territory's zombies are, fixed when you discover it. Only the horde spreading or a lost counter defense raises it."],
 			["Threat", "How many waves a territory sends and how nasty the mix. Darker orange is tougher."],
 			["Pack strength", "Your pack starts at +%s HP and ATK, and land you hold that's linked to home adds +1%% for every %d territories, up to +%s." % [pct.call(GameData.HELD_BASE_BONUS), GameData.HELD_PER_PERCENT, pct.call(GameData.MAX_HELD_BONUS)]],
+			["Rematch", "A legend you've beaten can be fought again from its lair, just for fun: no XP or trinkets, no injuries, and no map turn."],
 			["Counterattack", "Every few turns (the top of the map says how often) the horde tries to retake a territory. Lose the defense and it falls."],
 			["Cut off", "Held land no longer linked to home: no strength bonus, no attacks from it, and it falls to the horde in a few turns unless you relink it."],
 			["Patrol", "An easier fight in land you hold, for XP."],

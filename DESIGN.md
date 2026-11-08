@@ -77,6 +77,9 @@ The apocalypse starts **where you actually live**.
   biggest blows each way, knockouts and the final blow, then an end card with the rounds and the
   MVP. About 20 seconds; it moves on by itself and a tap skips it. Worked out from HP alone, so every raid device agrees. Tuned so the
   simulator's AI wins about 10% of the time at Lv 10 and above; real players should do better.
+- **Rematch** (`Campaign.rematch_config`, `main._show_rematch`): a beaten legend's lair shows
+  Rematch beside Patrol. The same fight (recap included), purely for fun: no XP, no loot, no
+  injuries or fatigue, no siege damage, no map turn. It is logged with `rematch` for balancing.
 - **Sweep**: attackable land `SWEEP_LEVEL_GAP` (8) or more levels below the fighting pack's level
   can be taken without a fight (Sweep, beside Attack!): a map turn, no injuries, `SWEEP_XP_SHARE`
   of the XP, no siege damage. Lairs, warlords and counterattacks are always fought.

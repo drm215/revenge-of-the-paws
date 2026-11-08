@@ -431,6 +431,22 @@ func battle_config(i: int) -> Dictionary:
 	}
 
 
+## Whether the legend of lair `i` has been beaten, so it can be fought again just for fun.
+func can_rematch(i: int) -> bool:
+	var t := territories[i]
+	return t.owned and t.boss != "" and GameData.LEGENDS.has(t.boss)
+
+
+## A rematch with a beaten legend: the lair's fight as it was, for fun. It pays no XP and drops no
+## trinket, leaves no injuries, takes no map turn and changes nothing on the map.
+func rematch_config(i: int) -> Dictionary:
+	var cfg := battle_config(i)
+	cfg.loot = ""
+	cfg.rematch = true
+	cfg.place = "Rematch: " + territories[i].full_name()
+	return cfg
+
+
 ## Whether territory `i` can be swept: attackable now, far below the fighting pack's level, and not
 ## a lair, a warlord's ground or a counterattack.
 func can_sweep(i: int) -> bool:

@@ -20,6 +20,7 @@ signal raid_requested
 signal saves_requested
 ## Enter the dungeon of `region` (its entrance is held).
 signal dungeon_requested(region: String)
+signal rematch_requested(index: int)
 ## Claim the bonus for a cleared state or region.
 signal bonus_requested
 signal auto_toggled
@@ -33,6 +34,7 @@ var horde_news: Array = []  # Campaign.horde_news(): the horde's moves to play a
 var celebrating := false
 var _siege_button := Button.new()
 var _delve := Button.new()  # home: into the region's dungeon
+var _rematch := Button.new()  # a beaten legend's lair: fight it again for fun
 var _bonus_button := Button.new()  # a cleared state's or region's bonus is waiting
 
 var _map := MapView.new()
@@ -235,6 +237,7 @@ func _select(i: int) -> void:
 	_fit_heading()
 	_action.visible = campaign.is_actionable(i)
 	_delve.visible = t.owned and t.dungeon != ""
+	_rematch.visible = campaign.can_rematch(i) and i != campaign.under_attack
 	_sweep.visible = false
 	_action.set_meta("mode", "attack")
 	if i == campaign.under_attack:
@@ -321,6 +324,10 @@ func _select(i: int) -> void:
 			var a: Dictionary = GameData.ANIMALS[survivor]
 			_info_body.text += "\nSurvivor here: %s (%s). Liberate it to recruit!" % [a.name, a.role]
 	_action.set_meta("territory", i)
+	if _rematch.visible:
+		_info_title.text = "Lair of the %s" % GameData.LEGENDS[t.boss].name
+		_fit_heading()
+		_info_body.text += "\nThe %s is beaten. Rematch it any time just for fun: no XP or trinkets, no injuries, no map turn." % GameData.LEGENDS[t.boss].name
 	if t.dungeon != "":
 		var d := GameData.dungeon(t.dungeon)
 		_info_body.text += "\nDUNGEON: %s. %s" % [d.name, "Enter for endless waves and rewards (free, no injuries)." if t.owned else "Free this land to enter."]
@@ -798,6 +805,14 @@ func _build_ui() -> void:
 		if _map.selected >= 0:
 			dungeon_requested.emit(campaign.territories[_map.selected].dungeon))
 	actions.add_child(_delve)
+	_rematch.text = "Rematch"
+	_rematch.custom_minimum_size = Vector2(150, 60)
+	_rematch.add_theme_color_override("font_color", Retro.PINK)
+	_rematch.visible = false
+	_rematch.pressed.connect(func() -> void:
+		if _map.selected >= 0 and campaign.can_rematch(_map.selected):
+			rematch_requested.emit(_map.selected))
+	actions.add_child(_rematch)
 
 	# Buttons share one row evenly; the data credit gets its own full-width line below them.
 	var footer := HBoxContainer.new()

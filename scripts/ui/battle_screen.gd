@@ -277,6 +277,12 @@ func _show_outcome() -> void:
 				_start_wave()
 		Battle.Outcome.VICTORY, Battle.Outcome.DEFEAT when raid:
 			_finish_raid()
+		Battle.Outcome.VICTORY, Battle.Outcome.DEFEAT when config.get("rematch", false):
+			_log_battle()
+			var won := battle.outcome() == Battle.Outcome.VICTORY
+			_show_overlay("The legend falls again!" if won else "The pack falls back",
+				"A rematch just for fun: no XP, no trinkets, no injuries, and the map didn't move.\nFight it again any time.",
+				"Back to map", finished.emit.bind(won))
 		Battle.Outcome.WAVE_CLEARED:
 			_show_overlay("Wave cleared!", "The pack rests and patches up.\nAnyone knocked out sits the next wave out, then gets back up.", "Next wave", _start_wave)
 			if auto:
@@ -353,7 +359,7 @@ func _legend_drop() -> String:
 	if String(config.get("warlord_loot", "")) != "":
 		return String(config.warlord_loot)
 	var legend := String(config.get("legend", ""))
-	if legend == "" or not GameData.LEGENDS.has(legend):
+	if legend == "" or not GameData.LEGENDS.has(legend) or config.get("rematch", false):
 		return ""
 	return GameData.LEGENDS[legend].drop if raid else String(config.get("loot", ""))
 
@@ -476,7 +482,7 @@ func _finish_raid() -> void:
 ## device that recorded the result.
 func _log_battle(players := 1) -> void:
 	var report := battle.report()
-	for key in ["legend", "assault", "warlord", "threat", "region", "party_mult", "territory"]:
+	for key in ["legend", "assault", "warlord", "threat", "region", "party_mult", "territory", "rematch"]:
 		if config.has(key):
 			report[key] = config[key]
 	report.merge({"players": players, "raid": raid, "auto": was_auto, "patrol": not config.has("territory")})
