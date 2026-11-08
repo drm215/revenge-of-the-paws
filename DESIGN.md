@@ -106,7 +106,7 @@ The apocalypse starts **where you actually live**.
   territory can wall the campaign forever.
 - **Leveling:** every animal in the pack (pet included) earns XP from each fight: zombies 10–40,
   legends 120, scaled by the territory's threat; half XP on a retreat. Level L→L+1 costs 120×L XP
-  (max Lv 50); each level adds +6% HP, +4.5% ATK, +3% DEF.
+  (no top level); each level adds +6% HP, +4.5% ATK, +3% DEF.
 - **Tech tree:** every animal gets one point per level to spend in its own tree, built from its
   own skills: three branches of 6 nodes, each needing the one above it. *Fang* (first skill's
   power/crit + Attack/Crit), *Hide* (Max HP/Defense + second skill), *Instinct* (third skill +

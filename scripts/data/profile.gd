@@ -115,13 +115,23 @@ func reset_tree(unit_id: String) -> void:
 	tree.erase(unit_id)
 
 
-## Animals that leveled since the last tree visit and have points to spend, pack first.
+## Animals that leveled since the last tree visit and have something to spend points on, pack first.
 func units_with_new_points() -> Array[String]:
 	var out: Array[String] = []
 	for id in pack_ids() + unlocked:
-		if id in just_leveled and points_left(id) > 0 and id not in out:
+		if id in just_leveled and id not in out and can_buy_any(id):
 			out.append(id)
 	return out
+
+
+## Whether any node of the animal's tree can be bought now (a full tree has nothing left to buy).
+func can_buy_any(unit_id: String) -> bool:
+	if points_left(unit_id) <= 0:
+		return false
+	for node in GameData.tech_tree(unit_id):
+		if tree_block(unit_id, node.id) == "":
+			return true
+	return false
 
 
 ## A pack animal as it fights: base stats, leader bonus, level, tech tree and trinket.

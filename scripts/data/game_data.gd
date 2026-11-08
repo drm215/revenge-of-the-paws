@@ -1051,7 +1051,6 @@ const MAX_THREAT := 5
 const THREAT_ZOMBIE_MULT := {1: 1.0, 2: 1.15, 3: 1.38, 4: 1.62, 5: 1.9}
 
 ## Leveling: every animal in the pack (pet included) earns XP from each fight it's part of.
-const MAX_LEVEL := 50
 const XP_STEP := 120  # XP to go from level L to L+1 is XP_STEP * L
 const LEVEL_GROWTH := {"hp": 0.06, "atk": 0.045, "def": 0.03}  # per level above 1
 const DEFEAT_XP_SHARE := 0.5  # a retreat still teaches something
@@ -1971,7 +1970,7 @@ static func skill_stats(s: Dictionary) -> String:
 
 static func level_for_xp(xp: int) -> int:
 	var level := 1
-	while level < MAX_LEVEL and xp >= xp_to_reach(level + 1):
+	while xp >= xp_to_reach(level + 1):  # no top level
 		level += 1
 	return level
 

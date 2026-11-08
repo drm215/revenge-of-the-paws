@@ -565,8 +565,7 @@ func _show_details(unit_id: String) -> void:
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	head.add_child(name_label)
 	head.add_child(_tile_text(("Lv %d · %s · %s" % [level, data.name, data.role]) if is_pet else ("Lv %d · %s" % [level, data.role]), 20, Retro.YELLOW))
-	head.add_child(_tile_text("XP %d / %d to Lv %d" % [profile.xp.get(unit_id, 0), GameData.xp_to_reach(level + 1), level + 1]
-		if level < GameData.MAX_LEVEL else "Max level", 18, Retro.FOG))
+	head.add_child(_tile_text("XP %d / %d to Lv %d" % [profile.xp.get(unit_id, 0), GameData.xp_to_reach(level + 1), level + 1], 18, Retro.FOG))
 	col.add_child(_tile_text("\"%s\"" % data.desc, 20, Retro.FOG))
 
 	var where := "Leads the pack: allies get +%d%% ATK/DEF while it stands." % roundi(GameData.LEADER_AURA * 100) if is_pet \
