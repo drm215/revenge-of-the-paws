@@ -208,12 +208,14 @@ func _make_campaign(profile: Profile) -> Campaign:
 	return c
 
 
-## A raid lobby, opening a new raid on `lair` (or -1 to join or look at the team's raid).
-func _show_raid(lair: int) -> void:
+## A raid lobby, opening a new raid on `lair` (or -1 to join or look at the team's raid); a
+## `rematch` raid on a beaten legend's lair is just for fun.
+func _show_raid(lair: int, rematch := false) -> void:
 	var screen := RaidScreen.new()
 	screen.profile = _profile
 	screen.campaign = _campaign
 	screen.lair = lair
+	screen.rematch = rematch
 	screen.closed.connect(func() -> void: _show_map(_profile, false))
 	screen.fight.connect(_start_raid_battle)
 	_swap(screen)
@@ -241,6 +243,8 @@ func _start_raid_battle() -> void:
 
 ## Records a raid's result on the team map.
 func _record_raid(outcome: Dictionary, raiders: Array) -> void:
+	if outcome.get("rematch", false):
+		return  # a rematch doesn't move the map
 	var i := _lair_of(outcome)
 	if i >= 0:
 		_campaign.resolve_battle(i, bool(outcome.won), int(outcome.xp), raiders, false)
@@ -381,9 +385,11 @@ func _show_battle(territory: int, patrol := false) -> void:
 ## loot, injuries or map turn.
 func _show_rematch(territory: int) -> void:
 	var config := _campaign.rematch_config(territory)
+	config["raidable"] = _campaign.is_team()
 	var screen := PackScreen.new()
 	screen.profile = _profile
 	screen.battle_config = config
+	screen.raid_requested.connect(_show_raid.bind(territory, true))
 	screen.closed.connect(func() -> void:
 		_profile.save()
 		_show_map(_profile, false))

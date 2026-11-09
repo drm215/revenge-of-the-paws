@@ -469,8 +469,8 @@ func sweep_xp(i: int, boosted := true) -> int:
 
 ## A legend raid on lair `i`: the lair's waves, with zombies caught up to the strongest critter any
 ## raider brings (`max_level`) rather than to this player's pack alone. Fixed for every device.
-func raid_config(i: int, max_level: int) -> Dictionary:
-	var cfg := battle_config(i)
+func raid_config(i: int, max_level: int, rematch := false) -> Dictionary:
+	var cfg := rematch_config(i) if rematch else battle_config(i)
 	var t := territories[i]
 	var caught_up := GameData.level_strength(max_level - GameData.PACK_LEVEL_GAP + t.threat - 1)
 	cfg.zombie_mult = maxf(GameData.zombie_mult(t.threat), caught_up) * t.horde_strength()

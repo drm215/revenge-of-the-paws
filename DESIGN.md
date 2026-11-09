@@ -84,6 +84,9 @@ The apocalypse starts **where you actually live**.
 - **Rematch** (`Campaign.rematch_config`, `main._show_rematch`): a beaten legend's lair shows
   Rematch beside Patrol. The same fight (recap included), purely for fun: no XP, no loot, no
   injuries or fatigue, no siege damage, no map turn. It is logged with `rematch` for balancing.
+  On a team it can be a raid too ("Rematch it with your team"): the raid's territory carries the
+  `Raid.REMATCH` tag (no server change), so a free lair doesn't call it off, the result is stored
+  with `rematch` and 0 XP, `claim_raid` pays nothing and `_record_raid` leaves the map alone.
 - **Sweep**: attackable land `SWEEP_LEVEL_GAP` (8) or more levels below the fighting pack's level
   can be taken without a fight (Sweep, beside Attack!): a map turn, no injuries, `SWEEP_XP_SHARE`
   of the XP, no siege damage. Lairs, warlords and counterattacks are always fought.

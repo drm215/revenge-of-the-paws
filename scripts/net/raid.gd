@@ -15,6 +15,8 @@ signal _idle
 
 const LATE_RETRY := 15.0  # how often a result that couldn't be sent tries again
 const FAST_POLL := 1.5
+## Tags a raid's territory as a rematch with a beaten legend (for fun: no XP, trinkets or map change).
+const REMATCH := "~rematch"
 var turn_timeout := 45.0  # a player who doesn't move in time has that turn played by the AI
 var state_path := "user://raid.cfg"
 var listening := false  # the game is ready to take a late result (Main, once a map is up)
@@ -130,6 +132,16 @@ func is_host() -> bool:
 	return String(info.get("host", "")) == my_id()
 
 
+## A rematch with a legend the team already beat.
+func is_rematch() -> bool:
+	return String(info.get("territory", "")).ends_with(REMATCH)
+
+
+## The id of the raid's lair on the map.
+func territory_id() -> String:
+	return String(info.get("territory", "")).trim_suffix(REMATCH)
+
+
 func config() -> Dictionary:
 	var c: Variant = JSON.parse_string(String(info.get("config", "")))
 	return c if c is Dictionary else {}
@@ -142,16 +154,18 @@ func result() -> Dictionary:
 
 # --- Lobby ------------------------------------------------------------------------------------
 
-## Opens a raid on a legend's lair, with this player's pack, and tells the team in chat.
-func open(territory: String, legend: String, place: String, player_name: String, pack: String) -> String:
-	var r := await _api("open_raid", {"p_territory": territory, "p_legend": legend,
+## Opens a raid on a legend's lair (a rematch on a beaten one), with this player's pack, and tells
+## the team in chat.
+func open(territory: String, legend: String, place: String, player_name: String, pack: String, rematch := false) -> String:
+	var r := await _api("open_raid", {"p_territory": territory + (REMATCH if rematch else ""), "p_legend": legend,
 		"p_seed": randi(), "p_name": player_name, "p_pack": pack})
 	if not r.ok:
 		return _error(r)
 	_take(r.data)
 	var chat := get_node_or_null("/root/Chat")
 	if chat:
-		chat.send("opened a raid on the %s at %s! Join it from the map." % [GameData.LEGENDS[legend].name, place],
+		var what := "a rematch raid with the %s at %s, just for fun" if rematch else "a raid on the %s at %s"
+		chat.send(("opened " + what + "! Join it from the map.") % [GameData.LEGENDS[legend].name, place],
 			territory + "@open")
 	return ""
 

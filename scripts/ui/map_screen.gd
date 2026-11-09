@@ -419,13 +419,13 @@ func _on_raid() -> void:
 	var lobby: bool = raid.status() == "lobby"
 	var fighting: bool = raid.status() == "fighting" and raid.is_member()
 	var live: bool = raid.status() in ["lobby", "fighting"]
-	var over: bool = live and _lair_is_free(String(raid.info.get("territory", "")))
+	var over: bool = live and not raid.is_rematch() and _lair_is_free(raid.territory_id())
 	if over:
 		raid.cancel()
 	_raid_button.visible = not legend.is_empty() and (lobby or fighting) and not over
 	if _raid_button.visible:
 		var text := "Raid on the %s was interrupted" if fighting else "Back to the raid on the %s" if raid.is_member() else "Join the raid on the %s"
-		_raid_button.text = text % legend.name
+		_raid_button.text = (text % legend.name).replace("raid on", "rematch with" if raid.is_rematch() else "raid on")
 	_fit_news()
 
 

@@ -72,7 +72,7 @@ func _ready() -> void:
 	col.add_child(intro)
 	if prep and battle_config.get("raidable", false):
 		var raid := Button.new()
-		raid.text = "Start a raid with your team"
+		raid.text = "Rematch it with your team" if battle_config.get("rematch", false) else "Start a raid with your team"
 		raid.custom_minimum_size = Vector2(0, 72)
 		raid.add_theme_color_override("font_color", Retro.CYAN)
 		raid.pressed.connect(raid_requested.emit)

@@ -749,6 +749,9 @@ func claim_raid(raid_id: String, outcome: Dictionary, brought: Array, account: S
 	if raid_id == "" or raid_id in raids_claimed:
 		return PackedStringArray()
 	raids_claimed.append(raid_id)
+	if outcome.get("rematch", false):
+		save()
+		return PackedStringArray()  # a rematch is just for fun
 	var fought: Array[String] = []
 	for id: String in brought:
 		if id == pet_species or id in unlocked:

@@ -11,6 +11,7 @@ signal fight
 var profile: Profile
 var campaign: Campaign
 var lair := -1  # a lair to open a new raid on; -1 to join or look at the team's raid
+var rematch := false  # the new raid is a rematch with the beaten legend at `lair`, for fun
 
 var _content := VBoxContainer.new()
 var _status := Label.new()
@@ -77,7 +78,7 @@ func _open() -> void:
 	var t := campaign.territories[lair]
 	_status.text = "Opening the raid..."
 	var pack := profile.snapshot(_picks) if _picks.size() == GameData.RAID_PICKS else ""  # picked in the lobby
-	var error: String = await _raid().open(t.id, t.boss, t.full_name(), get_node("/root/Team").name_for(profile), pack)
+	var error: String = await _raid().open(t.id, t.boss, t.full_name(), get_node("/root/Team").name_for(profile), pack, rematch)
 	_status.text = error
 
 
@@ -90,12 +91,14 @@ func _build() -> void:
 	var r := _raid()
 	var legend_id := String(r.info.get("legend", campaign.territories[lair].boss if lair >= 0 else ""))
 	var legend: Dictionary = GameData.LEGENDS.get(legend_id, {})
-	_label("Legend raid", 20, Retro.GOLD, true)
+	var is_rematch: bool = r.is_rematch() if r.status() in ["lobby", "fighting"] else rematch
+	_label("Legend rematch" if is_rematch else "Legend raid", 20, Retro.GOLD, true)
 	if not legend.is_empty():
 		_label(legend.name, 14, Retro.PURPLE.lightened(0.3), true)
 		_label(legend.lore, 19, Retro.FOG)
-	_label("Up to %d teammates fight together, %d critters each, each player controlling their own. The legend grows with every player: HP x%.1f / x%.1f / x%.1f for 2 / 3 / 4 players. XP is split; everyone gets the legend's trinket. A player who takes too long has that turn played by the AI." % [
-		GameData.RAID_MAX_PLAYERS, GameData.RAID_PICKS, GameData.legend_growth(2).x, GameData.legend_growth(3).x, GameData.legend_growth(4).x], 18, Retro.FOG)
+	_label("Up to %d teammates fight together, %d critters each, each player controlling their own. The legend grows with every player: HP x%.1f / x%.1f / x%.1f for 2 / 3 / 4 players. %s A player who takes too long has that turn played by the AI." % [
+		GameData.RAID_MAX_PLAYERS, GameData.RAID_PICKS, GameData.legend_growth(2).x, GameData.legend_growth(3).x, GameData.legend_growth(4).x,
+		"Just for fun: no XP, no trinkets, no injuries, and the map doesn't move." if is_rematch else "XP is split; everyone gets the legend's trinket."], 18, Retro.FOG)
 
 	if r.status() == "fighting":
 		_label("This raid is still marked as fighting, but a fight can't be picked up again once it's left. If everyone has left it, call it off so the team can start a new one.", 19, Retro.MIST)
@@ -153,7 +156,7 @@ func _build() -> void:
 
 ## The lair's battle config on this player's map (terrain, region, the waves), for the tiles.
 func _lair_config() -> Dictionary:
-	var territory := String(_raid().info.get("territory", ""))
+	var territory: String = _raid().territory_id()
 	for k in campaign.territories.size():
 		if campaign.territories[k].id == territory or (territory == "" and k == lair):
 			return campaign.battle_config(k)
@@ -251,7 +254,7 @@ func _start() -> void:
 	var r := _raid()
 	var i := -1
 	for k in campaign.territories.size():
-		if campaign.territories[k].id == String(r.info.territory):
+		if campaign.territories[k].id == r.territory_id():
 			i = k
 	if i < 0:
 		_status.text = "That lair isn't on this map."
@@ -264,7 +267,7 @@ func _start() -> void:
 				max_level = maxi(max_level, p.level_of(id))
 	_busy = true
 	_status.text = "Starting..."
-	var error: String = await r.start(campaign.raid_config(i, max_level))
+	var error: String = await r.start(campaign.raid_config(i, max_level, r.is_rematch()))
 	_busy = false
 	_status.text = error
 

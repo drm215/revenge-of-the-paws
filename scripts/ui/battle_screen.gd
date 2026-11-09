@@ -454,6 +454,8 @@ func _finish_raid() -> void:
 	var xp := battle.xp_earned if won else roundi(battle.xp_earned * GameData.DEFEAT_XP_SHARE)
 	var outcome := {"won": won, "xp": roundi(xp / float(players)), "knocked": battle.knocked_out,
 		"legend": String(r.config().get("legend", "")), "territory": String(r.config().get("territory", ""))}
+	if r.config().get("rematch", false):
+		outcome.merge({"rematch": true, "xp": 0}, true)
 	var brought: Array = []
 	for m: Dictionary in r.members():
 		if String(m.user_id) == r.my_id():
@@ -478,6 +480,11 @@ func _finish_raid() -> void:
 	raid_done.emit(result, bool(stored.mine))
 	won = bool(result.get("won", false))
 	_overlay_button.disabled = false
+	if result.get("rematch", false):
+		_show_overlay("The legend falls again!" if won else "The raid falls back",
+			"A rematch just for fun: no XP, no trinkets, no injuries, and the map didn't move.\nFight it again any time.",
+			"Back to map", finished.emit.bind(won))
+		return
 	_show_overlay("The legend falls!" if won else "The raid falls back",
 		("%s is free.\n\n" % battle.place if won else "The legend was too much this time.\n\n") + "\n".join(lines),
 		"Back to map", finished.emit.bind(won))
