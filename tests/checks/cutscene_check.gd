@@ -22,12 +22,19 @@ func _real_wait(msec: int) -> void:
 		await process_frame
 
 
-func _skip(s: Control) -> void:
+func _tap(s: Control) -> void:
 	var tap := InputEventMouseButton.new()
 	tap.button_index = MOUSE_BUTTON_LEFT
 	tap.pressed = true
 	for c in s.find_children("*", "LegendCutscene", false, false):
 		c._gui_input(tap)
+
+
+## Skips to the end, then taps Continue.
+func _skip(s: Control) -> void:
+	_tap(s)
+	await _real_wait(300)
+	_tap(s)
 
 
 func _cut(s: Control) -> LegendCutscene:
@@ -64,9 +71,14 @@ func _run() -> void:
 	await _real_wait(2500)
 	var told := entrance.find_children("*", "Label", true, false).map(func(l: Label) -> String: return l.text)
 	_check("POINT PLEASANT" in told and String(LegendStory.of("mothman").intro) in told, "it names the place and tells the tale")
-	_skip(s)
+	_tap(s)
+	await _real_wait(1500)
+	var buttons := entrance.find_children("*", "Button", true, false) if is_instance_valid(entrance) else []
+	_check(_cut(s) == entrance and buttons.size() == 1 and buttons[0].text == "Continue",
+		"a tap skips to the end, which stays up for reading with Continue")
+	_tap(s)
 	await _real_wait(700)
-	_check(_cut(s) == null, "a tap skips it")
+	_check(_cut(s) == null, "Continue closes it")
 
 	var b := s.battle
 	var mothman: Combatant = b.enemies[0]
@@ -78,14 +90,14 @@ func _run() -> void:
 	b.acting.connect(func(_c: Combatant) -> void: acting[0] += 1)
 	await _real_wait(1500)
 	_check(acting[0] == 0, "nobody moves while it's told")
-	_skip(s)
+	await _skip(s)
 	await _real_wait(700)
 	_check(_cut(s) == null and s.cutscene_holds == 0, "then the fight carries on")
 	b._apply_damage(mothman, mothman.hp - roundi(mothman.max_hp * 0.3), false)
 	await process_frame
 	chapter = _cut(s)
 	_check(chapter != null and chapter.chapter == 2 and "ENRAGED" in chapter.what_now(), "at 33%%: chapter III, and it enrages")
-	_skip(s)
+	await _skip(s)
 	await _real_wait(600)
 	s.queue_free()
 	print("%d failure(s)" % _fails)

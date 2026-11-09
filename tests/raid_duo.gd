@@ -19,6 +19,7 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	role = args[0]
 	out = args[1]
+	LegendCutscene.read_limit = 0.5  # nobody here taps Continue on the legend's cut scenes
 	_run.call_deferred()
 
 

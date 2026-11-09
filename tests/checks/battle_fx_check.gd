@@ -157,7 +157,10 @@ func _run() -> void:
 	tap.button_index = MOUSE_BUTTON_LEFT
 	tap.pressed = true
 	if not cut.is_empty():
-		cut[0]._gui_input(tap)
+		cut[0]._gui_input(tap)  # skip to the end
+		await _real_wait(300)
+		if is_instance_valid(cut[0]):
+			cut[0]._gui_input(tap)  # Continue
 	await _real_wait(2000)
 	_check(sound.current_music == "boss", "a legend brings its theme")
 	s.battle._apply_damage(s.battle.enemies[0], 9999999, false)

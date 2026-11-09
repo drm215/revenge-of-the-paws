@@ -76,7 +76,9 @@ The apocalypse starts **where you actually live**.
   legend's weather rolls in (storm, fog, snow, swamp, dust, embers, sky), the place and its
   folklore are told, then footfalls, lightning and the reveal with its name. At 66% and 33% HP the
   turns pause (`BattleScreen.cutscene_holds`) for chapter II and III of its story and what it does
-  now. When the fight ends a short **replay** of the last moment plays (`LegendRecapScene`): the
+  now. Each cut scene stays up at its end, story and all, until Continue (a tap mid-scene skips to
+  that end; it continues on its own after `LegendCutscene.read_limit`, 60 s, so a raid never waits
+  on someone who walked away). When the fight ends a short **replay** of the last moment plays (`LegendRecapScene`): the
   final blow in slow motion (or the last animal falling), then an end card with the rounds and the
   MVP. All real time, all skippable with a tap; `BattleScreen.play_recaps` switches them off in tests.
   Tuned so the

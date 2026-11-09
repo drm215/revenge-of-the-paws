@@ -5,12 +5,15 @@ extends Control
 ## weather rolls in, the place and its tale are told, footfalls shake the ground, and lightning shows
 ## the legend with its name. A chapter (at 66% and 33% of its HP): the fight pauses under a dark
 ## veil, the legend looms in close, and the next part of its story is told before what it does now.
-## Real time throughout (slow motion doesn't drag it out); a tap skips to the end.
+## Real time throughout (slow motion doesn't drag it out); a tap skips to the end. It stays up,
+## story and all, until Continue, so there's time to read about the legend.
 
 signal finished
 
 const TYPE_SPEED := 0.024  # seconds per letter of the story
 const LETTERBOX := 96.0
+## Continue comes on its own after this long, so nobody who has walked away holds up a raid.
+static var read_limit := 60.0
 
 var legend: Combatant
 var place := ""
@@ -23,6 +26,9 @@ var _bolt_path: PackedVector2Array = []
 var _next_bolt := 0.0
 var _clock := 0.0
 var _skipped := false
+var _hint: Label  # "Tap to skip" while it plays
+var _reading := false  # played out: waiting for Continue
+var _continued := false
 var _veil := ColorRect.new()
 var _portrait: TextureRect
 var _fx_layer := Control.new()  # the words and the legend, above the weather
@@ -77,7 +83,10 @@ func _ready() -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
-		_skipped = true
+		if _reading:
+			_continued = true
+		else:
+			_skipped = true
 		accept_event()
 
 
@@ -87,6 +96,7 @@ func _run() -> void:
 		await _entrance()
 	else:
 		await _chapter()
+	await _continue()
 	if is_inside_tree():
 		var out := _tween()
 		out.tween_property(self, "modulate:a", 0.0, 0.18 if _skipped else 0.4)
@@ -314,8 +324,30 @@ func _bars() -> void:
 		add_child(bar)
 
 
+## Holds the finished scene until the player taps Continue (or anywhere).
+func _continue() -> void:
+	if not is_inside_tree():
+		return
+	if _hint:
+		_hint.visible = false
+	var button := Button.new()
+	button.text = "Continue"
+	button.z_index = 5
+	button.size = Vector2(minf(size.x - 60, 300.0), 64)
+	button.position = Vector2((size.x - button.size.x) / 2.0, size.y - LETTERBOX + (LETTERBOX - button.size.y) / 2.0)
+	button.add_theme_color_override("font_color", Retro.GOLD)
+	button.pressed.connect(func() -> void: _continued = true)
+	add_child(button)
+	_fade_in(button, 0.3)
+	_reading = true
+	var until := Time.get_ticks_msec() + int(read_limit * 1000)
+	while not _continued and is_inside_tree() and Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+
+
 func _skip_hint() -> void:
 	var hint := _label("Tap to skip", 14, Retro.FOG, true)
+	_hint = hint
 	hint.z_index = 4
 	hint.position = Vector2(size.x - 230, size.y - LETTERBOX + 34)
 	hint.size = Vector2(206, 0)
