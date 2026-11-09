@@ -6,6 +6,7 @@ extends Control
 var _profile: Profile
 var _campaign: Campaign
 var _campaign_stale := false  # the team map changed on the server: rebuild before showing it
+var _rebuild_waiting := false  # a team change waits for the map's moment to end before rebuilding
 
 
 func _ready() -> void:
@@ -84,6 +85,9 @@ func _show_saves() -> void:
 		Saves.use(id)
 		var profile := Profile.load_saved()
 		_use_team(profile.team_id if profile else "")
+		var team := get_node_or_null("/root/Team")
+		if profile and profile.team_id != "" and team and not team.on_team():
+			await team.refresh()  # a team game this device hasn't loaded yet: never start it on a solo map
 		if profile:
 			_show_map(profile)
 		else:
@@ -289,10 +293,18 @@ func _collect_raid() -> void:
 		_campaign.last_event += "\nThe raid you were in ended: " + " ".join(lines)
 
 
-## Teammates moved (or the team changed): rebuild the map now if it's showing, else next time.
+## Teammates moved (or the team changed): rebuild the map now if it's showing, else next time. A
+## map in the middle of a moment (a liberation, horde news, a siege banner) is rebuilt once it ends.
 func _on_team_changed() -> void:
 	_campaign_stale = true
-	if _profile and get_child_count() > 0 and get_child(-1) is MapScreen and not get_child(-1).celebrating:
+	if _rebuild_waiting or not _profile or get_child_count() == 0 or not get_child(-1) is MapScreen:
+		return
+	var map: MapScreen = get_child(-1)
+	_rebuild_waiting = true
+	while is_instance_valid(map) and map.celebrating:
+		await get_tree().process_frame
+	_rebuild_waiting = false
+	if is_instance_valid(map) and get_child_count() > 0 and get_child(-1) == map and _campaign_stale and _profile:
 		_show_map(_profile, false)
 
 
