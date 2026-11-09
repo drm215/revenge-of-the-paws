@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<!-- Godot 4.7.2's misc/dist/html/full-size.html, plus one change for Revenge of the Paws: the game
+     only starts in one window or tab at a time (see ONE WINDOW below). -->
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
@@ -112,7 +114,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":true,"fileSizes":{"index.pck":3511144,"index.wasm":23318452},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":true,"fileSizes":{"index.pck":3511496,"index.wasm":23318452},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -199,6 +201,57 @@ const engine = new Engine(GODOT_CONFIG);
 			displayFailureNotice(missingMsg + missing.join('\n'));
 		}
 	} else {
+		// ONE WINDOW: every window keeps its own copy of the saved games in memory and writes all of
+		// it back to the browser's storage on each save, deleting files it doesn't have. A second
+		// window would erase games the first one made, so it waits until the first is closed.
+		// The lock is let go when the window closes (or the browser drops it).
+		if (navigator.locks && navigator.locks.request) {
+			const tryStart = function () {
+				navigator.locks.request('revenge-of-the-paws', { ifAvailable: true }, function (lock) {
+					if (!lock) {
+						showElsewhere();
+						return null;
+					}
+					hideElsewhere();
+					start();
+					return new Promise(function () {});  // held while this window is open
+				});
+			};
+			const showElsewhere = function () {
+				let box = document.getElementById('paws-elsewhere');
+				if (!box) {
+					box = document.createElement('div');
+					box.id = 'paws-elsewhere';
+					box.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:28px;background:#181425;color:#c0cbdc;font:18px/1.5 monospace;text-align:center;z-index:10';
+					const title = document.createElement('div');
+					title.textContent = 'Revenge of the Paws is already open';
+					title.style.cssText = 'color:#feae34;font-size:20px';
+					const text = document.createElement('div');
+					text.textContent = 'The game is running in another window or tab. Playing in two at once can erase saved games, so close the other one, then tap Try again.';
+					text.style.maxWidth = '30em';
+					const again = document.createElement('button');
+					again.textContent = 'Try again';
+					again.style.cssText = 'font:18px monospace;padding:14px 30px;background:#262b44;color:#fff;border:3px solid #feae34;cursor:pointer';
+					again.onclick = tryStart;
+					box.append(title, text, again);
+					document.body.appendChild(box);
+				}
+				box.style.display = 'flex';
+				statusOverlay.style.visibility = 'hidden';
+			};
+			const hideElsewhere = function () {
+				const box = document.getElementById('paws-elsewhere');
+				if (box) {
+					box.style.display = 'none';
+				}
+			};
+			tryStart();
+		} else {
+			start();
+		}
+	}
+
+	function start() {
 		setStatusMode('progress');
 		engine.startGame({
 			'onProgress': function (current, total) {
