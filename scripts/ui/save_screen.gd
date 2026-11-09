@@ -8,6 +8,8 @@ signal new_game
 ## Log in to a cloud save (a new device).
 signal account_requested
 
+const CONFIRM_DELAY_MS := 400  # "Sure?" only counts once it can have been read
+
 var _list := VBoxContainer.new()
 
 
@@ -128,10 +130,14 @@ func _card(info: Dictionary) -> Control:
 	delete.custom_minimum_size = Vector2(150, 48)
 	delete.add_theme_font_size_override("font_size", Retro.px(15))
 	delete.add_theme_color_override("font_color", Retro.PINK)
+	var asked := [0]
 	delete.pressed.connect(func() -> void:
 		if delete.text == "Delete":
 			delete.text = "Sure?"
+			asked[0] = Time.get_ticks_msec()
 			return
+		if Time.get_ticks_msec() - asked[0] < CONFIRM_DELAY_MS:
+			return  # a double tap isn't an answer
 		Saves.delete(String(info.id))
 		_build())
 	buttons.add_child(delete)

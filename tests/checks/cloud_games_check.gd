@@ -102,11 +102,16 @@ func _run() -> void:
 	rows = await _cloud_rows()
 	_check("device-2-move" in rows.filter(func(r: Dictionary) -> bool: return r.slot == "save_old")[0].profile, "Keep this device replaces just that game's cloud copy")
 
-	# Deleting a game deletes its cloud copy.
+	# Deleting a game takes its cloud copy out of sync, into the cloud's trash (kept, to put back).
 	Saves.delete("save_new")
 	await cloud.sync()
 	rows = await _cloud_rows()
-	_check(rows.size() == 1 and rows[0].slot == "save_old", "deleting a game removes it from the cloud")
+	var live := rows.filter(func(r: Dictionary) -> bool: return not String(r.slot).begins_with(cloud.TRASH))
+	var binned := rows.filter(func(r: Dictionary) -> bool: return String(r.slot).begins_with(cloud.TRASH))
+	_check(live.size() == 1 and live[0].slot == "save_old", "deleting a game removes it from the cloud's games")
+	_check(binned.size() == 1 and String(binned[0].slot).ends_with("_save_new"), "and keeps it in the trash: %s" % [binned.map(func(r: Dictionary) -> String: return r.slot)])
+	await cloud.sync()
+	_check(Saves.describe("save_new").is_empty() and not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(Saves.DIR + "/" + String(binned[0].slot))), "a trashed game never syncs back")
 	Saves.delete("save_old")
 	await cloud.sync()
 	print("%d failure(s)" % _fails)

@@ -51,3 +51,14 @@ select s.slot, s.updated_at, s.device,
 from public.saves s join auth.users u on u.id = s.user_id
 where u.email = 'someone@example.com'
 order by s.updated_at desc;
+
+
+-- 5. Put back a deleted game. A deleted game's cloud copy is kept, renamed deleted_<time>_<slot>.
+--    First list them (put their email in), then rename the one to restore back to its slot: the
+--    player's device downloads it on the next sync.
+select s.slot, s.updated_at, substring(s.profile from 'pet_name="([^"]*)"') as pet
+from public.saves s join auth.users u on u.id = s.user_id
+where u.email = 'someone@example.com' and s.slot like 'deleted\_%'
+order by s.updated_at desc;
+-- update public.saves set slot = regexp_replace(slot, '^deleted_[0-9]+_', '')
+-- where user_id = (select id from auth.users where email = 'someone@example.com') and slot = 'deleted_..._save_...';

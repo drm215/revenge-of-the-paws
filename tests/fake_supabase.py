@@ -371,10 +371,14 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {})
 
     def _save_rows(self):
-        """This user's save rows, filtered by ?slot=eq.X like PostgREST."""
+        """This user's save rows, filtered by ?slot=eq.X (or not.like.X*) like PostgREST."""
         uid = self._user()
         q = parse_qs(urlparse(self.path).query)
-        slot = q.get("slot", [""])[0].removeprefix("eq.")
+        rule = q.get("slot", [""])[0]
+        if rule.startswith("not.like."):
+            prefix = rule.removeprefix("not.like.").removesuffix("*")
+            return [r for r in state["saves"] if r["user"] == uid and not r["slot"].startswith(prefix)]
+        slot = rule.removeprefix("eq.")
         return [r for r in state["saves"] if r["user"] == uid and (slot == "" or r["slot"] == slot)]
 
     def do_DELETE(self):
@@ -391,7 +395,7 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith("/rest/v1/saves") and self._user():
             if slow.get("save_status"):
                 return self._send(slow["save_status"], {"message": "refused for the test"})
-            rows = [r for r in self._save_rows() if r["updated_at"] == want]
+            rows = [r for r in self._save_rows() if r["updated_at"] == want or "updated_at" not in q]  # (no version: a rename)
             if rows:
                 rows[0].update(body, updated_at=stamp())
                 return self._send(200, [rows[0]])

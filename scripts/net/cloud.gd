@@ -59,6 +59,8 @@ var _battle_logs: Array = []  # battle reports not yet sent (see log_battle)
 var _dungeon_records := {}  # region -> {wave, name}: a new deepest wave not yet sent
 var _last_error := ""  # why the last request failed, shown after "Offline" so problems can be traced
 var _conflict_ui: CanvasLayer
+## A deleted game's cloud copy is renamed TRASH + "<unix time>_<slot>": kept, but never synced.
+const TRASH := "deleted_"
 
 
 func _ready() -> void:
@@ -318,7 +320,7 @@ func _sync_once(retried := false) -> void:
 			_set_status("Offline. Will sync when back online." + _last_error)
 			_timer.start(RETRY_DELAY)
 		return
-	var path := "/rest/v1/saves?user_id=eq.%s&select=slot,updated_at" % _user_id
+	var path := "/rest/v1/saves?user_id=eq.%s&slot=not.like.%s*&select=slot,updated_at" % [_user_id, TRASH]
 	var r := await _request(HTTPClient.METHOD_GET, path)
 	if r.code == 401 or r.code == 403:
 		_access = ""  # the database turned the login down: refresh it and try once more
@@ -334,10 +336,13 @@ func _sync_once(retried := false) -> void:
 	var cloud := {}  # slot -> updated_at
 	for row: Dictionary in r.data:
 		cloud[String(row.slot)] = String(row.updated_at)
-	# Games deleted here go from the cloud too.
+	# Games deleted here go from the cloud too: into its trash (renamed out of the way, so it can be
+	# put back from the dashboard), where sync never looks.
 	for slot: String in _deleted.duplicate():
-		var d := await _request(HTTPClient.METHOD_DELETE, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s" % [_user_id, slot.uri_encode()])
+		var d := await _request(HTTPClient.METHOD_PATCH, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s" % [_user_id, slot.uri_encode()],
+			{"slot": "%s%d_%s" % [TRASH, int(Time.get_unix_time_from_system()), slot]})
 		if d.ok:
+			_report("deleted", slot, {}, {"in_cloud": cloud.has(slot)})
 			_deleted.erase(slot)
 			cloud.erase(slot)
 	_store_state()

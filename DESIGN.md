@@ -209,7 +209,10 @@ The apocalypse starts **where you actually live**.
   and New game; the map's Saves button comes back here (there is no Setup button any more). A save from before slots becomes the
   first one. The cloud keeps every game (one `saves` row per player and game) and syncs them one
   by one: a game this device doesn't have downloads, the newer copy of each game wins, the same
-  game changed on both devices asks which to keep, and deleting a game deletes its cloud copy.
+  game changed on both devices asks which to keep, and deleting a game moves its cloud copy to the
+  trash: the row is renamed `deleted_<unix time>_<slot>` (`Cloud.TRASH`), which sync never reads, and
+  a `deleted` sync event is logged (server/admin_queries.sql 5 puts one back). "Sure?" ignores a tap
+  in the first 0.4 s, so a double tap can't delete.
   Only the game being played restarts when its copy downloads.
 - **Clearing states and regions:** free every ZIP area that's really in a state (counted by
   `tools/build_state_areas.py`: Virginia has 903, DC 57) and the state is cleared; clear every
@@ -271,6 +274,10 @@ The apocalypse starts **where you actually live**.
   expired login) is reported to `sync_events` (server/sync_events.sql), and battle logs carry the
   save slot, minutes without a backup and the last upload error. A cloud copy that replaces a
   different copy on the device keeps the old one; the save picker offers it back.
+- **One window at a time** (web, `web/shell.html`, Godot's page plus a Web Lock): every window holds
+  its own copy of `user://` and writes all of it back to IndexedDB on each save, deleting files it
+  doesn't have, so two windows erase each other's new games. A second window or tab shows "already
+  open" with Try again, and starts only once the first has closed.
   server/admin_queries.sql finds players whose fights arrive but whose saves don't.
 - **Battle log** (for balancing): every finished fight sends a report (`Battle.report()`: the
   setup (including whether it was an assault or had a warlord), each critter's level, row, stats, damage dealt and taken, skills used and knockouts, the
