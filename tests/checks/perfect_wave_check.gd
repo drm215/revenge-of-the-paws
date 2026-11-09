@@ -1,6 +1,6 @@
 extends SceneTree
 
-## A perfect wave (no animal hurt) gives the pack ATK, stacking, until any animal takes damage.
+## A perfect wave (the rest after it has every animal at full HP) gives the pack ATK, stacking, until any animal takes damage.
 
 var _fails := 0
 
@@ -25,7 +25,7 @@ func _clear_wave(b: Battle) -> void:
 
 
 func _init() -> void:
-	var b := Battle.new(_profile(), [["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"]], 1.0, 1.0, "test", 1)
+	var b := Battle.new(_profile(), [["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"]], 1.0, 1.0, "test", 1)
 	var said: Array[int] = []
 	b.perfect_changed.connect(func(stacks: int) -> void: said.append(stacks))
 	b.start_next_wave()
@@ -56,7 +56,21 @@ func _init() -> void:
 	_check(is_equal_approx(b._base_damage(bear, b.enemies[0], 1.0), plain), "back to plain ATK")
 	_clear_wave(b)
 	b.start_next_wave()
-	_check(b.perfect == 0, "and a wave with a hit in it isn't perfect")
+	_check(b.perfect == 1, "a wave whose hits the rest heals is perfect again (from 1: %d)" % b.perfect)
+	var owl: Combatant = b.party[2]
+	b._apply_damage(owl, roundi(owl.max_hp * 0.5), false)
+	_clear_wave(b)
+	b.start_next_wave()
+	_check(b.perfect == 0 and owl.hp < owl.max_hp, "one the rest can't heal back to full isn't (%d/%d HP)" % [owl.hp, owl.max_hp])
+	for c in b.party:
+		c.hp = c.max_hp
+	b.party[0].hp = 0
+	b.party[0].fell_in_wave = b.wave_index
+	_clear_wave(b)
+	b.start_next_wave()
+	_check(b.perfect == 0, "nor one with an animal down")
+	for c in b.party:
+		c.hp = c.max_hp
 
 	# On screen: the pack's cards glow gold while the streak lasts.
 	var card := UnitCard.new()

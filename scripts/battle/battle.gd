@@ -68,7 +68,6 @@ var _legend_phase := {}  # Combatant -> how far through its fight: 1 = called fo
 var _last_gasp := {}  # Combatant -> its turns left before its Last Gasp lands
 var perfect := 0  # perfect waves in a row (capped at PERFECT_MAX_STACKS); the pack's ATK bonus, until hurt
 var perfect_waves := 0  # how many perfect waves this fight, for the log
-var _wave_hurt := false  # an animal has taken damage this wave
 var rng := RandomNumberGenerator.new()
 
 var _waves: Array
@@ -259,13 +258,13 @@ func dungeon_wave() -> int:
 func start_next_wave() -> void:
 	wave_index += 1
 	if wave_index > 0:
-		if not _wave_hurt:
+		_rest_party()
+		# Perfect: the rest between waves has every animal back on its paws at full HP.
+		if party.all(func(c: Combatant) -> bool: return c.is_alive() and c.hp >= c.max_hp):
 			perfect = mini(perfect + 1, GameData.PERFECT_MAX_STACKS)
 			perfect_waves += 1
-			log_message.emit("[color=#ffd34d][b]PERFECT WAVE![/b] Not a scratch: the pack gets +%d%% ATK until one of them is hurt.[/color]" % roundi(perfect_atk_bonus() * 100))
+			log_message.emit("[color=#ffd34d][b]PERFECT WAVE![/b] The whole pack is back to full: +%d%% ATK until one of them is hurt.[/color]" % roundi(perfect_atk_bonus() * 100))
 			perfect_changed.emit(perfect)
-		_rest_party()
-	_wave_hurt = false
 	if dungeon != "":
 		if wave_index >= _waves.size():
 			_waves.append(GameData.dungeon_wave(dungeon, dungeon_wave()))
@@ -769,7 +768,6 @@ func _apply_damage(dst: Combatant, amount: int, crit: bool) -> void:
 	_taken[dst] = int(_taken.get(dst, 0)) + mini(amount, dst.hp)
 	dst.hp = maxi(0, dst.hp - amount)
 	if dst.is_player and amount > 0:
-		_wave_hurt = true
 		if perfect > 0:
 			perfect = 0
 			log_message.emit("[color=#ff8080]%s is hurt: the perfect streak is over.[/color]" % dst.display_name)
