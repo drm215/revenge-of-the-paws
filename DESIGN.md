@@ -88,8 +88,10 @@ The apocalypse starts **where you actually live**.
   `Raid.REMATCH` tag (no server change), so a free lair doesn't call it off, the result is stored
   with `rematch` and 0 XP, `claim_raid` pays nothing and `_record_raid` leaves the map alone.
 - **Sweep**: attackable land `SWEEP_LEVEL_GAP` (8) or more levels below the fighting pack's level
-  can be taken without a fight (Sweep, beside Attack!): a map turn, no injuries, `SWEEP_XP_SHARE`
-  of the XP, no siege damage. Lairs, warlords and counterattacks are always fought.
+  can be taken without a fight. "Sweep all" (beside Attack! while any such land exists) takes all of
+  it in one tap, including land that opens up as it goes: a map turn each, no injuries,
+  `SWEEP_XP_SHARE` of the XP, no siege damage, one combined report. It stops at a new
+  counterattack. Lairs, warlords and counterattacks are always fought.
 - **Reinforcements:** the pack starts at +5% HP/ATK; land held beyond home and linked to it adds +1% per 20
   territories (max +30%): slow to build, big on a large map. The Guide spells it out.
 - **Warlords:** from turn 10, nests raise named champions ("Rotjaw, the Butcher of Lebanon") that

@@ -456,6 +456,15 @@ func can_sweep(i: int) -> bool:
 	return territory_level(i) <= profile.pack_level() - GameData.SWEEP_LEVEL_GAP
 
 
+## Every territory that can be swept right now (see can_sweep), in map order.
+func sweepable() -> Array[int]:
+	var out: Array[int] = []
+	for i in territories.size():
+		if can_sweep(i):
+			out.append(i)
+	return out
+
+
 ## The XP each fighter gets for sweeping territory `i`: a share of what its zombies would pay, with
 ## catch-up (`boosted`; teammates' share comes from the plain amount).
 func sweep_xp(i: int, boosted := true) -> int:

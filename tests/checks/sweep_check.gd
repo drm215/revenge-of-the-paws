@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Sweep: land far below the fighting pack falls without a fight (a turn, no injuries, a share of
+## Sweep all: land far below the fighting pack falls without a fight (a turn, no injuries, a share of
 ## the XP, no fatigue). Lairs, warlords, counterattacks and close fights are always fought.
 
 var _fails := 0
@@ -85,23 +85,34 @@ func _run() -> void:
 	mc.territories[i].met_level = 5
 	mc.territories[i].threat = 1
 	mc.under_attack = -1
+	# A second far-below territory: Sweep all takes both (and any land they open up) in one tap.
+	var j := -1
+	for k in mc.territories.size():
+		if k != i and mc.can_attack(k) and mc.territories[k].boss == "" and mc.warlord_at(k).is_empty():
+			j = k
+			break
+	if j >= 0:
+		mc.territories[j].met_level = 5
+		mc.territories[j].threat = 1
 	map._select(i)
-	_check(map._sweep.visible and "Sweep takes it now" in map._info_body.text, "the map offers Sweep beside Attack!")
+	var count: int = mc.sweepable().size()
+	_check(count >= 2 and map._sweep.visible and map._sweep.text == "Sweep all (%d)" % count and "Sweep all takes it" in map._info_body.text,
+		"the map offers Sweep all beside Attack! (%s, %d land)" % [map._sweep.text, count])
 	var turn: int = mc.turn
 	var xp_before: int = main._profile.xp.dog
 	main._profile.fatigue["black_bear"] = 1
 	main._profile.duties.erase("forage")  # a forager's random find would muddle the XP count
-	var expected: int = mc.sweep_xp(i)
+	var at_least: int = mc.sweep_xp(i) + mc.sweep_xp(j)
 	map._sweep.pressed.emit()
 	for k in 6:
 		await process_frame
 	mc = main._campaign
-	_check(mc.territories[i].owned, "Sweep frees it")
-	_check(mc.turn == turn + 1, "it takes a map turn")
-	_check(main._profile.xp.dog == xp_before + expected, "the pack gets the XP (+%d; dog went %d -> %d, turn %d -> %d, event: %s)" % [
-		expected, xp_before, main._profile.xp.dog, turn, mc.turn, mc.last_event.replace("
-", " | ")])
+	var swept := mc.turn - turn
+	_check(mc.territories[i].owned and mc.territories[j].owned, "Sweep all frees both")
+	_check(swept >= 2 and (mc.sweepable().is_empty() or mc.under_attack >= 0), "a map turn each, until none is left (%d swept, %d left)" % [swept, mc.sweepable().size()])
+	_check(main._profile.xp.dog >= xp_before + at_least, "the pack gets the XP (dog went %d -> %d, at least +%d)" % [xp_before, main._profile.xp.dog, at_least])
 	_check(main._profile.injuries.is_empty() and int(main._profile.fatigue.get("black_bear", 0)) == 1, "no injuries, and nobody tires")
-	_check(main._campaign.last_event.begins_with("Swept "), "the map says so: " + main._campaign.last_event.get_slice("\n", 0))
+	_check(main._campaign.last_event.begins_with("Swept %d territories" % swept), "one report: " + main._campaign.last_event.get_slice("
+", 0))
 	print("%d failure(s)" % _fails)
 	quit()

@@ -152,7 +152,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 			_show_map(_profile, false))
 	screen.battle_requested.connect(_show_battle)
 	screen.patrol_requested.connect(_show_battle.bind(true))
-	screen.sweep_requested.connect(_sweep)
+	screen.sweep_requested.connect(_sweep_all)
 	screen.rest_requested.connect(func() -> void:
 		_campaign.rest()
 		_profile.save()
@@ -415,18 +415,37 @@ func _show_rematch(territory: int) -> void:
 	_swap(screen)
 
 
-## Takes land far below the pack without a fight: the fighters get a share of its XP, the map turn
-## passes and the liberation plays as usual.
-func _sweep(territory: int) -> void:
-	if not _campaign.can_sweep(territory):
+## Sweep all: takes every territory far below the pack without a fight, one map turn each (land that
+## opens up as it goes too), until none is left or the horde counterattacks. The fighters get a share
+## of each one's XP, nobody tires, and the last liberation plays as usual.
+func _sweep_all() -> void:
+	if _campaign.sweepable().is_empty():
 		return
-	var xp := _campaign.sweep_xp(territory)
 	var tired := _profile.fatigue.duplicate()
-	var lines := _profile.after_battle(_profile.pack_ids(), [], xp, true)
-	_profile.fatigue = tired  # no fight, so nobody tires
-	_campaign.resolve_battle(territory, true, _campaign.sweep_xp(territory, false))
-	_campaign.last_event = "Swept %s: +%d XP each.%s" % [_campaign.territories[territory].full_name(), xp,
-		("\n" + "\n".join(lines.slice(1))) if lines.size() > 1 else ""] + ("\n" + _campaign.last_event if _campaign.last_event != "" else "")
+	var names: PackedStringArray = []
+	var news: PackedStringArray = []
+	var gained := 0
+	var attacked := _campaign.under_attack
+	for k in _campaign.territories.size():
+		var open := _campaign.sweepable()
+		if open.is_empty():
+			break
+		var territory: int = open[0]
+		var xp := _campaign.sweep_xp(territory)
+		gained += xp
+		news.append_array(_profile.after_battle(_profile.pack_ids(), [], xp, true).slice(1))
+		_campaign.last_event = ""
+		_campaign.resolve_battle(territory, true, _campaign.sweep_xp(territory, false))
+		names.append(_campaign.territories[territory].full_name())
+		for line in _campaign.last_event.split("\n", false):
+			if not line.ends_with(" liberated!"):
+				news.append(line)
+		if _campaign.under_attack >= 0 and _campaign.under_attack != attacked:
+			break  # the horde strikes back: that fight comes first
+	_profile.fatigue = tired
+	var head := ("Swept %s: +%d XP each." % [names[0], gained]) if names.size() == 1 else \
+		("Swept %d territories (%s): +%d XP each." % [names.size(), ", ".join(names), gained])
+	_campaign.last_event = head + ("\n" + "\n".join(news) if not news.is_empty() else "")
 	_profile.save()
 	if not _profile.units_with_new_points().is_empty():
 		_show_upgrades()
