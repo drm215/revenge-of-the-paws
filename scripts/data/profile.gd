@@ -557,6 +557,26 @@ func locals_needed() -> int:
 	return GameData.PARTY_SIZE - (1 if has_pet() else 0)
 
 
+## A lineup saved with too few or too many fighters (say, mid-pick before a fight) is made whole:
+## unknown, doubled, locked or stabled animals go, and the gaps fill with the strongest of the rest.
+func repair_lineup() -> void:
+	if not GameData.REGIONS.has(region):
+		return
+	var kept: Array[String] = []
+	for id in team:
+		if id not in kept and id != pet_species and GameData.ANIMALS.has(id) and id not in stable \
+				and (id in unlocked or id in GameData.REGIONS[region].animals):
+			kept.append(id)
+	var spare: Array[String] = []
+	for id in unlocked + GameData.REGIONS[region].animals:
+		if id not in kept and id not in spare and id != pet_species and GameData.ANIMALS.has(id) and id not in stable:
+			spare.append(id)
+	spare.sort_custom(func(a: String, b: String) -> bool: return level_of(a) > level_of(b))
+	while kept.size() < locals_needed() and not spare.is_empty():
+		kept.append(spare.pop_front())
+	team.assign(kept.slice(0, locals_needed()))
+
+
 func is_complete() -> bool:
 	return GameData.REGIONS.has(region) and team.size() == locals_needed() \
 		and (not has_pet() or (GameData.PETS.has(pet_species) and pet_name != ""))
@@ -645,6 +665,8 @@ static func load_saved() -> Profile:
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
+	if not p.is_complete() and not p.xp.is_empty():
+		p.repair_lineup()  # a played game whose lineup was saved half-picked: never "unfinished"
 	if not p.is_complete():
 		return null
 	# Saves from before recruiting existed: the home animals and current team are unlocked.
