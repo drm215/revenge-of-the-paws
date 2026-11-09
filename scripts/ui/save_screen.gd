@@ -11,6 +11,7 @@ signal account_requested
 const CONFIRM_DELAY_MS := 400  # "Sure?" only counts once it can have been read
 
 var _list := VBoxContainer.new()
+var _builds := 0  # a late answer from the cloud only lands in the list it was asked for
 
 
 func _ready() -> void:
@@ -63,6 +64,7 @@ func _ready() -> void:
 
 
 func _build() -> void:
+	_builds += 1
 	for child in _list.get_children():
 		child.queue_free()
 	var saves := Saves.list()
@@ -73,6 +75,71 @@ func _build() -> void:
 		_list.add_child(none)
 	for info: Dictionary in saves:
 		_list.add_child(_card(info))
+	_missing_team_games(saves)
+
+
+## A team game this account is on but this device has no game for (deleted, or lost with the
+## browser's storage): every member keeps theirs, so it's offered back from the cloud, the trash
+## included. With no copy left anywhere, a new game can still join the team's map by its code.
+func _missing_team_games(saves: Array[Dictionary]) -> void:
+	var cloud := get_node_or_null("/root/Cloud")
+	var team := get_node_or_null("/root/Team")
+	if not cloud or not team or not cloud.signed_in():
+		return
+	var build := _builds
+	var teams: Array = await team.my_teams()
+	if not is_instance_valid(self) or build != _builds:
+		return
+	var here := {}
+	for info in saves:
+		here[String(info.get("team", ""))] = true
+	for t: Dictionary in teams:
+		var id := String(t.get("id", ""))
+		if id == "" or here.has(id):
+			continue
+		var copy: Dictionary = await cloud.team_copy(id)
+		if not is_instance_valid(self) or build != _builds:
+			return
+		var names: PackedStringArray = []
+		for m: Dictionary in t.get("members", []):
+			if String(m.get("user_id", "")) != cloud.user_id():
+				names.append(String(m.name).get_slice(" · ", 0))
+		_list.add_child(_missing_card(t, names, copy))
+
+
+func _missing_card(t: Dictionary, names: PackedStringArray, copy: Dictionary) -> Control:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.GOLD, Retro.BORDER, 0, 12))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	panel.add_child(col)
+	var title := Retro.title(Label.new(), 13, Retro.GOLD)
+	title.text = "Team game" + (" with " + " & ".join(names) if not names.is_empty() else "") + " (code %s)" % String(t.get("code", ""))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(title)
+	var detail := Retro.text(Label.new(), 18, Retro.MIST)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(detail)
+	if copy.is_empty():
+		detail.text = "Not on this device, and no copy of your pack is left in the cloud. Tap New game, then join with code %s to play on this team's map again." % String(t.get("code", ""))
+		return panel
+	detail.text = "Not on this device. Your copy in the cloud: %s (saved %s)." % [
+		get_node("/root/Cloud").summary(String(copy.profile), String(copy.get("campaign", ""))), String(copy.updated_at).left(10)]
+	var back := Button.new()
+	back.text = "Bring it back"
+	back.custom_minimum_size = Vector2(0, 64)
+	back.pressed.connect(func() -> void:
+		back.disabled = true
+		back.text = "Bringing it back..."
+		var error: String = await get_node("/root/Cloud").bring_back(String(copy.slot))
+		if error != "":
+			back.disabled = false
+			back.text = "Bring it back"
+			detail.text = error
+			return
+		_build())
+	col.add_child(back)
+	return panel
 
 
 ## One saved game: tap it to play; Delete asks again before it deletes.

@@ -423,6 +423,31 @@ func _fetch(slot: String) -> Dictionary:
 	return r.data[0] if r.ok and r.data is Array and not r.data.is_empty() else {}
 
 
+## This account's newest cloud copy of a game on team `team` ({} if none or offline): {slot,
+## updated_at, profile, campaign}. Copies in the trash count: a deleted team game can come back.
+func team_copy(team: String) -> Dictionary:
+	if not signed_in() or team == "" or not await _ensure_token():
+		return {}
+	var r := await _request(HTTPClient.METHOD_GET, "/rest/v1/saves?user_id=eq.%s&profile=like.*%s*&select=slot,profile,campaign,updated_at&order=updated_at.desc&limit=1" % [
+		_user_id, team.uri_encode()])
+	return r.data[0] if r.ok and r.data is Array and not r.data.is_empty() else {}
+
+
+## Puts cloud copy `slot` (from team_copy) back on this device: out of the trash first if it's
+## there, then a sync downloads it. Returns "" or what went wrong.
+func bring_back(slot: String) -> String:
+	if slot.begins_with(TRASH):
+		var original := slot.trim_prefix(TRASH)
+		original = original.substr(original.find("_") + 1)  # drop the "<unix time>_"
+		var r := await _request(HTTPClient.METHOD_PATCH, "/rest/v1/saves?user_id=eq.%s&slot=eq.%s" % [_user_id, slot.uri_encode()],
+			{"slot": original}, true, ["Prefer: return=representation"])
+		if not r.ok or not r.data is Array or r.data.is_empty():
+			return "Couldn't reach the cloud. Try again." if r.code == 0 else "%s (%d)" % [_error_text(r), r.code]
+		_report("restored", original, {}, {"from": slot})
+	await sync()
+	return ""
+
+
 func _download(slot: String) -> void:
 	var row := await _fetch(slot)
 	if not row.is_empty():

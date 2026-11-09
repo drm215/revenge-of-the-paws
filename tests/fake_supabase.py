@@ -379,7 +379,15 @@ class H(BaseHTTPRequestHandler):
             prefix = rule.removeprefix("not.like.").removesuffix("*")
             return [r for r in state["saves"] if r["user"] == uid and not r["slot"].startswith(prefix)]
         slot = rule.removeprefix("eq.")
-        return [r for r in state["saves"] if r["user"] == uid and (slot == "" or r["slot"] == slot)]
+        rows = [r for r in state["saves"] if r["user"] == uid and (slot == "" or r["slot"] == slot)]
+        has = q.get("profile", [""])[0]  # profile=like.*text*
+        if has.startswith("like."):
+            rows = [r for r in rows if has.removeprefix("like.").strip("*") in r.get("profile", "")]
+        if q.get("order", [""])[0] == "updated_at.desc":
+            rows = sorted(rows, key=lambda r: r["updated_at"], reverse=True)
+        if q.get("limit"):
+            rows = rows[:int(q["limit"][0])]
+        return rows
 
     def do_DELETE(self):
         if self.path.startswith("/rest/v1/saves") and self._user():

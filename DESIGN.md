@@ -215,6 +215,10 @@ The apocalypse starts **where you actually live**.
   trash: the row is renamed `deleted_<unix time>_<slot>` (`Cloud.TRASH`), which sync never reads, and
   a `deleted` sync event is logged (server/admin_queries.sql 5 puts one back). "Sure?" ignores a tap
   in the first 0.4 s, so a double tap can't delete.
+  Every member keeps a team game: a team the account is on (`my_teams`) with no game here shows in
+  the picker as "Team game with ...", and "Bring it back" fetches the member's newest cloud copy of
+  it (`Cloud.team_copy`, trash included; `Cloud.bring_back` renames it out of the trash and syncs).
+  With no copy left, the card gives the team code to join from a new game.
   Only the game being played restarts when its copy downloads.
 - **Clearing states and regions:** free every ZIP area that's really in a state (counted by
   `tools/build_state_areas.py`: Virginia has 903, DC 57) and the state is cleared; clear every

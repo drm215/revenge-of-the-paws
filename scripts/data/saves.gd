@@ -84,7 +84,7 @@ static func describe(id: String) -> Dictionary:
 		bits.append("turn %d" % int(c.get_value("campaign", "turn", 0)))
 		played = maxi(played, FileAccess.get_modified_time(path(id, CAMPAIGN)))
 	return {"id": id, "title": ("%s's pack" % pet if pet != "" else "Your pack") + (" · " + town if town != "" else ""),
-		"detail": " · ".join(bits), "played": played}
+		"detail": " · ".join(bits), "played": played, "team": String(p.get_value("profile", "team_id", ""))}
 
 
 ## Keeps a copy of slot `id` as it is now, before a cloud copy replaces it (one copy: the latest).
