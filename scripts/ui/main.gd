@@ -111,7 +111,10 @@ func _show_onboarding(existing: Profile) -> void:
 	else:
 		screen.cancellable = true
 		screen.cancelled.connect(func() -> void:
-			Saves.delete(Saves.slot_of(Profile.save_path))  # the new game was never started
+			# The new game was never started: tidy its empty folder. A game that has a file (one that
+			# didn't open, say) is never deleted from here, nor its cloud copy.
+			if not FileAccess.file_exists(Profile.save_path):
+				Saves.delete(Saves.slot_of(Profile.save_path))
 			_show_saves())
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
