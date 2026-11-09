@@ -75,7 +75,9 @@ func _ready() -> void:
 		raid.text = "Rematch it with your team" if battle_config.get("rematch", false) else "Start a raid with your team"
 		raid.custom_minimum_size = Vector2(0, 72)
 		raid.add_theme_color_override("font_color", Retro.CYAN)
-		raid.pressed.connect(raid_requested.emit)
+		raid.pressed.connect(func() -> void:
+			_keep_lineup()  # the raid picks its own fighters: the pack's lineup stays as it was
+			raid_requested.emit())
 		col.add_child(raid)
 	if not stable_view:
 		var rows := Retro.text(Label.new(), 19, Retro.FOG)
@@ -310,10 +312,15 @@ func _toggle(id: String) -> void:
 
 ## Leaving Ready the pack without fighting keeps the lineup the pack had before.
 func _back() -> void:
-	if profile.team.size() != profile.locals_needed():
-		profile.team = _kept_team
-		profile.duties = _kept_duties
+	_keep_lineup()
 	closed.emit()
+
+
+## Puts back the lineup the pack had before this screen, unless a full one has been picked.
+func _keep_lineup() -> void:
+	if profile.team.size() != profile.locals_needed() and not _kept_team.is_empty():
+		profile.team = _kept_team.duplicate()
+		profile.duties = _kept_duties.duplicate()
 
 
 ## Small sprites + names of the animals picked right now.

@@ -30,6 +30,10 @@ func _init() -> void:
 	for lineup: Array in [[], ["opossum"], ["opossum", "opossum"], ["black_bear", "horned_owl", "red_fox", "opossum"], ["no_such_animal"]]:
 		p.team.assign(lineup)
 		p.save()
+		var raw := ConfigFile.new()
+		raw.load(Profile.save_path)
+		_check((raw.get_value("profile", "team", []) as Array).size() == p.locals_needed(),
+			"saving lineup %s writes a full one: %s (the game keeps %s while picking)" % [lineup, raw.get_value("profile", "team"), p.team])
 		var back := Profile.load_saved()
 		_check(back != null and back.team.size() == back.locals_needed() and back.is_complete(),
 			"a played game saved with lineup %s opens with %s" % [lineup, back.team if back else "nothing"])

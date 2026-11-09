@@ -560,12 +560,16 @@ func locals_needed() -> int:
 ## A lineup saved with too few or too many fighters (say, mid-pick before a fight) is made whole:
 ## unknown, doubled, locked or stabled animals go, and the gaps fill with the strongest of the rest.
 func repair_lineup() -> void:
+	team.assign(full_lineup())
+
+
+## The lineup made whole (see repair_lineup), without changing it.
+func full_lineup() -> Array[String]:
 	if not GameData.REGIONS.has(region):
-		return
+		return team.duplicate()
 	var kept: Array[String] = []
 	for id in team:
-		if id not in kept and id != pet_species and GameData.ANIMALS.has(id) and id not in stable \
-				and (id in unlocked or id in GameData.REGIONS[region].animals):
+		if id not in kept and id != pet_species and GameData.ANIMALS.has(id) and id not in stable 				and (id in unlocked or id in GameData.REGIONS[region].animals):
 			kept.append(id)
 	var spare: Array[String] = []
 	for id in unlocked + GameData.REGIONS[region].animals:
@@ -574,7 +578,7 @@ func repair_lineup() -> void:
 	spare.sort_custom(func(a: String, b: String) -> bool: return level_of(a) > level_of(b))
 	while kept.size() < locals_needed() and not spare.is_empty():
 		kept.append(spare.pop_front())
-	team.assign(kept.slice(0, locals_needed()))
+	return kept.slice(0, locals_needed())
 
 
 func is_complete() -> bool:
@@ -589,7 +593,9 @@ func save() -> void:
 	cfg.set_value("profile", "town", town)
 	cfg.set_value("profile", "pet_species", pet_species)
 	cfg.set_value("profile", "pet_name", pet_name)
-	cfg.set_value("profile", "team", Array(team))
+	# Never a half-picked lineup on disk (mid-pick before a fight, say): a played game saved that
+	# way would look like unfinished setup. The full lineup it would load as is saved instead.
+	cfg.set_value("profile", "team", Array(full_lineup() if team.size() != locals_needed() and not xp.is_empty() else team))
 	cfg.set_value("profile", "xp", xp)
 	cfg.set_value("profile", "unlocked", Array(unlocked))
 	cfg.set_value("profile", "stable", Array(stable))
