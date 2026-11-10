@@ -56,7 +56,7 @@ static func sections() -> Array:
 			["Follow-up", "+%s damage on the zombie another animal just hit." % pct.call(GameData.FOLLOW_UP_BONUS)],
 			["Knockdown", "A heavy hit (Power %s or more) on a weakened zombie stuns it." % pct.call(GameData.KNOCKDOWN_POWER)],
 			["Weak spot", "Each zombie type has one: the right kind of animal deals x%s damage to it (see the Zombie guide)." % str(GameData.ZOMBIE_WEAK_MULT)],
-			["Perfect wave", "Clear a wave and have every animal back at full HP after the rest between waves: the whole pack gets +%s ATK, stacking to +%s, until any animal takes damage." % [pct.call(GameData.PERFECT_ATK_STEP), pct.call(GameData.PERFECT_ATK_STEP * GameData.PERFECT_MAX_STACKS)]],
+			["Perfect wave", "Clear a wave in %d rounds or fewer and have every animal back at full HP after the rest between waves: the whole pack gets +%s ATK, stacking to +%s, until any animal takes damage." % [GameData.PERFECT_MAX_ROUNDS, pct.call(GameData.PERFECT_ATK_STEP), pct.call(GameData.PERFECT_ATK_STEP * GameData.PERFECT_MAX_STACKS)]],
 		]],
 		["Your pack", [
 			["Leader", "Your own pet leads: allies get +%s ATK and DEF while it stands." % pct.call(GameData.LEADER_AURA)],

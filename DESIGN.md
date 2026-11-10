@@ -249,7 +249,7 @@ The apocalypse starts **where you actually live**.
   wave, or more XP. Tests set `PAWS_NO_MUTATION=1`. A **week goal** (`WEEK_GOALS`: free / win /
   hold) is shared on the team map (`goal_progress`), `per_player` times the team size; finishing it
   gives each player a cache trinket and half a level of XP for every animal (pet included).
-- **Perfect waves**: clear a wave and, after the rest between waves, have every animal up and at
+- **Perfect waves**: clear a wave in `PERFECT_MAX_ROUNDS` (2) rounds or fewer and, after the rest between waves, have every animal up and at
   full HP (hits the rest heals back still count) and the whole pack gets +10% ATK
   (stacking to +30% over perfect waves in a row) until any animal is hurt. The wave banner shows it.
 - **Dungeons** (Enter, from the entrance's territory once it's held): each region has one, set in

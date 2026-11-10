@@ -25,7 +25,7 @@ func _clear_wave(b: Battle) -> void:
 
 
 func _init() -> void:
-	var b := Battle.new(_profile(), [["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"]], 1.0, 1.0, "test", 1)
+	var b := Battle.new(_profile(), [["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"], ["shambler"]], 1.0, 1.0, "test", 1)
 	var said: Array[int] = []
 	b.perfect_changed.connect(func(stacks: int) -> void: said.append(stacks))
 	b.start_next_wave()
@@ -69,6 +69,16 @@ func _init() -> void:
 	_clear_wave(b)
 	b.start_next_wave()
 	_check(b.perfect == 0, "nor one with an animal down")
+	for c in b.party:
+		c.hp = c.max_hp
+	_clear_wave(b)
+	b.round_number = GameData.PERFECT_MAX_ROUNDS
+	b.start_next_wave()
+	_check(b.perfect == 1, "a wave cleared in %d rounds is perfect" % GameData.PERFECT_MAX_ROUNDS)
+	_clear_wave(b)
+	b.round_number = GameData.PERFECT_MAX_ROUNDS + 1
+	b.start_next_wave()
+	_check(b.perfect == 1 and b.perfect_waves == 6, "one that takes %d isn't, even unhurt" % (GameData.PERFECT_MAX_ROUNDS + 1))
 	for c in b.party:
 		c.hp = c.max_hp
 

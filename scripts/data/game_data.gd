@@ -1954,6 +1954,7 @@ const FOLLOW_UP_BONUS := 0.25
 ## stacking over perfect waves in a row up to PERFECT_MAX_STACKS, until any animal is hurt.
 const PERFECT_ATK_STEP := 0.1
 const PERFECT_MAX_STACKS := 3
+const PERFECT_MAX_ROUNDS := 2  # a perfect wave is cleared in this many rounds or fewer
 
 
 ## What a skill does in combos, for skill descriptions ("" if nothing).

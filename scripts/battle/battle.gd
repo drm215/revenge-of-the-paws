@@ -258,12 +258,13 @@ func dungeon_wave() -> int:
 func start_next_wave() -> void:
 	wave_index += 1
 	if wave_index > 0:
+		var rounds := round_number  # how many rounds the wave just cleared took
 		_rest_party()
-		# Perfect: the rest between waves has every animal back on its paws at full HP.
-		if party.all(func(c: Combatant) -> bool: return c.is_alive() and c.hp >= c.max_hp):
+		# Perfect: cleared quickly, and the rest between waves has every animal back at full HP.
+		if rounds <= GameData.PERFECT_MAX_ROUNDS and party.all(func(c: Combatant) -> bool: return c.is_alive() and c.hp >= c.max_hp):
 			perfect = mini(perfect + 1, GameData.PERFECT_MAX_STACKS)
 			perfect_waves += 1
-			log_message.emit("[color=#ffd34d][b]PERFECT WAVE![/b] The whole pack is back to full: +%d%% ATK until one of them is hurt.[/color]" % roundi(perfect_atk_bonus() * 100))
+			log_message.emit("[color=#ffd34d][b]PERFECT WAVE![/b] Quick, and the whole pack is back to full: +%d%% ATK until one of them is hurt.[/color]" % roundi(perfect_atk_bonus() * 100))
 			perfect_changed.emit(perfect)
 	if dungeon != "":
 		if wave_index >= _waves.size():
