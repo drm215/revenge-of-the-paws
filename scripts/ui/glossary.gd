@@ -6,9 +6,13 @@ extends Control
 ## the zombie guide is one tap away.
 
 
-## Shows the guide over `screen`.
-static func open(screen: Control) -> void:
+var legends: Array[String] = []  # legends found on this map, for the zombie guide
+
+
+## Shows the guide over `screen`; `found` lists the legends discovered on this map.
+static func open(screen: Control, found: Array[String] = []) -> void:
 	var guide := Glossary.new()
+	guide.legends = found
 	guide.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(guide)
 
@@ -131,7 +135,7 @@ func _ready() -> void:
 	zombies.text = "Zombie guide"
 	zombies.custom_minimum_size = Vector2(0, 80)
 	zombies.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	zombies.pressed.connect(ZombieGuide.open.bind(self))
+	zombies.pressed.connect(func() -> void: ZombieGuide.open(self, legends))
 	buttons.add_child(zombies)
 	var close := Button.new()
 	close.text = "Close"

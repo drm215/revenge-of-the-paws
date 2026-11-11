@@ -109,7 +109,8 @@ The apocalypse starts **where you actually live**.
   Everglades; Chupacabra: Texas; Bigfoot: Pacific NW; lake monsters; ...). A legend's **lair is the
   real ZIP area of its hometown** and appears only when the expanding map reaches it; the map
   lists "Rumors" (nearest legends not yet on the map, with distance in miles and direction) so players know
-  where to push. Outside the US, one legend per world region sits on the far edge (Yeti, Black
+  where to push. Once a lair is on the map, its legend is written into the Zombie guide (lore,
+  base stats, moves, weak spot, resistance, drop); legends not yet found never appear there. Outside the US, one legend per world region sits on the far edge (Yeti, Black
   Shuck, Drop Bear, ...). We stick to folklore cryptids and avoid figures sacred to living
   Indigenous traditions.
 - **Zombie waves are randomized per territory** (shamblers, runners, bloaters; Brute or legend in

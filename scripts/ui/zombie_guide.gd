@@ -2,12 +2,16 @@ class_name ZombieGuide
 extends Control
 
 ## The zombie guide: every zombie type with its stats, moves, what makes it dangerous and its weak
-## point, plus general tips. Opens over whatever screen is showing; Close goes back to it.
+## point, plus general tips, then the legends this map has turned up (never one not found yet).
+## Opens over whatever screen is showing; Close goes back to it.
+
+var legends: Array[String] = []  # legend ids discovered on this map (a lair on it)
 
 
-## Shows the guide over `screen`.
-static func open(screen: Control) -> void:
+## Shows the guide over `screen`, with the legends in `found`.
+static func open(screen: Control, found: Array[String] = []) -> void:
 	var guide := ZombieGuide.new()
+	guide.legends.assign(found.filter(func(id: String) -> bool: return GameData.LEGENDS.has(id)))
 	guide.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(guide)
 
@@ -57,6 +61,12 @@ func _ready() -> void:
 	for id: String in order:
 		list.add_child(_entry(id))
 
+	list.add_child(_label("Legends", 16, Retro.GOLD, true))
+	if legends.is_empty():
+		list.add_child(_label("None found yet. When a legend's lair turns up on your map, it's written in here.", 18, Retro.FOG))
+	for id: String in legends:
+		list.add_child(_legend_entry(id))
+
 	var close := Button.new()
 	close.text = "Close"
 	close.custom_minimum_size = Vector2(0, 80)
@@ -95,6 +105,44 @@ func _entry(id: String) -> Control:
 		text.add_child(_label("%s: %s" % [s.name, GameData.skill_stats(s)], 18, Retro.CYAN))
 	text.add_child(_label(guide.note, 18, Retro.MIST))
 	text.add_child(_label("Weak point: " + GameData.weak_text(id), 18, Retro.YELLOW))
+	return panel
+
+
+## One legend found on this map: sprite, name, lore, base stats, moves, weak spot, resistance, drop.
+func _legend_entry(id: String) -> Control:
+	var z := GameData.enemy(id)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT, Retro.GOLD, Retro.BORDER, 0, 12))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	panel.add_child(row)
+	var path := "res://art/pixel/%s.png" % id
+	if ResourceLoader.exists(path):
+		var sprite := TextureRect.new()
+		sprite.texture = load(path)
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite.custom_minimum_size = Vector2(96, 96)
+		sprite.flip_h = true
+		sprite.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		row.add_child(sprite)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 4)
+	row.add_child(text)
+	text.add_child(_label(z.name, 14, Retro.GOLD, true))
+	text.add_child(_label(z.lore, 18, Retro.MIST))
+	text.add_child(_label("A %s. Base HP %d · ATK %d · DEF %d · SPD %d, grown to match your pack." % [z.build, z.hp, z.atk, z.def, z.spd], 17, Retro.FOG))
+	for skill_id: String in z.skills:
+		var s := GameData.skill(skill_id)
+		text.add_child(_label("%s: %s" % [s.name, GameData.skill_stats(s)], 18, Retro.CYAN))
+	var weak: Dictionary = GameData.LEGEND_WEAKNESS[z.build]
+	text.add_child(_label("Weak spot: %s animals +%d%%. Resists: %s animals -%d%%. %s" % [GameData.tag_name(weak.weak),
+		roundi((GameData.LEGEND_WEAK_MULT - 1.0) * 100), GameData.tag_name(weak.resist),
+		roundi((1.0 - GameData.LEGEND_RESIST_MULT) * 100), weak.why], 18, Retro.YELLOW))
+	if GameData.TRINKETS.has(z.get("drop", "")):
+		text.add_child(_label("Drops: " + GameData.TRINKETS[z.drop].name, 18, Retro.GREEN))
 	return panel
 
 

@@ -739,7 +739,11 @@ func _build_ui() -> void:
 	guide.text = "Guide"
 	guide.custom_minimum_size = Vector2(130, 52)
 	guide.add_theme_font_size_override("font_size", Retro.px(15))
-	guide.pressed.connect(Glossary.open.bind(self))
+	guide.pressed.connect(func() -> void:
+		var found: Array[String] = []
+		if campaign:
+			found = campaign.legends  # only legends with a lair on this map: never one not found yet
+		Glossary.open(self, found))
 	legend_row.add_child(guide)
 	var sound := get_node_or_null("/root/Sound")
 	if sound:
