@@ -374,8 +374,16 @@ func zombie_strength(i: int, threat: int) -> float:
 		met = profile.strongest_pack_level()  # these never get easy: they match the pack of the day
 	if i == under_attack:
 		met += GameData.ASSAULT_LEVEL
+	threat = legend_threat(i, threat)
 	var matched := met - GameData.PACK_LEVEL_GAP + threat - 1
 	return maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
+
+
+## The threat a legend's strength is measured at: capped at MAX_THREAT, so a lair far out on the
+## frontier (threat 40+) is still a fight for the pack of the day (at most 2 levels above it), not
+## dozens of levels beyond. Other territories keep their own threat.
+func legend_threat(i: int, threat: int) -> int:
+	return mini(threat, GameData.MAX_THREAT) if territories[i].boss != "" else threat
 
 
 ## The next fight auto mode takes on its own: a counterattack or neighbor whose own level is at
@@ -481,8 +489,9 @@ func sweep_xp(i: int, boosted := true) -> int:
 func raid_config(i: int, max_level: int, rematch := false) -> Dictionary:
 	var cfg := rematch_config(i) if rematch else battle_config(i)
 	var t := territories[i]
-	var caught_up := GameData.level_strength(max_level - GameData.PACK_LEVEL_GAP + t.threat - 1)
-	cfg.zombie_mult = maxf(GameData.zombie_mult(t.threat), caught_up) * t.horde_strength()
+	var threat := legend_threat(i, t.threat)
+	var caught_up := GameData.level_strength(max_level - GameData.PACK_LEVEL_GAP + threat - 1)
+	cfg.zombie_mult = maxf(GameData.zombie_mult(threat), caught_up) * t.horde_strength()
 	cfg.erase("party_mult")
 	return cfg
 

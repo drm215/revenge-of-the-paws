@@ -62,7 +62,8 @@ The apocalypse starts **where you actually live**.
   A territory's threat and level are fixed when it's first discovered (`Territory.met_level`, saved
   in the shared map, so teammates see the same numbers). Only the horde changes them: a nest
   spreading into it, or losing a counter defense there (+1 threat, so +1 level); failed attacks
-  thin it. Legends are the exception: they always match the pack of the day.
+  thin it. Legends are the exception: they always match the pack of the day, measured at threat 5
+  at most (`Campaign.legend_threat`), so a lair far out on the frontier is never dozens of levels up.
 - **Legends fight like raid bosses** (`GameData.LEGEND_*`, `Battle._advance_legend`): below 66% HP
   they call a Runner and a Shambler (no XP), below 33% they hit 30% harder for good, and they keep
   winding up Cataclysm, which hits the whole pack unless the legend is stunned (cancels it) or the
