@@ -67,7 +67,7 @@ func _init() -> void:
 	card.setup(b.enemies[0], 150.0)
 	root.add_child(card)
 	card.refresh()
-	_check("Reaches back row" in card._status_label.text, "its card says so: " + card._status_label.text)
+	_check("Reaches back row" in card.status_text(), "its card says so: " + card.status_text())
 	card.free()
 	print("%d failure(s)" % _fails)
 	quit()

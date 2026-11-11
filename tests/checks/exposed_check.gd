@@ -32,6 +32,6 @@ func _init() -> void:
 	card.setup(owl, 150.0)
 	root.add_child(card)
 	card.refresh()
-	_check(card._status_label.text.contains("Exposed"), "owl card says Exposed")
+	_check(card.status_text().contains("Exposed"), "owl card says Exposed")
 	print("%d failure(s)" % _fails)
 	quit()

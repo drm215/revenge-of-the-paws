@@ -39,28 +39,28 @@ static func sections() -> Array:
 		]],
 		["Rows", [
 			["Front row", "Takes the hits. While %d or more stand in front, single-target attacks can't reach the back row." % GameData.SCREEN_SIZE],
-			["Back row", "Safe from single-target attacks while it's covered, but its own single-target hits are %s softer (birds hit at full strength)." % pct.call(1.0 - GameData.BACK_ROW_DAMAGE)],
-			["Exposed", "A back-row animal or zombie with fewer than %d in front: anyone can hit it." % GameData.SCREEN_SIZE],
-			["Reach", "Runners, birds and flying legends hit the back row anyway; area attacks always do."],
+			["Back row", "Safe from single-target attacks while it's covered, but its own single-target hits are %s softer (birds hit at full strength)." % pct.call(1.0 - GameData.BACK_ROW_DAMAGE), "back_row"],
+			["Exposed", "A back-row animal or zombie with fewer than %d in front: anyone can hit it." % GameData.SCREEN_SIZE, "exposed"],
+			["Reach", "Runners, birds and flying legends hit the back row anyway; area attacks always do.", "reach"],
 		]],
 		["Statuses", [
-			["Guard", "Braced: a wound-up attack does half damage to it."],
-			["Taunt", "Draws the zombies' single-target attacks to this animal."],
-			["Stunned", "Loses its next turn, and any attack it was winding up is cancelled."],
+			["Guard", "Braced: a wound-up attack does half damage to it.", "guard"],
+			["Taunt", "Draws the zombies' single-target attacks to this animal.", "taunt"],
+			["Stunned", "Loses its next turn, and any attack it was winding up is cancelled.", "stunned"],
 			["Last Gasp", "At %s HP a legend starts counting down %d of its turns, then hits every animal for %s of their HP. Stuns and Guard don't stop it: kill it first." % [pct.call(GameData.LEGEND_LAST_GASP_AT), GameData.LEGEND_LAST_GASP_TURNS, pct.call(GameData.LEGEND_LAST_GASP_DAMAGE)]],
-			["Stun-proof", "A legend that's just been stunned shakes it off: it can't be stunned again for %d of its turns." % GameData.LEGEND_STUN_PROOF],
-			["Weakened", "Hits for %s of its usual damage." % pct.call(GameData.WEAKENED_ATK_MULT)],
-			["Infected", "Loses %s of its max HP at the start of each of its turns. Moves that cure clear it." % pct.call(Battle.INFECTION_DAMAGE)],
-			["Frenzied", "A Screamer's rally: zombies hit %s harder." % pct.call(GameData.FRENZIED_ATK_MULT - 1.0)],
-			["Target", "A Brute or a warlord picks its next victim ahead of time (the hurt animal it can reach) and shows it on that animal's card. It follows through unless a Taunt pulls it away."],
-			["Winding up", "A zombie charging a big attack: it lands next turn at x%s. Stun it to cancel, or Guard to halve it." % str(Battle.WINDUP_POWER)],
+			["Stun-proof", "A legend that's just been stunned shakes it off: it can't be stunned again for %d of its turns." % GameData.LEGEND_STUN_PROOF, "stun_proof"],
+			["Weakened", "Hits for %s of its usual damage." % pct.call(GameData.WEAKENED_ATK_MULT), "weakened"],
+			["Infected", "Loses %s of its max HP at the start of each of its turns. Moves that cure clear it." % pct.call(Battle.INFECTION_DAMAGE), "infected"],
+			["Frenzied", "A Screamer's rally: zombies hit %s harder." % pct.call(GameData.FRENZIED_ATK_MULT - 1.0), "frenzied"],
+			["Target", "A Brute or a warlord picks its next victim ahead of time (the hurt animal it can reach) and shows it on that animal's card. It follows through unless a Taunt pulls it away.", "target"],
+			["Winding up", "A zombie charging a big attack: it lands next turn at x%s. Stun it to cancel, or Guard to halve it." % str(Battle.WINDUP_POWER), "winding"],
 			["Enraged", "Past round %d of a wave, zombies gain %s ATK every round." % [Battle.ENRAGE_ROUND, pct.call(Battle.ENRAGE_STEP)]],
 		]],
 		["Combos", [
 			["Opening", "Any crit-boosting move on a stunned zombie is a sure crit."],
 			["Follow-up", "+%s damage on the zombie another animal just hit." % pct.call(GameData.FOLLOW_UP_BONUS)],
 			["Knockdown", "A heavy hit (Power %s or more) on a weakened zombie stuns it." % pct.call(GameData.KNOCKDOWN_POWER)],
-			["Weak spot", "Each zombie type has one: the right kind of animal deals x%s damage to it (see the Zombie guide)." % str(GameData.ZOMBIE_WEAK_MULT)],
+			["Weak spot", "Each zombie type has one: the right kind of animal deals x%s damage to it (see the Zombie guide)." % str(GameData.ZOMBIE_WEAK_MULT), "weak"],
 			["Perfect wave", "Clear a wave in %d rounds or fewer and have every animal back at full HP after the rest between waves: the whole pack gets +%s ATK, stacking to +%s, until any animal takes damage." % [GameData.PERFECT_MAX_ROUNDS, pct.call(GameData.PERFECT_ATK_STEP), pct.call(GameData.PERFECT_ATK_STEP * GameData.PERFECT_MAX_STACKS)]],
 		]],
 		["Your pack", [
@@ -68,8 +68,9 @@ static func sections() -> Array:
 			["Roles", "Tank: tough, holds the front. Striker: big damage. Support: heals and helps. Disruptor: stuns and weakens. Bruiser: tough and hits hard."],
 			["Bonds", "Animals that fight well together, like 2+ canines or 2+ night animals: each of them gets +%s ATK and DEF." % pct.call(GameData.BOND_BONUS)],
 			["Terrain", "Fighting on its own kind of ground (forest, riverside, streets...) gives an animal +%s ATK and DEF. Fighting at home in its own region adds +%s." % [pct.call(GameData.CONDITION_BONUS), pct.call(GameData.HOME_TURF_BONUS)]],
-			["Perks", "Bonuses from terrain, bonds, trinkets and the tech tree; the battle log spells them out."],
-			["Tired", "Each fight in a row costs %s (up to %s) until it sits one out or rests at home." % [pct.call(GameData.FATIGUE_STEP), pct.call(GameData.MAX_FATIGUE)]],
+			["Perks", "Bonuses from terrain, bonds, trinkets and the tech tree; the battle log spells them out.", "perks"],
+			["Tired", "Each fight in a row costs %s (up to %s) until it sits one out or rests at home." % [pct.call(GameData.FATIGUE_STEP), pct.call(GameData.MAX_FATIGUE)], "tired"],
+			["Injured", "Knocked out in a fight: for %d battles it has %s less HP and ATK while it heals." % [GameData.INJURY_BATTLES, pct.call(GameData.INJURY_PENALTY)], "injured"],
 			["Bench & duties", "Animals not fighting get %s of the XP and can take a duty: Scout shows every territory's waves, Forage finds the odd bit of XP or a trinket, Guard slows counterattacks." % pct.call(GameData.BENCH_XP_SHARE)],
 			["Well rested", "An animal that sits out %d battles in a row comes back well rested for %d fights: +%s ATK and DEF and +%s XP." % [GameData.RESTED_AFTER, GameData.RESTED_BATTLES, pct.call(GameData.RESTED_STATS), pct.call(GameData.RESTED_XP - 1.0)]],
 			["Catch-up", "On a team, a pack below the team's strongest earns +%s XP per level behind, up to +%s, from its own fights and sweeps. It fades as the gap closes." % [pct.call(GameData.CATCH_UP_PER_LEVEL), pct.call(GameData.CATCH_UP_MAX)]],
@@ -168,7 +169,13 @@ func _section(title: String, entries: Array) -> Control:
 		text.add_theme_font_size_override("normal_font_size", Retro.px(18))
 		text.add_theme_font_size_override("bold_font_size", Retro.px(18))
 		text.add_theme_color_override("default_color", Retro.MIST)
-		text.text = "[b][color=#%s]%s[/color][/b]  %s" % [Retro.CYAN.to_html(false), entry[0], entry[1]]
+		var icon := CardIcons.texture(entry[2]) if entry.size() > 2 else null
+		if icon:
+			# The icon a battle card shows for it.
+			text.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			text.add_image(icon, 24, 24)
+			text.append_text(" ")
+		text.append_text("[b][color=#%s]%s[/color][/b]  %s" % [Retro.CYAN.to_html(false), entry[0], entry[1]])
 		box.add_child(text)
 	return panel
 

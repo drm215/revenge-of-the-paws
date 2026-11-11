@@ -32,7 +32,8 @@ var _sprite := TextureRect.new()
 var _name_label := Label.new()
 var _hp_bar := ProgressBar.new()
 var _hp_label := Label.new()
-var _status_label := Label.new()
+var _badges := HFlowContainer.new()  # statuses, perks and the rest as little icons (CardIcons)
+var _status_text := ""
 var _ring := Color(0, 0, 0, 0.35)
 var _time := 0.0
 var _mode := Highlight.NONE
@@ -139,10 +140,10 @@ func setup(c: Combatant, sprite_size: float) -> void:
 	_hp_label.add_theme_constant_override("outline_size", 4)
 	_hp_bar.add_child(_hp_label)
 
-	Retro.text(_status_label, 13 if compact else 16, Retro.YELLOW)
-	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status_label.max_lines_visible = 1 if compact else 3  # a long list of statuses must not stretch the card
-	info.add_child(_status_label)
+	_badges.add_theme_constant_override("h_separation", 6)
+	_badges.add_theme_constant_override("v_separation", 2)
+	_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_child(_badges)
 
 	set_highlight(Highlight.NONE)
 	refresh()
@@ -189,35 +190,75 @@ func refresh() -> void:
 	_hp_bar.max_value = unit.max_hp
 	_hp_bar.value = unit.hp
 	_hp_label.text = "%d / %d" % [unit.hp, unit.max_hp]
-	# Lineup notes: problems by name, bonuses as a count (the battle log spells them out).
-	var parts: PackedStringArray = []
+	# Badges: an icon each (CardIcons), with a number or a word where it matters. Lineup problems by
+	# name, bonuses as a count (the battle log spells them out). [icon, short text, color, full name]
+	var badges: Array = []
 	var perks := 0
 	for note in unit.notes:
-		if note.begins_with("Injured") or note.begins_with("Tired"):
-			parts.append(note)
+		if note.begins_with("Injured"):
+			badges.append(["injured", "", Retro.PINK, note])
+		elif note.begins_with("Tired"):
+			badges.append(["tired", note.trim_prefix("Tired "), Retro.FOG, note])
 		else:
 			perks += 1
 	if perks > 0:
-		parts.append("+%d perk%s" % [perks, "" if perks == 1 else "s"])
+		badges.append(["perks", str(perks), Retro.GREEN, "+%d perk%s" % [perks, "" if perks == 1 else "s"]])
 	if unit.ally_of != "":
-		parts.insert(0, unit.ally_of + "'s")
+		badges.insert(0, ["", unit.ally_of + "'s", Retro.FOG, unit.ally_of + "'s"])
 	if not unit.is_player and unit.traits.get("reach", false) and unit.is_alive():
-		parts.append("Reaches back row")
+		badges.append(["reach", "", Retro.ORANGE, "Reaches back row"])
 	if GameData.ZOMBIE_WEAKNESS.has(unit.id) and unit.is_alive():
-		parts.append("Weak: " + GameData.tag_name(GameData.ZOMBIE_WEAKNESS[unit.id].tag))
+		var tag := GameData.tag_name(GameData.ZOMBIE_WEAKNESS[unit.id].tag)
+		badges.append(["weak", tag, Retro.YELLOW, "Weak: " + tag])
 	if unit.row == "back" and unit.is_alive():
-		parts.append("Exposed" if battle and battle.exposed(unit) else "Back row")
+		var exposed := battle != null and battle.exposed(unit)
+		badges.append(["exposed", "", Retro.RED, "Exposed"] if exposed else ["back_row", "", Retro.FOG, "Back row"])
 	if unit.winding != "":
-		parts.append("WINDING UP %s!" % GameData.skill(unit.winding).name.to_upper())
+		var move: String = GameData.skill(unit.winding).name.to_upper()
+		badges.append(["winding", move + "!", Retro.ORANGE, "WINDING UP %s!" % move])
 	for status in unit.statuses:
-		parts.append("%s %d" % [GameData.STATUSES[status].name, unit.statuses[status]])
+		badges.append([status, str(unit.statuses[status]), Retro.YELLOW, "%s %d" % [GameData.STATUSES[status].name, unit.statuses[status]]])
 	var hunter: Combatant = battle.eyed_by(unit) if battle and unit.is_player and unit.is_alive() else null
 	if hunter:
-		parts.insert(0, "%s'S TARGET" % hunter.display_name.to_upper())
-	_status_label.text = " · ".join(parts)
-	_status_label.add_theme_color_override("font_color", Retro.RED if hunter else Retro.ORANGE if unit.winding != "" else Retro.YELLOW)
-	_status_label.visible = not parts.is_empty()
+		badges.insert(0, ["target", hunter.display_name, Retro.RED, "%s'S TARGET" % hunter.display_name.to_upper()])
+	if compact:
+		badges = badges.slice(0, 4)  # big raids: one short row
+	_status_text = " · ".join(badges.map(func(b: Array) -> String: return b[3]))
+	for child in _badges.get_children():
+		child.queue_free()
+	for b: Array in badges:
+		_badges.add_child(_badge(b[0], b[1], b[2], b[3]))
+	_badges.visible = not badges.is_empty()
 	modulate = _rest_modulate()
+
+
+## Everything the badges say, in words: "Taunt 2 · Guard 2 · +2 perks".
+func status_text() -> String:
+	return _status_text
+
+
+func _badge(icon_id: String, text: String, color: Color, full: String) -> Control:
+	var chip := HBoxContainer.new()
+	chip.add_theme_constant_override("separation", 2)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.tooltip_text = full
+	var tex := CardIcons.texture(icon_id)
+	if tex:
+		var icon := TextureRect.new()
+		icon.texture = tex
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.custom_minimum_size = Vector2(24, 24)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(icon)
+	if text != "":
+		var label := Retro.text(Label.new(), 13 if compact else 16, color)
+		label.text = text if text.length() <= 12 else text.left(11) + "…"
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		chip.add_child(label)
+	return chip
 
 
 func set_highlight(mode: Highlight) -> void:

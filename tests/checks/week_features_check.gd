@@ -69,7 +69,7 @@ func _brute() -> void:
 	root.add_child(card)
 	card.setup(hurt, 60)
 	card.refresh()
-	_check("BRUTE'S TARGET" in card._status_label.text, "the target's card says so: " + card._status_label.text)
+	_check("BRUTE'S TARGET" in card.status_text(), "the target's card says so: " + card.status_text())
 	card.queue_free()
 
 
