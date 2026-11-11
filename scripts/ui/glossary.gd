@@ -137,6 +137,12 @@ func _ready() -> void:
 	zombies.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	zombies.pressed.connect(func() -> void: ZombieGuide.open(self, legends))
 	buttons.add_child(zombies)
+	var story := Button.new()
+	story.text = "Story"
+	story.custom_minimum_size = Vector2(0, 80)
+	story.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	story.pressed.connect(func() -> void: Prologue.play(self))
+	buttons.add_child(story)
 	var close := Button.new()
 	close.text = "Close"
 	close.custom_minimum_size = Vector2(0, 80)

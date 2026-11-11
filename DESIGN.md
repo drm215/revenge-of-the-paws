@@ -7,6 +7,11 @@ The humans are gone. Zombies took them, and now the zombies are coming for every
 A ragtag pack of animals (a loyal dog, a reckless alley cat, a wise old owl, and more as you go)
 band together to scavenge, survive, and push back the undead horde one ruined town at a time.
 
+**Backstory** (the Prologue: four short cards over setup the first time a new game is started on a
+device; the Guide's Story button replays it): the legends were real, hidden and laughed at. They made
+a pact, raised the dead and sent the horde across the land, and humanity fell in one season. But they
+only ever watched the people, never the animals, who now hunt in packs and are coming for them.
+
 ## Your world, your pet
 The apocalypse starts **where you actually live**.
 - **ZIP code (US):** first launch asks for your ZIP. It's looked up offline (bundled GeoNames data,

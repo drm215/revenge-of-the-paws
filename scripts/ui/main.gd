@@ -95,12 +95,13 @@ func _show_saves() -> void:
 	screen.new_game.connect(func() -> void:
 		Saves.use(Saves.new_slot())
 		_use_team("")  # a new game starts solo, from scratch
-		_show_onboarding(null))
+		_show_onboarding(null, not Prologue.seen()))  # the first game on this device opens with the story
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
 
 
-func _show_onboarding(existing: Profile) -> void:
+## Setup (`story`: the backstory plays over it first).
+func _show_onboarding(existing: Profile, story := false) -> void:
 	var screen := Onboarding.new()
 	screen.initial = existing
 	screen.finished.connect(func(profile: Profile) -> void:
@@ -118,6 +119,8 @@ func _show_onboarding(existing: Profile) -> void:
 			_show_saves())
 	screen.account_requested.connect(_show_account)
 	_swap(screen)
+	if story:
+		Prologue.play(screen)
 
 
 func _show_map(profile: Profile, allow_auto := true) -> void:
