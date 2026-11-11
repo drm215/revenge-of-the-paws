@@ -438,7 +438,7 @@ func _sweep_all() -> void:
 		gained += xp
 		news.append_array(_profile.after_battle(_profile.pack_ids(), [], xp, true).slice(1))
 		_campaign.last_event = ""
-		_campaign.resolve_battle(territory, true, _campaign.sweep_xp(territory, false))
+		_campaign.resolve_battle(territory, true, xp)  # teammates share the sweep with its catch-up
 		names.append(_campaign.territories[territory].full_name())
 		for line in _campaign.last_event.split("\n", false):
 			if not line.ends_with(" liberated!"):

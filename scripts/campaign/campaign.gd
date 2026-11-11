@@ -474,7 +474,7 @@ func sweepable() -> Array[int]:
 
 
 ## The XP each fighter gets for sweeping territory `i`: a share of what its zombies would pay, with
-## catch-up (`boosted`; teammates' share comes from the plain amount).
+## catch-up (`boosted`; a sweep's teammates share it boosted too).
 func sweep_xp(i: int, boosted := true) -> int:
 	var cfg := battle_config(i)
 	var total := 0.0
