@@ -129,7 +129,9 @@ The apocalypse starts **where you actually live**.
   Watch"; Disruptor: Hex Cloud, e.g. "Stink Bomb"; Bruiser: Stampede Charge), two upgrades to it,
   and **Mastery at Lv 20** (every skill +20% and recharges faster). 22 tree nodes vs. 19 points by
   Lv 20, so builds differ. **Training** buys stats directly any time (Max HP +8%, Attack +5%,
-  Defense +6%, Speed +1, Crit +4%; up to 15/15/15/6/8), from the same points; past Lv 20 that's where points go. Reset is free. Opens
+  Defense +6%, Speed +1, Crit +4%; up to 15/15/15/6/8), from the same points; past Lv 20 that's where points go. **Honing** (`HONE_ID`, beside
+  Training) has no cap: +1% Max HP, Attack and Defense per point, so levels past Lv 82 (where tree
+  and Training are full) still count. Reset is free. Opens
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and

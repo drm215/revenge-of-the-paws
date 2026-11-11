@@ -1476,6 +1476,11 @@ const UPGRADE_LABELS := {
 ## any time, up to TRAINING_LIMITS times each.
 const STAT_STEP := {"hp": 0.08, "atk": 0.05, "def": 0.06, "spd": 1, "crit": 0.04}
 const TRAINING_LIMITS := {"hp": 15, "atk": 15, "def": 15, "spd": 6, "crit": 8}
+## Honing: Training with no cap, for points past a full tree (22 nodes and 59 Training buys use up
+## Lv 82): each point gives HONE_STEP more Max HP, Attack and Defense. Stored in the tree as HONE_ID,
+## once per point.
+const HONE_ID := "hone"
+const HONE_STEP := 0.01
 const STAT_LABELS := {
 	"hp": "Max HP +8%", "atk": "Attack +5%", "def": "Defense +6%", "spd": "Speed +1", "crit": "Crit chance +4%",
 }

@@ -91,8 +91,15 @@ func owns(unit_id: String, node_id: String) -> bool:
 	return node_id in tree.get(unit_id, [])
 
 
+## How many points the animal has put into honing.
+func honed(unit_id: String) -> int:
+	return tree.get(unit_id, []).count(GameData.HONE_ID)
+
+
 ## Why a node can't be bought right now ("" if it can).
 func tree_block(unit_id: String, node_id: String) -> String:
+	if node_id == GameData.HONE_ID:
+		return "" if points_left(unit_id) > 0 else "No points"  # no cap: one more each point
 	var node := GameData.tree_node(unit_id, node_id)
 	if owns(unit_id, node_id):
 		return "Owned"
@@ -131,6 +138,8 @@ func units_with_new_points() -> Array[String]:
 func can_buy_any(unit_id: String) -> bool:
 	if points_left(unit_id) <= 0:
 		return false
+	if tree_block(unit_id, GameData.HONE_ID) == "":
+		return true
 	for node in GameData.tech_tree(unit_id):
 		if tree_block(unit_id, node.id) == "":
 			return true
@@ -160,6 +169,9 @@ func build_unit(unit_id: String) -> Combatant:
 	c.skill_mods = skill_steps
 	c.apply_level(level_of(unit_id))
 	c.apply_stat_mods(stats)
+	var hone := honed(unit_id) * GameData.HONE_STEP
+	if hone > 0.0:
+		c.scale_stats(1.0 + hone, 1.0 + hone, 1.0 + hone)
 	var bonus: Dictionary = bonuses.get(unit_id, {})
 	if not bonus.is_empty():
 		c.scale_stats(1.0 + float(bonus.get("hp", 0.0)), 1.0 + float(bonus.get("atk", 0.0)), 1.0 + float(bonus.get("def", 0.0)))

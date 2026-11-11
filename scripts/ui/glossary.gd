@@ -30,6 +30,7 @@ static func sections() -> Array:
 			["One foe / All foes", "Single-target moves hit one zombie (and can't reach a covered back row); area moves hit every zombie."],
 			["Cooldown", "Turns to wait before the move can be used again."],
 			["Signature move", "Each animal's own big move, bought in its tech tree."],
+			["Hone", "Training with no cap, for points once the tech tree and Training are full: each point is +%s Max HP, Attack and Defense." % pct.call(GameData.HONE_STEP)],
 			["+N on a move", "Upgrades bought for it in the tech tree."],
 		]],
 		["Rows", [

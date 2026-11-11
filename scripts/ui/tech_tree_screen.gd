@@ -112,6 +112,7 @@ func _show(unit_id: String) -> void:
 	_content.add_child(training)
 	for stat in GameData.TRAINING_LIMITS:
 		training.add_child(_training_card(unit_id, stat))
+	training.add_child(_hone_card(unit_id))
 
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 8)
@@ -235,6 +236,35 @@ func _training_card(unit_id: String, stat: String) -> PanelContainer:
 	if open:
 		Retro.on_tap(card, func() -> void:
 			profile.buy_node(unit_id, next_id)
+			_show(unit_id))
+	return card
+
+
+## Honing: no cap. Each point is HONE_STEP more Max HP, Attack and Defense.
+func _hone_card(unit_id: String) -> PanelContainer:
+	var bought := profile.honed(unit_id)
+	var block := profile.tree_block(unit_id, GameData.HONE_ID)
+	var open := block == ""
+	var card := PanelContainer.new()
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", Retro.box(Retro.NIGHT if open else Retro.INK,
+		Retro.CYAN if open else (Retro.GOLD if bought > 0 else Retro.SLATE), 3, 0, 8))
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(box)
+	var title := Retro.text(Label.new(), 18, Retro.WHITE)
+	title.text = "Hone: HP, ATK, DEF +%d%%" % roundi(GameData.HONE_STEP * 100)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(title)
+	var count := Retro.text(Label.new(), 15, Retro.GOLD if bought > 0 else Retro.FOG)
+	count.text = "%d (+%d%%), no cap" % [bought, roundi(bought * GameData.HONE_STEP * 100)]
+	box.add_child(count)
+	var state := Retro.text(Label.new(), 15, Retro.CYAN if open else Retro.FOG)
+	state.text = "Tap to hone" if open else block
+	box.add_child(state)
+	if open:
+		Retro.on_tap(card, func() -> void:
+			profile.buy_node(unit_id, GameData.HONE_ID)
 			_show(unit_id))
 	return card
 
