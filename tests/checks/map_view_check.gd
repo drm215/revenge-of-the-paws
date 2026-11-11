@@ -90,7 +90,9 @@ func _run() -> void:
 	_view._zoom_at(Vector2(300, 300), 1.5)
 	await process_frame
 	await process_frame
-	_check(_draws.shapes >= 1, "a zoom redraws the shapes, so borders keep their width")
+	_check(_draws.shapes == 0, "mid-zoom the shapes just scale, not redrawn: %s" % _draws)
+	await create_timer(MapView.REBORDER_DELAY + 0.15).timeout
+	_check(_draws.shapes == 1, "once the zoom stops, they're redrawn once so borders keep their width: %s" % _draws)
 	var screen := _view._to_screen(_c.territories[_c.home].site)
 	var via_layer: Vector2 = _view._shapes.position + _c.territories[_c.home].site * _view._shapes.scale
 	_check(screen.distance_to(via_layer) < 0.01, "the shapes line up with labels and taps")
@@ -98,7 +100,7 @@ func _run() -> void:
 	_c.under_attack = _c.home
 	_view.refresh()
 	seen = await _watch(0.5)
-	_check(seen.shapes >= 3, "a counterattack makes the fills glow: %d" % seen.shapes)
+	_check(seen.pulse >= 3 and seen.shapes == 0, "a counterattack's fill glows on the pulse layer, not by redrawing the map: %s" % seen)
 	_c.under_attack = -1
 	_view.refresh()
 

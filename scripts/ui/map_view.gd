@@ -63,6 +63,15 @@ var _shapes_scale := 0.0  # the scale _shapes was drawn at; its borders are redr
 var _pulse_wait := 0.0
 var _fills_pulse := false  # a counterattack or cut-off land glows
 var _outlines_pulse := false  # lairs, pings or nests glow
+# What glows, worked out once per refresh() so the pulse (20 times a second) never scans the map.
+var _glowing_fills: Array[int] = []  # under attack or cut off: their fill pulses, on the _pulse layer
+var _lairs: Array[int] = []
+var _warlord_lands: Array[int] = []
+var _pinged: Array[int] = []
+var _nests: Array[int] = []
+var _label_rank := {}  # territory -> 0 home/selected, 1 lair/warlord/dungeon, 2 actionable, 3 unheld, 4 held
+const REBORDER_DELAY := 0.15  # seconds after a zoom stops before borders are redrawn at their width
+var _reborder_wait := -1.0
 var _loading := Label.new()  # shown while this map's outlines are being fetched
 var _shades := {}  # territory index -> its fill, for those that can be attacked
 var _wave_at := -1  # the territory being liberated on screen right now
@@ -319,26 +328,48 @@ func _process(delta: float) -> void:
 		if _wave_time >= WAVE_SEC:
 			_wave_at = -1
 			_shapes.queue_redraw()
+	if _reborder_wait >= 0.0:
+		_reborder_wait -= delta
+		if _reborder_wait < 0.0:
+			_shapes_scale = _view_scale()
+			_shapes.queue_redraw()
 	_pulse_wait -= delta
 	if _pulse_wait > 0.0:
 		return
 	_pulse_wait = PULSE_INTERVAL
-	if _outlines_pulse:
-		_pulse.queue_redraw()
-	if _fills_pulse:
-		_shapes.queue_redraw()
+	if _outlines_pulse or _fills_pulse:
+		_pulse.queue_redraw()  # only what glows: the map under it stays drawn
 
 
 ## The game changed (ownership, selection, pings): draw it all again.
 func refresh() -> void:
-	_fills_pulse = false
-	_outlines_pulse = not pings.is_empty()
+	for list: Array[int] in [_glowing_fills, _lairs, _warlord_lands, _pinged, _nests]:
+		list.clear()
+	_label_rank.clear()
 	if campaign:
 		_update_shades()
-		_fills_pulse = campaign.under_attack >= 0
 		for i in campaign.territories.size():
-			_fills_pulse = _fills_pulse or campaign.is_cut_off(i)
-			_outlines_pulse = _outlines_pulse or campaign.is_nest(i) or _is_lair(i) or _has_warlord(i)
+			var t := campaign.territories[i]
+			if i == campaign.under_attack or campaign.is_cut_off(i):
+				_glowing_fills.append(i)
+			if _is_lair(i):
+				_lairs.append(i)
+			if _has_warlord(i):
+				_warlord_lands.append(i)
+			if pings.has(t.id):
+				_pinged.append(i)
+			if campaign.is_nest(i):
+				_nests.append(i)
+			if i in campaign.homes:
+				_label_rank[i] = 0
+			elif _is_lair(i) or i in _warlord_lands or t.dungeon != "":
+				_label_rank[i] = 1
+			elif campaign.is_actionable(i):
+				_label_rank[i] = 2
+			else:
+				_label_rank[i] = 4 if t.owned else 3
+	_fills_pulse = not _glowing_fills.is_empty()
+	_outlines_pulse = not (_lairs.is_empty() and _warlord_lands.is_empty() and _pinged.is_empty() and _nests.is_empty())
 	for layer: Node2D in [_shapes, _pulse, _labels]:
 		layer.queue_redraw()
 
@@ -445,9 +476,11 @@ func _clamp_pan() -> void:
 func _view_changed() -> void:
 	_shapes.position = _to_screen(Vector2.ZERO)
 	_shapes.scale = Vector2.ONE * _view_scale()
-	if not is_equal_approx(_shapes_scale, _view_scale()):
+	if _shapes_scale == 0.0:
 		_shapes_scale = _view_scale()
 		_shapes.queue_redraw()
+	elif not is_equal_approx(_shapes_scale, _view_scale()):
+		_reborder_wait = REBORDER_DELAY  # mid-pinch the drawing just scales; borders catch up after
 	_pulse.queue_redraw()
 	_labels.queue_redraw()
 
@@ -456,7 +489,7 @@ func _draw_shapes() -> void:
 	if campaign == null or _parts.is_empty():
 		return
 	var item := _shapes.get_canvas_item()
-	var width := 2.0 / _view_scale()
+	var width := 2.0 / _shapes_scale
 	for i in _draw_order:
 		var color := PackedColorArray([_fill(i)])
 		for part: Dictionary in _parts[i]:
@@ -469,27 +502,31 @@ func _draw_pulse() -> void:
 	if campaign == null or _parts.is_empty():
 		return
 	_pulse.draw_set_transform(_shapes.position, 0.0, _shapes.scale)
+	for i in _glowing_fills:
+		if i == _wave_at:
+			continue
+		var color := PackedColorArray([_glow_fill(i)])
+		for part: Dictionary in _parts[i]:
+			if not part.tris.is_empty():
+				RenderingServer.canvas_item_add_triangle_array(_pulse.get_canvas_item(), part.tris, part.points, color)
+		_outline(i, BORDER, 2.0)
 	if _wave_at >= 0:
 		_draw_wave()
-	for i in campaign.territories.size():
-		if _is_lair(i):
-			_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
-	for i in campaign.territories.size():
-		if _has_warlord(i):
-			_outline(i, HORDE_FRONT.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 5.0)), 4.0)
-	for i in campaign.territories.size():
-		if pings.has(campaign.territories[i].id):
-			_outline(i, Retro.CYAN.lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0)), 5.0)
+	for i in _lairs:
+		_outline(i, LAIR.lerp(Color.BLACK, 0.4 + 0.3 * sin(_time * 3.0)), 3.0)
+	for i in _warlord_lands:
+		_outline(i, HORDE_FRONT.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 5.0)), 4.0)
+	for i in _pinged:
+		_outline(i, Retro.CYAN.lerp(Color.WHITE, 0.5 + 0.5 * sin(_time * 6.0)), 5.0)
 	if selected >= 0:
 		_outline(selected, SELECTED, 4.0)
 	_pulse.draw_set_transform(Vector2.ZERO)
-	for i in campaign.territories.size():
-		if campaign.is_nest(i):
-			# A pulsing red blot marks a nest the horde spreads from.
-			var at := _to_screen(campaign.territories[i].site) + Vector2(-34, -22)
-			_pulse.draw_circle(at, 11, BORDER)
-			_pulse.draw_circle(at, 8, NEST.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 4.0)))
-			_pulse.draw_circle(at, 3, BORDER)
+	for i in _nests:
+		# A pulsing red blot marks a nest the horde spreads from.
+		var at := _to_screen(campaign.territories[i].site) + Vector2(-34, -22)
+		_pulse.draw_circle(at, 11, BORDER)
+		_pulse.draw_circle(at, 8, NEST.lerp(Color.BLACK, 0.3 + 0.3 * sin(_time * 4.0)))
+		_pulse.draw_circle(at, 3, BORDER)
 
 
 func _draw_labels() -> void:
@@ -535,7 +572,7 @@ func _draw_labels() -> void:
 				label = GameData.LEGENDS[t.boss].name
 				color = BEATEN_LAIR
 			_lair_badge(c, t.boss, is_lair)
-		var warlord := _has_warlord(i)
+		var warlord := i in _warlord_lands
 		if warlord:
 			label = String(campaign.warlord_at(i).name)
 			color = Color("ff5a6e")
@@ -565,19 +602,11 @@ func _label_order() -> Array[int]:
 	var area := {}
 	var order: Array[int] = []
 	for i in campaign.territories.size():
-		var t := campaign.territories[i]
-		var is_lair := _is_lair(i)
 		var on_screen := _bboxes[i].size * _fit_scale * _zoom
-		if i in campaign.homes or i == selected:
-			rank[i] = 0
-		elif is_lair or _has_warlord(i) or t.dungeon != "":
-			rank[i] = 1
-		elif maxf(on_screen.x, on_screen.y) < MIN_LABEL_PX:
+		var r: int = 0 if i == selected else _label_rank.get(i, 4)
+		if r > 1 and maxf(on_screen.x, on_screen.y) < MIN_LABEL_PX:
 			continue
-		elif campaign.is_actionable(i):
-			rank[i] = 2
-		else:
-			rank[i] = 4 if t.owned else 3
+		rank[i] = r
 		area[i] = on_screen.x * on_screen.y
 		order.append(i)
 	order.sort_custom(func(a: int, b: int) -> bool:
@@ -624,14 +653,21 @@ func _fill(i: int) -> Color:
 	if i == _wave_at:
 		return _wave_was  # as it was: the tide rolls over this
 	if i == campaign.under_attack:
-		return OWNED.lerp(UNDER_ATTACK, 0.5 + 0.5 * sin(_time * 5.0))
+		return OWNED.lerp(UNDER_ATTACK, 0.5)  # (it pulses on the _pulse layer: _glow_fill)
 	if t.owned:
 		if campaign.is_cut_off(i):
-			return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
+			return CUT_OFF.lerp(INFESTED, 0.25)
 		return HOME if i in campaign.homes else OWNED
 	if campaign.can_attack(i):
 		return _shades.get(i, ATTACKABLE)
 	return INFESTED.lerp(INFESTED_DEEP, float(t.threat) / GameData.MAX_THREAT)
+
+
+## The pulsing fill of land under attack or cut off, drawn over its steady one.
+func _glow_fill(i: int) -> Color:
+	if i == campaign.under_attack:
+		return OWNED.lerp(UNDER_ATTACK, 0.5 + 0.5 * sin(_time * 5.0))
+	return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
 
 
 func _gui_input(event: InputEvent) -> void:
