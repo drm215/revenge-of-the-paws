@@ -405,7 +405,7 @@ func next_turn() -> Combatant:
 			_end_turn(actor)
 			if actor.is_boss and actor.is_alive():
 				actor.add_status("stun_proof", GameData.LEGEND_STUN_PROOF)
-				log_message.emit("[color=#c99bff]%s shakes it off: it can't be stunned for %d turns.[/color]" % [actor.display_name, GameData.LEGEND_STUN_PROOF])
+				log_message.emit("[color=#c99bff]%s shakes it off: it can't be stunned on its next %s.[/color]" % [actor.display_name, "turn" if GameData.LEGEND_STUN_PROOF == 1 else "%d turns" % GameData.LEGEND_STUN_PROOF])
 				status_changed.emit(actor)
 			continue
 		return actor

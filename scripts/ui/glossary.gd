@@ -48,7 +48,7 @@ static func sections() -> Array:
 			["Taunt", "Draws the zombies' single-target attacks to this animal.", "taunt"],
 			["Stunned", "Loses its next turn, and any attack it was winding up is cancelled.", "stunned"],
 			["Last Gasp", "At %s HP a legend starts counting down %d of its turns, then hits every animal for %s of their HP. Stuns and Guard don't stop it: kill it first." % [pct.call(GameData.LEGEND_LAST_GASP_AT), GameData.LEGEND_LAST_GASP_TURNS, pct.call(GameData.LEGEND_LAST_GASP_DAMAGE)]],
-			["Stun-proof", "A legend that's just been stunned shakes it off: it can't be stunned again for %d of its turns." % GameData.LEGEND_STUN_PROOF, "stun_proof"],
+			["Stun-proof", "A legend that's just been stunned shakes it off: it can't be stunned again on its next %s." % ("turn" if GameData.LEGEND_STUN_PROOF == 1 else "%d turns" % GameData.LEGEND_STUN_PROOF), "stun_proof"],
 			["Weakened", "Hits for %s of its usual damage." % pct.call(GameData.WEAKENED_ATK_MULT), "weakened"],
 			["Infected", "Loses %s of its max HP at the start of each of its turns. Moves that cure clear it." % pct.call(Battle.INFECTION_DAMAGE), "infected"],
 			["Frenzied", "A Screamer's rally: zombies hit %s harder." % pct.call(GameData.FRENZIED_ATK_MULT - 1.0), "frenzied"],

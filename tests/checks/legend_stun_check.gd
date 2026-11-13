@@ -107,6 +107,6 @@ func _init() -> void:
 		for entry: Array in section[1]:
 			terms[entry[0]] = entry[1]
 	_check(terms.has("Last Gasp"), "the Guide explains the Last Gasp")
-	_check(terms.has("Stun-proof") and str(GameData.LEGEND_STUN_PROOF) in String(terms["Stun-proof"]), "the Guide explains it")
+	_check(terms.has("Stun-proof") and String(terms["Stun-proof"]).contains("next turn" if GameData.LEGEND_STUN_PROOF == 1 else str(GameData.LEGEND_STUN_PROOF)), "the Guide explains it")
 	print("%d failure(s)" % _fails)
 	quit()

@@ -72,7 +72,7 @@ The apocalypse starts **where you actually live**.
 - **Legends fight like raid bosses** (`GameData.LEGEND_*`, `Battle._advance_legend`): below 66% HP
   they call a Runner and a Shambler (no XP), below 33% they hit 30% harder for good, and they keep
   winding up Cataclysm, which hits the whole pack unless the legend is stunned (cancels it) or the
-  pack Guards (halves it). After a stun a legend is stun-proof for `LEGEND_STUN_PROOF` (2) of its
+  pack Guards (halves it). After a stun a legend is stun-proof for `LEGEND_STUN_PROOF` (1) of its
   turns, Knockdown included, so it can't be stun-locked (a fox's Dirty Trick plus heavy hits once
   stunned the Wampus Cat on over half its turns).
   Below 10% HP comes the **Last Gasp** (`LEGEND_LAST_GASP_*`): a countdown of 3 of its turns, shown

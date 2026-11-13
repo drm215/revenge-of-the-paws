@@ -1456,7 +1456,7 @@ const LEGEND_LAST_GASP_TURNS := 3
 const LEGEND_LAST_GASP_DAMAGE := 0.7
 ## A legend shakes off a stun: for this many of its own turns after one, it can't be stunned again
 ## (no stun-locking a raid boss; a well-timed stun still cancels Cataclysm).
-const LEGEND_STUN_PROOF := 2
+const LEGEND_STUN_PROOF := 1
 const LEGEND_WEAK_MULT := 1.5
 const LEGEND_RESIST_MULT := 0.6
 
