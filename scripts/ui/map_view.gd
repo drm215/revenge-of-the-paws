@@ -670,13 +670,28 @@ func _glow_fill(i: int) -> Color:
 	return CUT_OFF.lerp(INFESTED, 0.25 + 0.25 * sin(_time * 2.0))
 
 
+## A finger lifted anywhere (over a button, off the edge, as a popup opens) is let go of here too:
+## one the map never heard lift would leave it thinking two fingers are down, so the next single
+## finger pinches instead of panning.
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and not event.pressed:
+		_touches.erase(event.index)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT 			or what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_EXIT_TREE:
+		_touches.clear()
+
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if event.index == 0:
+				_touches.clear()  # the first finger down: any other "finger" is left over
 			_touches[event.index] = event.position
 		else:
 			_touches.erase(event.index)
-	elif event is InputEventScreenDrag and _touches.size() == 2:
+	elif event is InputEventScreenDrag and _touches.size() == 2 and _touches.has(event.index):
 		# Pinch: zoom by the change in finger spread, around the midpoint.
 		var other: Vector2 = _touches[_touches.keys().filter(func(k: int) -> bool: return k != event.index)[0]]
 		var before: float = (_touches[event.index] as Vector2).distance_to(other)
@@ -687,7 +702,8 @@ func _gui_input(event: InputEvent) -> void:
 		_dragging = true
 		accept_event()
 	elif event is InputEventScreenDrag:
-		_touches[event.index] = event.position
+		if _touches.has(event.index) or _touches.size() < 2:
+			_touches[event.index] = event.position
 	elif event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			_zoom_at(event.position, 1.15)

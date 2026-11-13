@@ -170,5 +170,39 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	_check(is_same(parts_before, _view._parts), "a resize doesn't rebuild the geometry")
+
+	# A finger lifted where the map can't hear it must not leave it stuck pinching.
+	var touch := func(index: int, down: bool, at := Vector2(300, 300)) -> InputEventScreenTouch:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.pressed = down
+		e.position = at
+		return e
+	var drag := func(index: int, at: Vector2) -> InputEventScreenDrag:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = at
+		return e
+	_view._gui_input(touch.call(0, true))
+	_view._gui_input(touch.call(1, true, Vector2(400, 400)))
+	_view._input(touch.call(1, false))  # lifted over a button: only the window hears it
+	_check(_view._touches.size() == 1, "a finger lifted anywhere is let go of (%d down)" % _view._touches.size())
+	_view._gui_input(touch.call(1, true, Vector2(400, 400)))
+	_view._touches.erase(0)  # finger 0 lifted somewhere nothing heard it at all
+	_view._touches[7] = Vector2(1, 1)  # and some other left-over
+	_view._gui_input(touch.call(0, true))  # a fresh first finger
+	_check(_view._touches.keys() == [0], "a fresh first finger clears the left-overs: %s" % [_view._touches.keys()])
+	var zoom: float = _view._zoom
+	_view._gui_input(drag.call(0, Vector2(330, 300)))
+	_check(is_equal_approx(_view._zoom, zoom), "so one finger doesn't zoom")
+	_view._touches[1] = Vector2(400, 400)
+	_view._touches[5] = Vector2(9, 9)  # a stale one: pinch only ever between two
+	_view._gui_input(drag.call(3, Vector2(10, 10)))
+	_check(not _view._touches.has(3), "a stray drag doesn't add a third finger")
+	_view._touches.clear()
+	_view._gui_input(touch.call(0, true))
+	_view.hide()
+	_check(_view._touches.is_empty(), "hiding the map forgets every finger")
+	_view.show()
 	print("%d failure(s)" % _fails)
 	quit()

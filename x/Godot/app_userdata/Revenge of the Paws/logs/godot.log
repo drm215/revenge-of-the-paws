@@ -1,16 +1,28 @@
 Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
 
-ok   every icon is 12x12 in the palette 
-ok   every status has an icon
-ok   taunt, guard and perks are icons (3)
-ok   and not words: ["Cat", "Lv 1 Striker", "80 / 80", "3", "2", "2"]
-ok   with their turns and the perk count
-ok   the words are still there for the record: +3 perks · Taunt 2 · Guard 2
-ok   the Guide lists Guard with its icon
-ok   the battle screen has an icon key button
-ok   it opens the icon key over the fight
-ok   one line per card icon, each with its icon (16)
-ok   icons only, not the whole Guide
-ok   with just a Close button
-ok   Close goes back to the fight
+ok   the clock ran 73 frames
+ok   nothing glowing, nothing redrawn: { "shapes": 0, "pulse": 0, "labels": 0, "frames": 73 }
+ok   a lair glows at about 20 fps: 18 in 1 s, 145 frames
+ok   and leaves shapes and labels alone: { "shapes": 0, "pulse": 18, "labels": 0, "frames": 145 }
+ok   panning moves the shapes
+ok   (watching after the pan settled)
+ok   a pan redraws labels, not shapes: { "shapes": 0, "pulse": 1, "labels": 1 }
+ok   mid-zoom the shapes just scale, not redrawn: { "shapes": 0, "pulse": 2, "labels": 1 }
+ok   once the zoom stops, they're redrawn once so borders keep their width: { "shapes": 1, "pulse": 7, "labels": 1 }
+ok   the shapes line up with labels and taps
+ok   a counterattack's fill glows on the pulse layer, not by redrawing the map: { "shapes": 0, "pulse": 9, "labels": 0, "frames": 73 }
+ok   different levels look different
+ok   the lowest level in reach is the palest
+ok   the highest is the darkest
+ok   and darker really is darker
+ok   all the same level: the usual orange
+ok   a tap on home selects home (got 0)
+ok   a tap just beside a tiny area (24327, 15x smaller than its neighbors) picks it
+ok   a tap on a name picks that area: 24201
+ok   a resize doesn't rebuild the geometry
+ok   a finger lifted anywhere is let go of (1 down)
+ok   a fresh first finger clears the left-overs: [0]
+ok   so one finger doesn't zoom
+ok   a stray drag doesn't add a third finger
+ok   hiding the map forgets every finger
 0 failure(s)
