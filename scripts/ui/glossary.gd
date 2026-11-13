@@ -7,6 +7,7 @@ extends Control
 
 
 var legends: Array[String] = []  # legends found on this map, for the zombie guide
+var icons_only := false  # the battle screen's icon key: just the terms a card shows as an icon
 
 
 ## Shows the guide over `screen`; `found` lists the legends discovered on this map.
@@ -15,6 +16,26 @@ static func open(screen: Control, found: Array[String] = []) -> void:
 	guide.legends = found
 	guide.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.add_child(guide)
+
+
+## Just the icon key (the battle screen's "?"): every term a battle card shows as an icon.
+static func open_icons(screen: Control) -> Glossary:
+	var guide := Glossary.new()
+	guide.icons_only = true
+	guide.z_index = 30  # over the battle's own overlays
+	guide.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(guide)
+	return guide
+
+
+## Every [term, meaning, icon] the battle cards show as an icon, in Guide order.
+static func icon_entries() -> Array:
+	var out := []
+	for section: Array in sections():
+		for entry: Array in section[1]:
+			if entry.size() > 2:
+				out.append(entry)
+	return out
 
 
 ## Sections of [term, meaning], in the order a new player meets them.
@@ -116,7 +137,7 @@ func _ready() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	margin.add_child(col)
-	col.add_child(_label("Guide", 20, Retro.GOLD, true))
+	col.add_child(_label("Card icons" if icons_only else "Guide", 20, Retro.GOLD, true))
 
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -127,8 +148,11 @@ func _ready() -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 12)
 	scroll.add_child(list)
-	for section: Array in sections():
-		list.add_child(_section(section[0], section[1]))
+	if icons_only:
+		list.add_child(_section("What the icons on a card mean", icon_entries()))
+	else:
+		for section: Array in sections():
+			list.add_child(_section(section[0], section[1]))
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 10)
@@ -139,12 +163,14 @@ func _ready() -> void:
 	zombies.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	zombies.pressed.connect(func() -> void: ZombieGuide.open(self, legends))
 	buttons.add_child(zombies)
+	zombies.visible = not icons_only
 	var story := Button.new()
 	story.text = "Story"
 	story.custom_minimum_size = Vector2(0, 80)
 	story.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	story.pressed.connect(func() -> void: Prologue.play(self))
 	buttons.add_child(story)
+	story.visible = not icons_only
 	var close := Button.new()
 	close.text = "Close"
 	close.custom_minimum_size = Vector2(0, 80)

@@ -44,6 +44,7 @@ var _selected_skill := ""
 var _targets: Array[Combatant] = []
 
 var _wave_label := Label.new()
+var icons_button := Button.new()  # opens the key to the card icons
 var _recap: LegendRecap  # a legend fight's big moments, replayed when it's over
 ## Replay legend fights when they end (tests that drive whole fights switch it off).
 static var play_recaps := true  # also the legend's entrance and chapter cut scenes
@@ -678,7 +679,19 @@ func _build_ui() -> void:
 	_wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	Retro.title(_wave_label, 13)  # the bold body font: long place names wrap instead of clipping
 	_wave_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_wave_label)
+	_wave_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 8)
+	col.add_child(top)
+	var spacer := Control.new()  # keeps the title centered opposite the icon key button
+	spacer.custom_minimum_size = Vector2(64, 0)
+	top.add_child(spacer)
+	top.add_child(_wave_label)
+	icons_button.text = "?"
+	icons_button.tooltip_text = "What the card icons mean"
+	icons_button.custom_minimum_size = Vector2(64, 56)
+	icons_button.pressed.connect(func() -> void: Glossary.open_icons(self))
+	top.add_child(icons_button)
 
 	_order_label.bbcode_enabled = true
 	_order_label.fit_content = true
