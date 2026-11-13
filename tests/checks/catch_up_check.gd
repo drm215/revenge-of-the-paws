@@ -66,6 +66,23 @@ func _init() -> void:
 		_check(biscuit.sweep_xp(s) == roundi(biscuit.sweep_xp(s, false) * 1.6) or abs(biscuit.sweep_xp(s) - biscuit.sweep_xp(s, false) * 1.6) <= 1,
 			"Sweep pays the catch-up too (%d vs %d plain)" % [biscuit.sweep_xp(s), biscuit.sweep_xp(s, false)])
 
+	# Underdog: land Jack opened up (met at Lv 45) fights Biscuit at Biscuit's own level.
+	if s >= 0:
+		biscuit.territories[s].met_level = 45
+		biscuit.territories[s].threat = 3
+		_check(biscuit.territory_level(s) == 39 and biscuit.battle_config(s).underdog,
+			"underdog: Jack's Lv 45 land is Lv %d for Biscuit's Lv 39 pack" % biscuit.territory_level(s))
+		biscuit.territories[s].threat = 20
+		_check(biscuit.territory_level(s) == 41, "far out on the frontier it's at most 2 above (%d)" % biscuit.territory_level(s))
+		var jack_view := Campaign.create(_profile("24210", "Jack", 45), {"id": "t1", "state": jack.to_text(), "members": members})
+		jack_view.my_id = "u1"
+		jack_view.under_attack = -1
+		jack_view.territories[s].met_level = 45
+		jack_view.territories[s].threat = 3
+		_check(jack_view.territory_level(s) == 45 and not jack_view.battle_config(s).underdog, "the strongest pack fights it as usual")
+		biscuit.territories[s].met_level = 30
+		_check(not biscuit.battle_config(s).underdog or biscuit.territory_level(s) <= 41, "never harder for the underdog")
+
 	# Solo: never any catch-up.
 	var solo := Campaign.create(_profile("24201", "Solo", 10))
 	_check(solo.levels_behind() == 0 and is_equal_approx(solo.catch_up_mult(), 1.0), "solo games get no catch-up")

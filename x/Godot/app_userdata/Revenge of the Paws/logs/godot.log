@@ -1,0 +1,18 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+ok   +10% per level behind, capped at double
+ok   nobody to trail yet: no bonus
+ok   a fight records the fighter's pack level
+ok   the strongest pack gets no catch-up
+ok   6 levels behind: +60% (1.60)
+ok   25 levels behind: capped at double
+ok   Sweep pays the catch-up too (78 vs 49 plain)
+ok   underdog: Jack's Lv 45 land is Lv 39 for Biscuit's Lv 39 pack
+ok   far out on the frontier it's at most 2 above (41)
+ok   the strongest pack fights it as usual
+ok   never harder for the underdog
+ok   solo games get no catch-up
+ok   a won fight pays 160 instead of 100 (+160)
+ok   teammates' share comes from the plain 100
+ok   the result says so: Catch-up: +60% XP (6 levels behind your team's strongest pack)
+0 failure(s)

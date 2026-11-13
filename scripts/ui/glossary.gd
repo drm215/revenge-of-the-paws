@@ -74,6 +74,7 @@ static func sections() -> Array:
 			["Bench & duties", "Animals not fighting get %s of the XP and can take a duty: Scout shows every territory's waves, Forage finds the odd bit of XP or a trinket, Guard slows counterattacks." % pct.call(GameData.BENCH_XP_SHARE)],
 			["Well rested", "An animal that sits out %d battles in a row comes back well rested for %d fights: +%s ATK and DEF and +%s XP." % [GameData.RESTED_AFTER, GameData.RESTED_BATTLES, pct.call(GameData.RESTED_STATS), pct.call(GameData.RESTED_XP - 1.0)]],
 			["Catch-up", "On a team, a pack below the team's strongest earns +%s XP per level behind, up to +%s, from its own fights and sweeps. It fades as the gap closes." % [pct.call(GameData.CATCH_UP_PER_LEVEL), pct.call(GameData.CATCH_UP_MAX)]],
+			["Underdog", "On a team, a pack below the team's strongest fights land a stronger teammate opened up as if it had found it itself: zombies matched to its own pack, never the strongest one's."],
 			["New animals","Survivors you rescue join at %s of your strongest animal's level, so they need some training." % pct.call(GameData.RECRUIT_LEVEL_SHARE)],
 			["Trinkets", "Gear for one animal each: from caches, legends, sieges and dungeons. Equip from Pack."],
 			["Upgrade", "Two copies of a trinket make one a tier better, up to +%d: each tier gives +%s more of its bonuses and %s less of its drawbacks. Upgraded trinkets can still be fused." % [GameData.MAX_TRINKET_TIER, pct.call(GameData.TIER_GAIN), pct.call(GameData.TIER_EASE)]],

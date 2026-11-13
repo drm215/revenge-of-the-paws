@@ -376,7 +376,32 @@ func zombie_strength(i: int, threat: int) -> float:
 		met += GameData.ASSAULT_LEVEL
 	threat = legend_threat(i, threat)
 	var matched := met - GameData.PACK_LEVEL_GAP + threat - 1
-	return maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
+	var strength := maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
+	if is_underdog(i):
+		strength = minf(strength, underdog_strength(threat))
+	return strength
+
+
+## Underdog (teams): a pack behind the team's strongest fights the land a stronger teammate opened
+## up as if it had found it itself: no more than its own strongest lineup would meet there, with the
+## threat counted up to MAX_THREAT (level with it at threat 3, 2 above at the most). Legends and
+## counterattacks already match this player's pack.
+func is_underdog(i: int) -> bool:
+	return levels_behind() > 0 and territories[i].boss == "" and i != under_attack
+
+
+func underdog_strength(threat: int) -> float:
+	var own := profile.strongest_pack_level() - GameData.PACK_LEVEL_GAP + mini(threat, GameData.MAX_THREAT) - 1
+	return GameData.level_strength(own)
+
+
+## Whether the underdog rule makes territory `i` easier for this player than it would otherwise be.
+func underdog_eases(i: int) -> bool:
+	if not is_underdog(i):
+		return false
+	var threat := legend_threat(i, _fight_threat(i))
+	var matched := territories[i].met_level - GameData.PACK_LEVEL_GAP + threat - 1
+	return underdog_strength(threat) < maxf(GameData.zombie_mult(threat), GameData.level_strength(matched))
 
 
 ## The threat a legend's strength is measured at: capped at MAX_THREAT, so a lair far out on the
@@ -436,6 +461,7 @@ func battle_config(i: int) -> Dictionary:
 		"loot": loot_at(i) if t.boss != "" else "",  # what beating this legend drops ("" if it's been taken)
 		"territory": t.id,
 		"mutation": GameData.mutation(GameData.week_now()) if t.boss == "" else {},
+		"underdog": underdog_eases(i),
 	}
 
 

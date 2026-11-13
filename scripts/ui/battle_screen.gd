@@ -90,6 +90,8 @@ func _new_game() -> void:
 			config.get("condition", ""), config.get("region", ""))
 		battle.configure(config)
 	battle.log_message.connect(_on_log)
+	if config.get("underdog", false):
+		_on_log("Underdog: these zombies are matched to your pack, not your team's strongest.")
 	_recap = LegendRecap.new()
 	_recap.watch(battle)
 	battle.acting.connect(func(c: Combatant) -> void: _card(c).lunge())
