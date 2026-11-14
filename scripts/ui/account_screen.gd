@@ -124,6 +124,14 @@ func _team_section() -> void:
 			_note("• %s, %s" % [m.name, ZipDB.lookup(String(m.zip)).get("place", m.zip)], Retro.CYAN)
 		_note("You share one map built from all your homes, and each keep your own critters. Liberating is shared; whoever liberates a territory gets its survivor and trinket.", Retro.FOG)
 		_content.add_child(_team_status)
+		var history := HistoryList.new().setup("Team map history: put the shared map back to an older copy",
+			"Sure? The map goes back to this copy for the whole team (critters and XP stay). The current map is kept.",
+			func() -> Array: return await team.versions(),
+			func(copy: int) -> String: return await team.restore(copy))
+		history.restored.connect(func() -> void:
+			_team_status.text = "The team map is back to that copy."
+			_build())
+		_content.add_child(history)
 		var leave := _button("Leave team", Callable())
 		leave.pressed.connect(func() -> void:
 			if leave.text == "Leave team":

@@ -184,6 +184,15 @@ func _card(info: Dictionary) -> Control:
 					cloud.mark_slot_dirty(String(info.id))
 			_build())
 		text.add_child(undo)
+	var cloud := get_node_or_null("/root/Cloud")
+	if cloud and cloud.signed_in():
+		var id := String(info.id)
+		var history := HistoryList.new().setup("Older copies in the cloud",
+			"Sure? This game goes back to this copy, here and in the cloud. The copy it replaces is kept.",
+			func() -> Array: return await cloud.versions(id),
+			func(copy: int) -> String: return await cloud.restore_version(copy))
+		history.restored.connect(_build)
+		text.add_child(history)
 	var buttons := VBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
 	row.add_child(buttons)

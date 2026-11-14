@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -16,9 +17,42 @@ chat = []  # {id, team_id, user_id, name, body, ping, created_at, t}
 raids = []  # {id, team_id, host, territory, legend, seed, config, status, result, created_at}
 raid_members = []  # {raid_id, user_id, name, pack, ready, t}
 raid_actions = {}  # (raid_id, seq) -> {user_id, action}
+HISTORY_FNS = ("save_versions", "restore_save", "team_versions", "restore_team_state")
 RAID_FNS = ("team_raid", "open_raid", "join_raid", "leave_raid", "start_raid", "post_raid_action",
             "raid_actions_after", "finish_raid", "cancel_raid")
 _n = [0]
+save_history = []  # {id, user, slot, profile, campaign, device, saved_at}: copies a save replaced
+team_history = []  # {id, team_id, version, state, saved_at}: copies a team map replaced
+_hid = [0]
+
+
+def owned_in(text):
+    """Mirrors server/history.sql paws_owned: the ZIPs on the owned= line."""
+    m = re.search(r"(?m)^owned=(.*)$", text or "")
+    return m.group(1).count('"') // 2 if m else 0
+
+
+def turn_in(text):
+    m = re.search(r"(?m)^turn=([0-9]+)", text or "")
+    return int(m.group(1)) if m else 0
+
+
+def keep_save(row, new):
+    """A saved game's cloud copy is about to change: keep the old one. (The real server keeps one
+    every 20 minutes unless progress looks lost; here every change is kept.)"""
+    if all(new.get(k, row.get(k)) == row.get(k) for k in ("profile", "campaign")):
+        return
+    _hid[0] += 1
+    save_history.append({"id": _hid[0], "user": row["user"], "slot": row["slot"], "profile": row.get("profile", ""),
+                         "campaign": row.get("campaign", ""), "device": row.get("device", ""), "saved_at": row["updated_at"]})
+
+
+def keep_team(tid, new_state):
+    t = teams[tid]
+    if t["state"] == new_state or t["state"] == "":
+        return
+    _hid[0] += 1
+    team_history.append({"id": _hid[0], "team_id": tid, "version": t["version"], "state": t["state"], "saved_at": stamp()})
 
 
 def stamp():  # server-made timestamps, with a "+" that must survive the URL
@@ -235,9 +269,57 @@ class H(BaseHTTPRequestHandler):
                 t["version"] += 1
             if t["version"] != body["p_version"]:
                 return self._send(200, -1)
+            keep_team(mine["id"], body["p_state"])
             t["state"] = body["p_state"]
             t["version"] += 1
             return self._send(200, t["version"])
+
+    def _history_rpc(self, name, body):
+        """Mirrors server/history.sql."""
+        uid = self._user()
+        if uid is None:
+            return self._send(401, {"message": "JWT invalid"})
+        if name == "save_versions":
+            mine = [h for h in save_history if h["user"] == uid and h["slot"] == body.get("p_slot")]
+            mine.sort(key=lambda h: (h["saved_at"], h["id"]), reverse=True)
+            return self._send(200, [{"id": h["id"], "saved_at": h["saved_at"], "profile": h["profile"],
+                                     "owned": owned_in(h["campaign"]), "turn": turn_in(h["campaign"])} for h in mine])
+        if name == "restore_save":
+            h = next((h for h in save_history if h["id"] == body.get("p_id") and h["user"] == uid), None)
+            if h is None:
+                return self._send(400, {"message": "That copy is gone."})
+            new = {"profile": h["profile"], "campaign": h["campaign"], "device": "restored"}
+            row = next((r for r in state["saves"] if r["user"] == uid and r["slot"] == h["slot"]), None)
+            if row is None:
+                row = dict(user=uid, slot=h["slot"], updated_at=stamp(), **new)
+                state["saves"].append(row)
+            else:
+                keep_save(row, new)
+                row.update(new, updated_at=stamp())
+            return self._send(200, {k: row[k] for k in ("slot", "profile", "campaign", "updated_at")})
+        if name == "team_versions":
+            tid = body.get("p_team")
+            if not self._member(tid, uid):
+                return self._send(200, [])
+            mine = sorted((h for h in team_history if h["team_id"] == tid), key=lambda h: (h["saved_at"], h["id"]), reverse=True)
+            return self._send(200, [{"id": h["id"], "saved_at": h["saved_at"], "version": h["version"],
+                                     "owned": owned_in(h["state"]), "turn": turn_in(h["state"])} for h in mine])
+        if name == "restore_team_state":
+            tid = body.get("p_team")
+            me = next((m for m in members if m["team_id"] == tid and m["user_id"] == uid), None)
+            if me is None:
+                return self._send(400, {"message": "You are not on that team."})
+            h = next((h for h in team_history if h["id"] == body.get("p_id") and h["team_id"] == tid), None)
+            if h is None:
+                return self._send(400, {"message": "That copy is gone."})
+            keep_team(tid, h["state"])
+            teams[tid]["state"] = h["state"]
+            teams[tid]["version"] += 1
+            chat.append({"id": len(chat) + 1, "team_id": tid, "user_id": uid, "name": me["name"],
+                         "body": "Put the team map back to an earlier copy: turn %d, %d %s held." % (
+                             turn_in(h["state"]), owned_in(h["state"]), "territory" if owned_in(h["state"]) == 1 else "territories"),
+                         "ping": "", "created_at": datetime.now(timezone.utc).isoformat(), "t": time.time()})
+            return self._send(200, self._team_row(tid))
 
     def _zcta(self):
         state["zcta_gets"] = state.get("zcta_gets", 0) + 1
@@ -261,6 +343,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, self._save_rows())
         if self.path == "/_state":
             return self._send(200, state)
+        if self.path == "/_history":
+            return self._send(200, {"saves": save_history, "teams": team_history, "chat": [{k: v for k, v in m.items() if k != "t"} for m in chat]})
         self._send(404, {})
 
     def do_POST(self):
@@ -338,6 +422,8 @@ class H(BaseHTTPRequestHandler):
             return self._team_rpc(self.path.split("/")[-1], body or {})
         if self.path.startswith("/rest/v1/rpc/") and self.path.split("/")[-1] in RAID_FNS:
             return self._raid_rpc(self.path.split("/")[-1], body or {})
+        if self.path.startswith("/rest/v1/rpc/") and self.path.split("/")[-1] in HISTORY_FNS:
+            return self._history_rpc(self.path.split("/")[-1], body or {})
         if self.path == "/_fail_next_save":
             fail_next_save[0] = True
             return self._send(200, {})
@@ -366,6 +452,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(201, [row])
         if self.path == "/_bump":  # another device uploads game body["slot"] for u1
             row = next(r for r in state["saves"] if r["user"] == "u1" and r["slot"] == body["slot"])
+            keep_save(row, body)
             row.update(body, updated_at=stamp())
             return self._send(200, [row])
         self._send(404, {})
@@ -405,6 +492,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(slow["save_status"], {"message": "refused for the test"})
             rows = [r for r in self._save_rows() if r["updated_at"] == want or "updated_at" not in q]  # (no version: a rename)
             if rows:
+                keep_save(rows[0], body)
                 rows[0].update(body, updated_at=stamp())
                 return self._send(200, [rows[0]])
             return self._send(200, [])

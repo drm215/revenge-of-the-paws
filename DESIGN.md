@@ -287,6 +287,15 @@ The apocalypse starts **where you actually live**.
   week). Damage queues on the device (also while logged out) and is sent with the cloud sync, at
   most 5000 an hour per player; the leaderboard shows the pet and region, never the town. Server
   side: `server/siege.sql`.
+- **Version history** (`server/history.sql`): the cloud keeps older copies of every saved game
+  (`save_history`) and every team's shared map (`team_history`): one each time a copy is replaced
+  after 20 quiet minutes, and always when the new copy looks like lost progress (text 20% shorter,
+  or 3+ fewer territories held) or a restore replaces it; the newest 30, plus each day's last for 30
+  days. The save picker's "Older copies in the cloud" under each game (`HistoryList`,
+  `Cloud.restore_version`) puts one back here and in the cloud, keeping the replaced copy (and the
+  device's own, so the picker can undo it). On a team, the Cloud screen's "Team map history"
+  (`Team.restore`) puts the shared map back for everyone as a new version (critters and XP stay;
+  queued moves replay on it) and says so in the team chat. No admin SQL needed to recover.
 - **Sync**: every save goes to the cloud at once (`Cloud.SYNC_DELAY` only gathers one action's
   saves), and a save made while a sync is running goes up right after it.
 - **Sync safety**: when the game being played can't back up (an upload refused, or more than

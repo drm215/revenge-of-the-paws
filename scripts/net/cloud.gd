@@ -448,6 +448,40 @@ func bring_back(slot: String) -> String:
 	return ""
 
 
+## Older cloud copies of saved game `slot`, newest first (server/history.sql keeps one every 20
+## minutes of play, and always one before lost-looking progress or a restore): [{id, saved_at
+## (unix), summary}] ([] offline or none).
+func versions(slot: String) -> Array:
+	var r := await api(HTTPClient.METHOD_POST, "/rest/v1/rpc/save_versions", {"p_slot": slot})
+	if not r.ok or not r.data is Array:
+		return []
+	var out := []
+	for row: Dictionary in r.data:
+		var bits: PackedStringArray = [summary(String(row.get("profile", "")), "")]
+		if int(row.get("turn", 0)) > 0 or int(row.get("owned", 0)) > 0:
+			bits.append("%d %s · turn %d" % [int(row.get("owned", 0)),
+				"territory" if int(row.get("owned", 0)) == 1 else "territories", int(row.get("turn", 0))])
+		out.append({"id": int(row.id), "saved_at": unix_of(String(row.saved_at)), "summary": " · ".join(bits)})
+	return out
+
+
+## Puts older copy `id` (from versions) back: the server makes it the game's cloud copy, keeping
+## the copy it replaces, and this device takes it (keeping its own copy too, so the save picker can
+## undo it). Returns "" or what went wrong.
+func restore_version(id: int) -> String:
+	var r := await api(HTTPClient.METHOD_POST, "/rest/v1/rpc/restore_save", {"p_id": id})
+	if not r.ok or not r.data is Dictionary:
+		return "Couldn't reach the cloud. Try again." if r.code == 0 else "%s (%d)" % [_error_text(r), r.code]
+	_report("restored", String(r.data.slot), {}, {"from_history": id})
+	_apply(r.data)
+	return ""
+
+
+## Unix time of a server timestamp ("2026-11-12T20:14:05.123+00:00", always UTC here).
+static func unix_of(stamp: String) -> int:
+	return Time.get_unix_time_from_datetime_string(stamp.left(19)) if stamp.length() >= 19 else 0
+
+
 func _download(slot: String) -> void:
 	var row := await _fetch(slot)
 	if not row.is_empty():

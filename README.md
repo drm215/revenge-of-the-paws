@@ -42,7 +42,8 @@ Accounts and saves live in a Supabase project (`scripts/net/cloud.gd`). Cloud sa
 1. Create a free project at https://supabase.com and run `server/supabase.sql`, then
    `server/siege.sql` (the weekly siege), `server/teams.sql` (teams), `server/chat.sql` (team
    chat) and `server/raids.sql` (legend raids), `server/battle_logs.sql` (battle log), `server/pulse.sql` (the
-   team check-in) and `server/dungeons.sql` (dungeon leaderboards), in its SQL Editor.
+   team check-in), `server/dungeons.sql` (dungeon leaderboards) and `server/history.sql` (older copies of
+   saves and team maps, which players can put back), in its SQL Editor.
 2. Authentication → URL Configuration: set **Site URL** to `https://revengeofthepaws.com` and add
    it under **Redirect URLs**, so confirm and reset emails open the game.
 3. Optionally turn **Confirm email** off (Authentication → Sign In / Providers → Email).

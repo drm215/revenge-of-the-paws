@@ -191,6 +191,41 @@ func flush() -> void:
 	_done()
 
 
+## Older copies of the shared map, newest first (server/history.sql): [{id, saved_at (unix),
+## summary}] ([] offline, solo or none).
+func versions() -> Array:
+	if team_id == "" or not _online():
+		return []
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/team_versions", {"p_team": team_id})
+	if not r.ok or not r.data is Array:
+		return []
+	var out := []
+	for row: Dictionary in r.data:
+		out.append({"id": int(row.id), "saved_at": _cloud().unix_of(String(row.saved_at)),
+			"summary": "%d %s held · turn %d" % [int(row.get("owned", 0)),
+				"territory" if int(row.get("owned", 0)) == 1 else "territories", int(row.get("turn", 0))]})
+	return out
+
+
+## Puts the shared map back to older copy `id` for the whole team (the server keeps the map it
+## replaces and tells the team chat). Moves still queued here are replayed on it. "" or an error.
+func restore(id: int) -> String:
+	if team_id == "" or not _online():
+		return "Log in to change the team map."
+	while _busy:
+		await _idle
+	_busy = true
+	var asked := team_id
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/restore_team_state", {"p_team": asked, "p_id": id})
+	_done()
+	if not r.ok or not r.data is Dictionary:
+		return _cloud().error_text(r)
+	if asked == team_id:
+		_take(r.data)
+	flush()
+	return ""
+
+
 func _done() -> void:
 	_busy = false
 	_idle.emit()
