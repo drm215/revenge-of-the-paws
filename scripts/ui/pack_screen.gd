@@ -514,9 +514,6 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	var upgrade := _tile_button(("Tech tree (%d)" % points) if points > 0 else "Tech tree", _show_upgrades.bind(id))
 	if points > 0:
 		upgrade.add_theme_color_override("font_color", Retro.YELLOW)
-	if profile.borrowed.has(id):
-		upgrade.text = "Tech tree: owner's"
-		upgrade.disabled = true
 	col.add_child(upgrade)
 	if not is_pet and not selected and not stabled:
 		var duty := profile.duty_of(id)
@@ -681,7 +678,7 @@ func _show_details(unit_id: String) -> void:
 			col.add_child(_tile_text("Bonds: %s · +%d%% ATK/DEF" % [", ".join(bonds), GameData.bond_total(bonds.size())], 19, Retro.GOLD))
 
 	if profile.borrowed.has(unit_id):
-		col.add_child(_tile_text("On loan from %s: it fights for you, and its tech tree and trinket stay as they set them. Send it back from Trades any time." % String(profile.borrowed[unit_id].get("from", "a teammate")), 19, Retro.CYAN))
+		col.add_child(_tile_text("On loan from %s: it fights for you. You both can pick its tech tree; its trinket is their pick. Send it back from Trades any time." % String(profile.borrowed[unit_id].get("from", "a teammate")), 19, Retro.CYAN))
 	elif not is_pet and battle_config.is_empty() and _on_team():
 		var send := Button.new()
 		send.text = "Lend or give to a teammate"

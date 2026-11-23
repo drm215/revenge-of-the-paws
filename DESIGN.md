@@ -223,12 +223,14 @@ The apocalypse starts **where you actually live**.
   the teammate accepts or declines first, and can't accept a kind their pack already has (one of
   each species per save). The critter leaves the owner's pack as soon as it's offered, with
   everything about it (`Profile.critter_data`: XP, tech tree, worn trinket, row, injuries,
-  fatigue, bonuses). A borrower fields it like any other, but can't spend its points or change or
-  reuse its trinket; its XP goes to the server after each fight (`update_loan`) and it comes home
-  with the levels it earned, never fewer than it left with. The owner still picks its tech tree and
-  trinket while it's away (Trades > Tech tree / Trinket on a copy, `Transfers.set_gear`; a new
-  trinket is a spare of the owner's, the old one goes back to them): kept apart from the
-  borrower's updates (`gear`), and the borrower's game takes it on its next check-in.
+  fatigue, bonuses). A borrower fields it like any other and spends its tech-tree points too, but
+  can't change or reuse its trinket; its XP goes to the server after each fight (`update_loan`)
+  and it comes home with the levels it earned, never fewer than it left with. Both players pick its
+  tech tree while it's away (the borrower in Pack, `set_loan_tree` on the next check-in; the owner
+  in Trades > Tech tree on a copy, `Transfers.set_gear`), and if both change it between check-ins
+  the owner's change wins. Only the owner picks its trinket (Trades > Trinket: a spare of theirs;
+  the old one goes back to them). Those picks (`gear`) are kept apart from the borrower's progress
+  updates, and it comes home with the tree last picked.
   The server only records who agreed to what (`critter_transfers`); each game applies the outcome
   to its own save (`Transfers.reconcile`, run by the map and the Trades screen on each check-in).
   A given or lent home animal doesn't come back on load (`Profile.away`). Leaving a team ends all

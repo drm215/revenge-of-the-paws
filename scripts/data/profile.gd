@@ -103,8 +103,6 @@ func honed(unit_id: String) -> int:
 
 ## Why a node can't be bought right now ("" if it can).
 func tree_block(unit_id: String, node_id: String) -> String:
-	if borrowed.has(unit_id):
-		return "On loan: its owner spends its points"
 	if node_id == GameData.HONE_ID:
 		return "" if points_left(unit_id) > 0 else "No points"  # no cap: one more each point
 	var node := GameData.tree_node(unit_id, node_id)
@@ -131,8 +129,7 @@ func buy_node(unit_id: String, node_id: String) -> bool:
 
 
 func reset_tree(unit_id: String) -> void:
-	if not borrowed.has(unit_id):
-		tree.erase(unit_id)
+	tree.erase(unit_id)
 
 
 ## Animals that leveled since the last tree visit and have something to spend points on, pack first.
@@ -797,7 +794,7 @@ func put_in(text: String, transfer_id := "", loan_from := "") -> bool:
 	var id := String(d.id)
 	given.erase(id)
 	if loan_from != "":
-		borrowed[id] = {"id": transfer_id, "from": loan_from}
+		borrowed[id] = {"id": transfer_id, "from": loan_from, "tree": (d.get("tree", []) as Array).map(func(n: Variant) -> String: return String(n))}
 	if id not in unlocked:
 		unlocked.append(id)
 		if active().size() > active_slots():

@@ -5,9 +5,9 @@
 -- the teammate accepts or declines. A loan can be ended any time: the owner calls it back, or the
 -- borrower sends it back. The row carries the critter's state (Profile.critter_data(), JSON); while
 -- on loan the borrower's game keeps it up to date, so the owner sees its level and gets back the
--- XP it earned. While it's on loan its owner still picks its tech tree and trinket (`gear`, set by
--- set_loan_gear: the borrower's game takes it on the next check-in, and the borrower's own updates
--- never touch it). Each game applies the outcome to its own save (Transfers.reconcile): the server
+-- XP it earned. While it's on loan its owner still picks its trinket, and both of them its tech
+-- tree (`gear`: set_loan_gear by the owner, set_loan_tree by either; each game takes the other's
+-- picks on its next check-in, and the borrower's progress updates never touch it). Each game applies the outcome to its own save (Transfers.reconcile): the server
 -- only records who agreed to what. The table has no policies: players reach it only through the
 -- functions below, and only rows they're part of.
 --
@@ -150,6 +150,26 @@ begin
 end;
 $$;
 
+-- Either player picks a loaned critter's tech tree (the trinket stays the owner's pick). Returns the row.
+create or replace function public.set_loan_tree(p_id bigint, p_tree text) returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  t critter_transfers;
+begin
+  if char_length(p_tree) > 4000 or json_typeof(p_tree::json) <> 'array' then
+    raise exception 'That tech tree can''t be read.';
+  end if;
+  update critter_transfers
+  set gear = json_build_object('tree', p_tree::json,
+        'trinket', coalesce(nullif(gear, '')::json ->> 'trinket', data::json ->> 'trinket', ''))::text,
+      updated_at = now()
+  where id = p_id and auth.uid() in (from_user, to_user) and status = 'active'
+  returning * into t;
+  if not found then raise exception 'That loan is already over.'; end if;
+  return transfer_json(t);
+end;
+$$;
+
 revoke all on function public.transfer_json(critter_transfers) from public, anon;
 revoke all on function public.my_transfers(uuid) from public, anon;
 revoke all on function public.offer_critter(uuid, uuid, text, text, text) from public, anon;
@@ -158,6 +178,7 @@ revoke all on function public.cancel_transfer(bigint) from public, anon;
 revoke all on function public.end_loan(bigint) from public, anon;
 revoke all on function public.update_loan(bigint, text) from public, anon;
 revoke all on function public.set_loan_gear(bigint, text) from public, anon;
+revoke all on function public.set_loan_tree(bigint, text) from public, anon;
 grant execute on function public.my_transfers(uuid) to authenticated;
 grant execute on function public.offer_critter(uuid, uuid, text, text, text) to authenticated;
 grant execute on function public.answer_transfer(bigint, boolean) to authenticated;
@@ -165,3 +186,4 @@ grant execute on function public.cancel_transfer(bigint) to authenticated;
 grant execute on function public.end_loan(bigint) to authenticated;
 grant execute on function public.update_loan(bigint, text) to authenticated;
 grant execute on function public.set_loan_gear(bigint, text) to authenticated;
+grant execute on function public.set_loan_tree(bigint, text) to authenticated;

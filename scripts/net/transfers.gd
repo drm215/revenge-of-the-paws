@@ -6,8 +6,9 @@ extends Node
 ## agreed to what: each game applies the outcome to its own save in reconcile(), which the map runs
 ## whenever the transfers change. A critter leaves its owner's pack as soon as it's offered (so it
 ## can't fight in two packs), and the owner's save keeps a copy until it's back or gone. A loan
-## comes back with the XP it earned (never less than it left with), with the owner's own tech tree
-## and trinket: the borrower can't change those, but the owner can while it's away (set_gear).
+## comes back with the XP it earned (never less than it left with) and the tech tree they last
+## picked: both of them can (set_gear, set_tree; the owner's change wins if both change it between
+## check-ins). Its trinket is always the owner's pick.
 
 ## The team's transfers changed (a check-in, or this player's own answer): the map reconciles.
 signal changed
@@ -19,6 +20,7 @@ var rows: Array = []  # this player's transfers on the team being played (my_tra
 var _team_id := ""
 var _pushed := {}  # transfer id -> the critter data last sent for a loan here
 var _news := PackedStringArray()  # what reconcile() did that the player hasn't been told yet
+var _sending_tree := {}  # transfer id -> true while this borrower's tree is on its way
 
 
 func _ready() -> void:
@@ -185,9 +187,11 @@ func loan_view(profile: Profile, row: Dictionary) -> Profile:
 	view.region = profile.region
 	view.unlocked.assign([id])
 	view.xp[id] = maxi(int(home.get("xp", 0)), int(away.get("xp", 0)))
-	var nodes: Array = home.get("tree", [])
-	if not nodes.is_empty():
-		view.tree[id] = nodes.map(func(n: Variant) -> String: return String(n))
+	var nodes: Variant = _gear_tree(row)
+	if nodes == null:
+		nodes = home.get("tree", [])
+	if not (nodes as Array).is_empty():
+		view.tree[id] = (nodes as Array).map(func(n: Variant) -> String: return String(n))
 	if String(home.get("trinket", "")) != "":
 		view.equipped[id] = String(home.trinket)
 		view.trinkets.assign([String(home.trinket)])
@@ -236,24 +240,64 @@ func set_gear(profile: Profile, row: Dictionary, nodes: Array, trinket: String) 
 	return ""
 
 
-## The borrower takes the owner's latest picks for a borrowed critter. True if anything changed.
-func _take_gear(profile: Profile, id: String, gear_text: String) -> bool:
-	var gear := _parse(gear_text)
-	if gear.is_empty():
-		return false
-	var nodes: Array = (gear.get("tree", []) as Array).map(func(n: Variant) -> String: return String(n))
-	var trinket := String(gear.get("trinket", ""))
-	if nodes == Array(profile.tree.get(id, [])) and trinket == String(profile.equipped.get(id, "")):
-		return false
-	if nodes.is_empty():
-		profile.tree.erase(id)
-	else:
-		profile.tree[id] = nodes
-	if trinket == "":
-		profile.equipped.erase(id)
-	else:
-		profile.equipped[id] = trinket  # (the owner's copy: never in this player's trinkets)
-	return true
+## The tech tree last picked for a loan (`gear`), or null if nobody has picked one since it left.
+static func _gear_tree(row: Dictionary) -> Variant:
+	var gear := _parse(String(row.get("gear", "")))
+	if not gear.has("tree") or not gear.tree is Array:
+		return null
+	return (gear.tree as Array).map(func(n: Variant) -> String: return String(n))
+
+
+## The borrower keeps a borrowed critter's tree and trinket in step with the loan: the owner's trinket
+## pick; for the tree, a change the owner made wins, else a change made here is sent. Returns what
+## to tell the player ("" if nothing changed here).
+func _sync_borrowed(profile: Profile, row: Dictionary) -> String:
+	var id := String(row.critter)
+	var on_loan: Dictionary = profile.borrowed[id]
+	var said := ""
+	var gear := _parse(String(row.get("gear", "")))
+	if gear.has("trinket"):
+		var trinket := String(gear.trinket)
+		if trinket != String(profile.equipped.get(id, "")):
+			if trinket == "":
+				profile.equipped.erase(id)
+			else:
+				profile.equipped[id] = trinket  # (the owner's copy: never in this player's trinkets)
+			said = "%s put %s on their %s." % [row.from_name, GameData.trinket(trinket).name if trinket != "" else "no trinket", _name_of(id)]
+	var local: Array = Array(profile.tree.get(id, [])).map(func(n: Variant) -> String: return String(n))
+	if not on_loan.has("tree"):
+		on_loan["tree"] = local  # (borrowed before trees were shared: what's here is what was agreed)
+	var synced: Array = on_loan.tree
+	var remote: Variant = _gear_tree(row)
+	if remote != null and remote != synced:
+		on_loan["tree"] = remote
+		if remote != local:
+			if (remote as Array).is_empty():
+				profile.tree.erase(id)
+			else:
+				profile.tree[id] = (remote as Array).duplicate()  # (its own copy: buying nodes mustn't change what was agreed)
+			said =("%s\n" % said if said != "" else "") + "%s changed their %s's tech tree." % [row.from_name, _name_of(id)]
+	elif local != synced and not _sending_tree.has(str(int(row.id))):
+		_send_tree(profile, row, local)
+	return said
+
+
+func _send_tree(profile: Profile, row: Dictionary, nodes: Array) -> void:
+	var tid := str(int(row.id))
+	_sending_tree[tid] = true
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/set_loan_tree",
+		{"p_id": int(row.id), "p_tree": JSON.stringify(nodes)})
+	_sending_tree.erase(tid)
+	if r.ok and r.data is Dictionary:
+		var on_loan: Dictionary = profile.borrowed.get(String(row.critter), {})
+		if String(on_loan.get("id", "")) == tid:
+			on_loan["tree"] = nodes
+			profile.save()
+		_take_row(r.data)
+
+
+func _name_of(id: String) -> String:
+	return GameData.ANIMALS[id].name if GameData.ANIMALS.has(id) else id
 
 
 static func _parse(text: String) -> Dictionary:
@@ -324,7 +368,7 @@ func reconcile(profile: Profile) -> PackedStringArray:
 			else:  # declined, cancelled, recalled: it comes home
 				var data := String(mine.get("data", t.data)) if here else String(t.data)
 				if status == "recalled":
-					data = _with_loan_xp(data, String(t.data))
+					data = _with_loan_xp(data, String(t.data), _gear_tree(t))
 				profile.lent.erase(id)
 				profile.transfers_done.append(tid)
 				changed_save = true
@@ -347,9 +391,10 @@ func reconcile(profile: Profile) -> PackedStringArray:
 						_cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/end_loan", {"p_id": int(t.id)})
 						lines.append("%s's %s went home: %s" % [t.from_name, animal, block])
 				else:
-					if _take_gear(profile, id, String(t.get("gear", ""))):
+					var said := _sync_borrowed(profile, t)
+					if said != "":
 						changed_save = true
-						lines.append("%s changed their %s's tech tree or trinket." % [t.from_name, animal])
+						lines.append(said)
 					_push(profile, t)
 			elif status == "done":
 				profile.transfers_done.append(tid)
@@ -379,12 +424,15 @@ func take_news() -> PackedStringArray:
 
 
 ## A loaned critter coming home: the owner's copy as it left, with the XP it earned on loan (never
-## less than it left with). Injuries and fatigue come from the loan.
-static func _with_loan_xp(home: String, loan: String) -> String:
+## less than it left with) and the tech tree last picked for it (`tree`, null if none was).
+## Injuries and fatigue come from the loan.
+static func _with_loan_xp(home: String, loan: String, tree: Variant = null) -> String:
 	var a: Variant = JSON.parse_string(home)
 	var b: Variant = JSON.parse_string(loan)
 	if not a is Dictionary:
 		return loan
+	if tree != null:
+		a["tree"] = tree
 	if b is Dictionary:
 		a["xp"] = maxi(int(a.get("xp", 0)), int(b.get("xp", 0)))
 		for field in ["injuries", "fatigue", "rested"]:

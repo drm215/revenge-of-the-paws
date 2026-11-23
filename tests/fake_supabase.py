@@ -17,7 +17,7 @@ chat = []  # {id, team_id, user_id, name, body, ping, created_at, t}
 raids = []  # {id, team_id, host, territory, legend, seed, config, status, result, created_at}
 raid_members = []  # {raid_id, user_id, name, pack, ready, t}
 raid_actions = {}  # (raid_id, seq) -> {user_id, action}
-TRANSFER_FNS = ("my_transfers", "offer_critter", "answer_transfer", "cancel_transfer", "end_loan", "update_loan", "set_loan_gear")
+TRANSFER_FNS = ("my_transfers", "offer_critter", "answer_transfer", "cancel_transfer", "end_loan", "update_loan", "set_loan_gear", "set_loan_tree")
 transfers = []  # critter_transfers rows: {id, team_id, from_user, to_user, from_name, to_name, kind, critter, data, status, updated_at}
 HISTORY_FNS = ("save_versions", "restore_save", "team_versions", "restore_team_state")
 RAID_FNS = ("team_raid", "open_raid", "join_raid", "leave_raid", "start_raid", "post_raid_action",
@@ -188,6 +188,14 @@ class H(BaseHTTPRequestHandler):
             if not row or row["from_user"] != uid or row["status"] != "active":
                 return self._send(400, {"message": "That loan is already over."})
             row["gear"] = body["p_gear"]
+            row["updated_at"] = stamp()
+            return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
+        if name == "set_loan_tree":
+            if not row or uid not in (row["from_user"], row["to_user"]) or row["status"] != "active":
+                return self._send(400, {"message": "That loan is already over."})
+            old = json.loads(row["gear"]) if row["gear"] else {}
+            trinket = old.get("trinket", json.loads(row["data"]).get("trinket", ""))
+            row["gear"] = json.dumps({"tree": json.loads(body["p_tree"]), "trinket": trinket})
             row["updated_at"] = stamp()
             return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
         if name == "update_loan":

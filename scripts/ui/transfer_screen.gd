@@ -119,7 +119,7 @@ func _build() -> void:
 		_heading("On loan to teammates")
 		for t: Dictionary in lent:
 			var worn: String = transfers.loan_trinket(profile, t)
-			var row := _row("Your %s is with %s: Lv %d now. It comes home with every level it earns. You still pick its tech tree and trinket.\nTrinket: %s" % [
+			var row := _row("Your %s is with %s: Lv %d now. It comes home with every level it earns. You still pick its trinket, and you both pick its tech tree.\nTrinket: %s" % [
 				_animal(t), t.to_name, transfers.level_in(t), GameData.trinket(worn).name if worn != "" else "none"])
 			var points: int = transfers.loan_points(profile, t)
 			var tree := _button(row, "Tech tree (%d)" % points if points > 0 else "Tech tree", _loan_tree.bind(t))
@@ -130,7 +130,7 @@ func _build() -> void:
 	if not borrowed.is_empty():
 		_heading("Borrowed")
 		for t: Dictionary in borrowed:
-			var row := _row("%s's %s (Lv %d). Its owner picks its tech tree and trinket." % [t.from_name, _animal(t), profile.level_of(String(t.critter))])
+			var row := _row("%s's %s (Lv %d). You both can pick its tech tree (Pack); its trinket is theirs to pick." % [t.from_name, _animal(t), profile.level_of(String(t.critter))])
 			_action(row, "Send back", func() -> String: return await transfers.end_loan(profile, t))
 	any = any or not (incoming.is_empty() and waiting.is_empty() and lent.is_empty() and borrowed.is_empty())
 	if not any:

@@ -120,9 +120,8 @@ func _run() -> void:
 	_check("black_bear" in pb.unlocked and pb.level_of("black_bear") == 20 and pb.borrowed.has("black_bear"), "the bear joins his pack on loan, Lv 20")
 	_check(pb.equipped.get("black_bear", "") == "gator_tooth" and pb.trinkets.is_empty(), "wearing its trinket, which isn't his to use")
 	pb.equip("black_bear", "")
-	pb.reset_tree("black_bear")
-	_check(pb.equipped.get("black_bear", "") == "gator_tooth" and not pb.tree.get("black_bear", []).is_empty(), "he can't change its trinket or tree")
-	_check(pb.tree_block("black_bear", GameData.HONE_ID) != "", "or spend its points")
+	_check(pb.equipped.get("black_bear", "") == "gator_tooth", "he can't change its trinket")
+	_check(pb.tree_block("black_bear", GameData.HONE_ID) == "", "but he can spend its points")
 	pb.add_xp("black_bear", GameData.xp_to_reach(26) - int(pb.xp["black_bear"]))
 	transfers.reconcile(pb)  # sends its progress
 	await _settle()
@@ -158,12 +157,33 @@ func _run() -> void:
 	transfers.reconcile(pb)
 	_check(pb.tree.get("black_bear", []).size() == 2 and pb.equipped.get("black_bear", "") == "miners_lamp", "his own updates don't undo them")
 
+	# The borrower picks tree options too: they reach the owner, and come home with it.
+	_check(pb.buy_node("black_bear", "train_hp1") and pb.buy_node("black_bear", "know_guard1"), "Bo spends two of its points")
+	transfers.reconcile(pb)  # sends his picks
+	await _settle()
+	rows = await _server("/_transfers")
+	var gear: Dictionary = JSON.parse_string(String(rows[0].gear))
+	_check((gear.tree as Array).size() == 4 and gear.trinket == "miners_lamp", "his picks reach the loan, her trinket stays: %s" % [gear])
+	transfers.reconcile(pb)
+	_check(pb.tree.get("black_bear", []).size() == 4, "and stay with him on the next check-in")
+
+	await _as("a")
+	var seen: Profile = transfers.loan_view(pa, transfers.open_for("black_bear"))
+	_check(seen.owns("black_bear", "train_hp1") and seen.owns("black_bear", "know_guard1"), "Ann sees what Bo picked")
+	var mine: Array = seen.tree["black_bear"].duplicate()
+	mine.erase("know_guard1")
+	_check(await transfers.set_gear(pa, transfers.open_for("black_bear"), mine, "miners_lamp") == "", "she takes one of his picks back out")
+	await _as("b")
+	_check(pb.tree.get("black_bear", []).size() == 3 and not pb.owns("black_bear", "know_guard1"), "the owner's change reaches Bo")
+	_check(" ".join(transfers.take_news()).contains("changed their Black Bear's tech tree"), "and he's told")
+
 	await _as("a")
 	loan = transfers.open_for("black_bear")
 	_check(await transfers.end_loan(pa, loan) == "", "Ann calls it home")
 	_check("black_bear" in pa.unlocked and pa.level_of("black_bear") == 26 and not pa.lent.has("black_bear"), "it's back, with the levels it earned (Lv %d)" % pa.level_of("black_bear"))
-	_check(pa.equipped.get("black_bear", "") == "miners_lamp" and pa.tree.get("black_bear", []).size() == 2 and pa.trinkets.size() == 2
-		and pa.trinkets_free("gator_tooth") == 1, "with the tree and trinket she picked, and her Gator Tooth spare: %s" % [pa.trinkets])
+	_check(pa.equipped.get("black_bear", "") == "miners_lamp" and pa.tree.get("black_bear", []).size() == 3 and pa.owns("black_bear", "train_hp1")
+		and pa.trinkets.size() == 2 and pa.trinkets_free("gator_tooth") == 1,
+		"with the tree they picked, her trinket, and her Gator Tooth spare: %s %s" % [pa.tree.get("black_bear", []), pa.trinkets])
 
 	await _as("b")
 	_check("black_bear" not in pb.unlocked and pb.borrowed.is_empty() and not pb.equipped.has("black_bear"), "and gone from Bo's pack")
