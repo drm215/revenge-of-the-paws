@@ -24,6 +24,8 @@ var skill_mods := {}  # skill id -> upgrade steps from the tech tree
 var tags: Array[String] = []  # GameData.tags_of(): kind, terrain affinities, role
 var notes: PackedStringArray = []  # lineup effects shown on the battle card ("Injured", "Night +15%")
 var mastered := false
+var knowhow := {}  # GameData.KNOWHOW kind -> points (tech tree)
+var ground := {}  # terrain (GameData.CONDITIONS) -> points of ground training (tech tree)
 var color: Color
 var max_hp: int
 var hp: int
@@ -149,7 +151,14 @@ func hp_ratio() -> float:
 
 
 func effective_def() -> float:
-	return def * (GUARD_DEF_MULT if has_status("guard") else 1.0)
+	if not has_status("guard"):
+		return def
+	return def * (GUARD_DEF_MULT + know_step("guard"))
+
+
+## What this unit's know-how in `kind` adds up to (its points times the kind's step).
+func know_step(kind: String) -> float:
+	return float(knowhow.get(kind, 0)) * float(GameData.KNOWHOW[kind].get("step", 0.0))
 
 
 func has_status(status: String) -> bool:

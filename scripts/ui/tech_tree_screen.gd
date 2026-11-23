@@ -1,8 +1,9 @@
 class_name TechTreeScreen
 extends Control
 
-## An animal's tech tree: Training (stats any time), three branches (Fang, Hide, Instinct) and a
-## level-gated signature row.
+## An animal's tech tree: Training (stats any time), Know-how (taunts, guard, stun and weaken
+## chances, shaking off stuns and infection), Ground (extra ATK/DEF on each terrain), three branches
+## (Fang, Hide, Instinct) and a level-gated signature row.
 ## Tap a bright node to spend a point; Reset refunds everything for free. With several animals to
 ## look at (after a battle), tabs switch between them.
 
@@ -114,6 +115,16 @@ func _show(unit_id: String) -> void:
 		training.add_child(_training_card(unit_id, stat))
 	training.add_child(_hone_card(unit_id))
 
+	_section("Know-how", "Fighting smarter: what its skills can do better, and shaking off what zombies do to it.")
+	var knowhow := _grid()
+	for kind: String in GameData.knowhow_kinds(unit_id):
+		knowhow.add_child(_count_card(unit_id, "know_" + kind, GameData.KNOWHOW[kind].limit, GameData.KNOWHOW[kind].label, "Tap to learn"))
+	_section("Ground", "Extra ATK and DEF on that terrain, on top of the +%d%% an animal suited to it gets." % roundi(GameData.CONDITION_BONUS * 100))
+	var ground := _grid()
+	for terrain: String in GameData.CONDITIONS:
+		ground.add_child(_count_card(unit_id, "ground_" + terrain, GameData.GROUND_LIMIT,
+			"%s +%d%%" % [GameData.CONDITIONS[terrain].name, roundi(GameData.GROUND_STEP * 100)], "Tap to train"))
+
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 8)
 	_content.add_child(columns)
@@ -206,14 +217,39 @@ func _node(unit_id: String, node: Dictionary) -> PanelContainer:
 	return card
 
 
+## A heading and a line of explanation over a group of cards.
+func _section(heading: String, note: String) -> void:
+	var head := Retro.title(Label.new(), 12, Retro.GOLD)
+	head.text = heading
+	_content.add_child(head)
+	var line := Retro.text(Label.new(), 16, Retro.FOG)
+	line.text = note
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_content.add_child(line)
+
+
+func _grid() -> GridContainer:
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	_content.add_child(grid)
+	return grid
+
+
 ## A repeatable stat: shows how many are bought and buys the next one on tap.
 func _training_card(unit_id: String, stat: String) -> PanelContainer:
-	var limit: int = GameData.TRAINING_LIMITS[stat]
+	return _count_card(unit_id, "train_" + stat, GameData.TRAINING_LIMITS[stat], GameData.STAT_LABELS[stat], "Tap to train")
+
+
+## Nodes bought one after another (`prefix` 1, 2, ... up to `limit`): how many are bought, and the
+## next one on tap.
+func _count_card(unit_id: String, prefix: String, limit: int, label: String, verb: String) -> PanelContainer:
 	var bought := 0
 	for k in limit:
-		if profile.owns(unit_id, "train_%s%d" % [stat, k + 1]):
+		if profile.owns(unit_id, "%s%d" % [prefix, k + 1]):
 			bought += 1
-	var next_id := "train_%s%d" % [stat, bought + 1]
+	var next_id := "%s%d" % [prefix, bought + 1]
 	var block := "Maxed" if bought >= limit else profile.tree_block(unit_id, next_id)
 	var open := block == ""
 	var card := PanelContainer.new()
@@ -224,14 +260,14 @@ func _training_card(unit_id: String, stat: String) -> PanelContainer:
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(box)
 	var title := Retro.text(Label.new(), 18, Retro.WHITE)
-	title.text = GameData.STAT_LABELS[stat]
+	title.text = label
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(title)
 	var count := Retro.text(Label.new(), 15, Retro.GOLD if bought > 0 else Retro.FOG)
 	count.text = "%d / %d" % [bought, limit]
 	box.add_child(count)
 	var state := Retro.text(Label.new(), 15, Retro.CYAN if open else Retro.FOG)
-	state.text = "Tap to train" if open else block
+	state.text = verb if open else block
 	box.add_child(state)
 	if open:
 		Retro.on_tap(card, func() -> void:

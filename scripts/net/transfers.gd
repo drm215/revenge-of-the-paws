@@ -7,7 +7,7 @@ extends Node
 ## whenever the transfers change. A critter leaves its owner's pack as soon as it's offered (so it
 ## can't fight in two packs), and the owner's save keeps a copy until it's back or gone. A loan
 ## comes back with the XP it earned (never less than it left with), with the owner's own tech tree
-## and trinket: the borrower can't change those.
+## and trinket: the borrower can't change those, but the owner can while it's away (set_gear).
 
 ## The team's transfers changed (a check-in, or this player's own answer): the map reconciles.
 signal changed
@@ -175,6 +175,92 @@ func settle_before_leaving(profile: Profile) -> void:
 	reconcile(profile)
 
 
+## The owner's view of a critter out on loan (`row`, active): a Profile holding just that critter at
+## the level it has reached, with the tree and trinket the owner picked. For the tech tree screen.
+func loan_view(profile: Profile, row: Dictionary) -> Profile:
+	var id := String(row.critter)
+	var home: Dictionary = _parse(String(profile.lent.get(id, {}).get("data", row.data)))
+	var away: Dictionary = _parse(String(row.data))
+	var view := Profile.new()
+	view.region = profile.region
+	view.unlocked.assign([id])
+	view.xp[id] = maxi(int(home.get("xp", 0)), int(away.get("xp", 0)))
+	var nodes: Array = home.get("tree", [])
+	if not nodes.is_empty():
+		view.tree[id] = nodes.map(func(n: Variant) -> String: return String(n))
+	if String(home.get("trinket", "")) != "":
+		view.equipped[id] = String(home.trinket)
+		view.trinkets.assign([String(home.trinket)])
+	if home.get("bonus", {}) is Dictionary and not (home.bonus as Dictionary).is_empty():
+		view.bonuses[id] = home.bonus
+	return view
+
+
+## Tech-tree points a critter out on loan has waiting for its owner.
+func loan_points(profile: Profile, row: Dictionary) -> int:
+	var view := loan_view(profile, row)
+	return view.points_left(String(row.critter))
+
+
+## The trinket a critter out on loan wears ("" if none).
+func loan_trinket(profile: Profile, row: Dictionary) -> String:
+	return String(_parse(String(profile.lent.get(String(row.critter), {}).get("data", row.data))).get("trinket", ""))
+
+
+## The owner picks the tech tree and trinket of their critter out on loan (`row`, active). A new
+## trinket comes out of the owner's trinkets (a spare copy) and the old one goes back into them. The
+## borrower's game takes it on its next check-in. "" or why not.
+func set_gear(profile: Profile, row: Dictionary, nodes: Array, trinket: String) -> String:
+	var id := String(row.critter)
+	if not profile.lent.has(id):
+		return "That critter isn't out on loan."
+	var old := loan_trinket(profile, row)
+	if trinket != old and trinket != "" and profile.trinkets_free(trinket) <= 0:
+		return "No spare %s: take it off whoever wears it first." % GameData.trinket(trinket).name
+	var gear := JSON.stringify({"tree": nodes, "trinket": trinket}, "", true)
+	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/set_loan_gear", {"p_id": int(row.id), "p_gear": gear})
+	if not r.ok or not r.data is Dictionary:
+		return _error(r)
+	var home := _parse(String(profile.lent[id].get("data", row.data)))
+	home["id"] = id
+	home["tree"] = nodes
+	home["trinket"] = trinket
+	profile.lent[id]["data"] = JSON.stringify(home, "", true)
+	if trinket != old:
+		if old != "":
+			profile.trinkets.append(old)
+		if trinket != "":
+			profile.trinkets.erase(trinket)
+	profile.save()
+	_take_row(r.data)
+	return ""
+
+
+## The borrower takes the owner's latest picks for a borrowed critter. True if anything changed.
+func _take_gear(profile: Profile, id: String, gear_text: String) -> bool:
+	var gear := _parse(gear_text)
+	if gear.is_empty():
+		return false
+	var nodes: Array = (gear.get("tree", []) as Array).map(func(n: Variant) -> String: return String(n))
+	var trinket := String(gear.get("trinket", ""))
+	if nodes == Array(profile.tree.get(id, [])) and trinket == String(profile.equipped.get(id, "")):
+		return false
+	if nodes.is_empty():
+		profile.tree.erase(id)
+	else:
+		profile.tree[id] = nodes
+	if trinket == "":
+		profile.equipped.erase(id)
+	else:
+		profile.equipped[id] = trinket  # (the owner's copy: never in this player's trinkets)
+	return true
+
+
+static func _parse(text: String) -> Dictionary:
+	var d: Variant = JSON.parse_string(text)
+	return d if d is Dictionary else {}
+
+
 func _error(r: Dictionary) -> String:
 	var cloud := _cloud()
 	if cloud == null or not cloud.signed_in():
@@ -261,6 +347,9 @@ func reconcile(profile: Profile) -> PackedStringArray:
 						_cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/end_loan", {"p_id": int(t.id)})
 						lines.append("%s's %s went home: %s" % [t.from_name, animal, block])
 				else:
+					if _take_gear(profile, id, String(t.get("gear", ""))):
+						changed_save = true
+						lines.append("%s changed their %s's tech tree or trinket." % [t.from_name, animal])
 					_push(profile, t)
 			elif status == "done":
 				profile.transfers_done.append(tid)

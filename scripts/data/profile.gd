@@ -108,6 +108,8 @@ func tree_block(unit_id: String, node_id: String) -> String:
 	if node_id == GameData.HONE_ID:
 		return "" if points_left(unit_id) > 0 else "No points"  # no cap: one more each point
 	var node := GameData.tree_node(unit_id, node_id)
+	if node.is_empty():
+		return "Not in its tree"
 	if owns(unit_id, node_id):
 		return "Owned"
 	if level_of(unit_id) < node.min_level:
@@ -174,6 +176,10 @@ func build_unit(unit_id: String) -> Combatant:
 				c.learn_signature()
 			"mastery":
 				c.mastered = true
+			"knowhow":
+				c.knowhow[node.knowhow] = int(c.knowhow.get(node.knowhow, 0)) + 1
+			"ground":
+				c.ground[node.terrain] = int(c.ground.get(node.terrain, 0)) + 1
 	c.skill_mods = skill_steps
 	c.apply_level(level_of(unit_id))
 	c.apply_stat_mods(stats)

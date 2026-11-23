@@ -5,7 +5,9 @@
 -- the teammate accepts or declines. A loan can be ended any time: the owner calls it back, or the
 -- borrower sends it back. The row carries the critter's state (Profile.critter_data(), JSON); while
 -- on loan the borrower's game keeps it up to date, so the owner sees its level and gets back the
--- XP it earned. Each game applies the outcome to its own save (Transfers.reconcile): the server
+-- XP it earned. While it's on loan its owner still picks its tech tree and trinket (`gear`, set by
+-- set_loan_gear: the borrower's game takes it on the next check-in, and the borrower's own updates
+-- never touch it). Each game applies the outcome to its own save (Transfers.reconcile): the server
 -- only records who agreed to what. The table has no policies: players reach it only through the
 -- functions below, and only rows they're part of.
 --
@@ -28,6 +30,9 @@ create table if not exists public.critter_transfers (
   updated_at timestamptz not null default now()
 );
 
+-- The owner's choices for a loaned critter: {"tree": [...], "trinket": "..."} as JSON ('' = as it left).
+alter table public.critter_transfers add column if not exists gear text not null default '';
+
 create index if not exists critter_transfers_team on public.critter_transfers (team_id, id);
 alter table public.critter_transfers enable row level security;
 
@@ -36,7 +41,7 @@ create or replace function public.transfer_json(t critter_transfers) returns jso
 language sql stable as $$
   select json_build_object('id', t.id, 'from_user', t.from_user, 'to_user', t.to_user,
     'from_name', t.from_name, 'to_name', t.to_name, 'kind', t.kind, 'critter', t.critter,
-    'data', t.data, 'status', t.status, 'updated_at', t.updated_at);
+    'data', t.data, 'gear', t.gear, 'status', t.status, 'updated_at', t.updated_at);
 $$;
 
 -- Your transfers on a team, oldest first: every open one, and the ones that ended in the last 30
@@ -131,6 +136,20 @@ begin
 end;
 $$;
 
+-- The owner picks a loaned critter's tech tree and trinket. Returns the row.
+create or replace function public.set_loan_gear(p_id bigint, p_gear text) returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  t critter_transfers;
+begin
+  update critter_transfers set gear = p_gear, updated_at = now()
+  where id = p_id and from_user = auth.uid() and status = 'active' and char_length(p_gear) <= 5000
+  returning * into t;
+  if not found then raise exception 'That loan is already over.'; end if;
+  return transfer_json(t);
+end;
+$$;
+
 revoke all on function public.transfer_json(critter_transfers) from public, anon;
 revoke all on function public.my_transfers(uuid) from public, anon;
 revoke all on function public.offer_critter(uuid, uuid, text, text, text) from public, anon;
@@ -138,9 +157,11 @@ revoke all on function public.answer_transfer(bigint, boolean) from public, anon
 revoke all on function public.cancel_transfer(bigint) from public, anon;
 revoke all on function public.end_loan(bigint) from public, anon;
 revoke all on function public.update_loan(bigint, text) from public, anon;
+revoke all on function public.set_loan_gear(bigint, text) from public, anon;
 grant execute on function public.my_transfers(uuid) to authenticated;
 grant execute on function public.offer_critter(uuid, uuid, text, text, text) to authenticated;
 grant execute on function public.answer_transfer(bigint, boolean) to authenticated;
 grant execute on function public.cancel_transfer(bigint) to authenticated;
 grant execute on function public.end_loan(bigint) to authenticated;
 grant execute on function public.update_loan(bigint, text) to authenticated;
+grant execute on function public.set_loan_gear(bigint, text) to authenticated;

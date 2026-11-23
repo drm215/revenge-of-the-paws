@@ -134,10 +134,36 @@ func _run() -> void:
 	_check(" ".join(news).contains("took your Black Bear on loan"), "Ann hears Bo took it: %s" % [news])
 	var loan: Dictionary = transfers.open_for("black_bear")
 	_check(transfers.level_in(loan) == 26, "she sees it's Lv 26 now")
+
+	# The owner still picks its tech tree and trinket while it's away.
+	_check(transfers.loan_points(pa, loan) == 24, "its points wait for Ann (%d)" % transfers.loan_points(pa, loan))
+	var view: Profile = transfers.loan_view(pa, loan)
+	_check(view.level_of("black_bear") == 26 and view.equipped.get("black_bear", "") == "gator_tooth", "she sees it as it is now, Lv 26 with its trinket")
+	var second: String = GameData.tech_tree("black_bear")[1].id
+	_check(view.buy_node("black_bear", second), "she spends a point on it")
+	pa.trinkets.append("miners_lamp")
+	_check(await transfers.set_gear(pa, transfers.open_for("black_bear"), view.tree["black_bear"], "miners_lamp") == "", "and swaps its trinket for her spare Miner's Lamp")
+	_check(pa.trinkets == ["gator_tooth"], "the Gator Tooth comes back to her, the lamp goes with the bear: %s" % [pa.trinkets])
+	_check(await transfers.set_gear(pa, transfers.open_for("black_bear"), view.tree["black_bear"], "cypress_knee_charm") != "",
+		"a trinket she has no spare of can't go on it")
+
+	await _as("b")
+	news = transfers.take_news()
+	_check(" ".join(news).contains("changed their Black Bear"), "Bo's game hears: %s" % [news])
+	_check(pb.tree.get("black_bear", []).size() == 2 and pb.equipped.get("black_bear", "") == "miners_lamp" and pb.trinkets.is_empty(),
+		"and the bear fights with her picks: %s, %s" % [pb.tree.get("black_bear", []), pb.equipped.get("black_bear", "")])
+	pb.add_xp("black_bear", 50)
+	transfers.reconcile(pb)  # his progress goes up, and doesn't undo her picks
+	await _settle()
+	transfers.reconcile(pb)
+	_check(pb.tree.get("black_bear", []).size() == 2 and pb.equipped.get("black_bear", "") == "miners_lamp", "his own updates don't undo them")
+
+	await _as("a")
+	loan = transfers.open_for("black_bear")
 	_check(await transfers.end_loan(pa, loan) == "", "Ann calls it home")
 	_check("black_bear" in pa.unlocked and pa.level_of("black_bear") == 26 and not pa.lent.has("black_bear"), "it's back, with the levels it earned (Lv %d)" % pa.level_of("black_bear"))
-	_check(pa.trinkets == ["gator_tooth"] and pa.equipped.get("black_bear", "") == "gator_tooth" and pa.tree.get("black_bear", []).size() == 1,
-		"with its trinket and its tree")
+	_check(pa.equipped.get("black_bear", "") == "miners_lamp" and pa.tree.get("black_bear", []).size() == 2 and pa.trinkets.size() == 2
+		and pa.trinkets_free("gator_tooth") == 1, "with the tree and trinket she picked, and her Gator Tooth spare: %s" % [pa.trinkets])
 
 	await _as("b")
 	_check("black_bear" not in pb.unlocked and pb.borrowed.is_empty() and not pb.equipped.has("black_bear"), "and gone from Bo's pack")

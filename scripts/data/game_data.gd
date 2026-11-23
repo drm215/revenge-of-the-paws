@@ -1476,11 +1476,29 @@ const UPGRADE_LABELS := {
 ## any time, up to TRAINING_LIMITS times each.
 const STAT_STEP := {"hp": 0.08, "atk": 0.05, "def": 0.06, "spd": 1, "crit": 0.04}
 const TRAINING_LIMITS := {"hp": 15, "atk": 15, "def": 15, "spd": 6, "crit": 8}
-## Honing: Training with no cap, for points past a full tree (22 nodes and 59 Training buys use up
-## Lv 82): each point gives HONE_STEP more Max HP, Attack and Defense. Stored in the tree as HONE_ID,
+## Honing: Training with no cap, for points past a full tree (branches, Training, Know-how and
+## Ground: Lv 100 or so): each point gives HONE_STEP more Max HP, Attack and Defense. Stored in the tree as HONE_ID,
 ## once per point.
 const HONE_ID := "hone"
 const HONE_STEP := 0.01
+## Know-how: combat skills bought with tree points like Training, up to `limit` each. A kind with
+## `needs` is only offered to critters with a skill that applies that status (stun and weaken only
+## where it's left to chance); resistances are for everyone. Tree nodes "know_<kind><n>".
+const KNOWHOW := {
+	"taunt": {"label": "Taunts last 1 turn longer", "limit": 2, "needs": "taunt"},
+	"guard": {"label": "Guard: +10% more DEF", "limit": 4, "needs": "guard", "step": 0.1},
+	"stun": {"label": "Stun chance +5%", "limit": 4, "needs": "stunned", "step": 0.05},
+	"weaken": {"label": "Weaken chance +5%", "limit": 4, "needs": "weakened", "step": 0.05},
+	"stun_resist": {"label": "Shake off stuns: 10%", "limit": 4, "step": 0.1},
+	"infect_resist": {"label": "Shake off infection: 15%", "limit": 3, "step": 0.15},
+}
+## Which know-how raises the chance of applying a status, and which one resists it.
+const KNOWHOW_CHANCE := {"stunned": "stun", "weakened": "weaken"}
+const KNOWHOW_RESIST := {"stunned": "stun_resist", "infected": "infect_resist"}
+## Ground training: +GROUND_STEP ATK and DEF on one kind of terrain (CONDITIONS) per point, up to
+## GROUND_LIMIT, on top of an animal's own terrain bonus. Tree nodes "ground_<terrain><n>".
+const GROUND_STEP := 0.05
+const GROUND_LIMIT := 3
 const STAT_LABELS := {
 	"hp": "Max HP +8%", "atk": "Attack +5%", "def": "Defense +6%", "spd": "Speed +1", "crit": "Crit chance +4%",
 }
@@ -1888,8 +1906,44 @@ static func tech_tree(unit_id: String) -> Array[Dictionary]:
 				"requires": [prev_train] if prev_train != "" else [], "min_level": 1,
 				"kind": "stat", "title": STAT_LABELS[stat]})
 			prev_train = node_id
+	for kind: String in knowhow_kinds(unit_id):
+		var prev_know := ""
+		for k in KNOWHOW[kind].limit:
+			var node_id := "know_%s%d" % [kind, k + 1]
+			nodes.append({"id": node_id, "branch": "knowhow", "tier": k + 1, "knowhow": kind,
+				"requires": [prev_know] if prev_know != "" else [], "min_level": 1,
+				"kind": "knowhow", "title": KNOWHOW[kind].label})
+			prev_know = node_id
+	for terrain: String in CONDITIONS:
+		var prev_ground := ""
+		for k in GROUND_LIMIT:
+			var node_id := "ground_%s%d" % [terrain, k + 1]
+			nodes.append({"id": node_id, "branch": "ground", "tier": k + 1, "terrain": terrain,
+				"requires": [prev_ground] if prev_ground != "" else [], "min_level": 1,
+				"kind": "ground", "title": "%s: +%d%% ATK/DEF" % [CONDITIONS[terrain].name, roundi(GROUND_STEP * 100)]})
+			prev_ground = node_id
 	_trees[unit_id] = nodes
 	return nodes
+
+
+## The know-how a critter can learn (KNOWHOW keys, in order): what its skills (signature included)
+## can use, and the resistances.
+static func knowhow_kinds(unit_id: String) -> Array[String]:
+	var data: Dictionary = PETS.get(unit_id, ANIMALS.get(unit_id, {}))
+	var skill_ids: Array = data.get("skills", []).duplicate()
+	skill_ids.append(signature_skill(String(data.get("role", ""))))
+	var uses := {}
+	for skill_id in skill_ids:
+		for effect: Dictionary in skill(skill_id).get("apply", []):
+			if effect.status in KNOWHOW_CHANCE and float(effect.get("chance", 1.0)) >= 1.0:
+				continue  # always lands already
+			uses[effect.status] = true
+	var out: Array[String] = []
+	for kind: String in KNOWHOW:
+		var needs := String(KNOWHOW[kind].get("needs", ""))
+		if needs == "" or uses.has(needs):
+			out.append(kind)
+	return out
 
 
 static func tree_node(unit_id: String, node_id: String) -> Dictionary:

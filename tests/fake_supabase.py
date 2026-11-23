@@ -17,7 +17,7 @@ chat = []  # {id, team_id, user_id, name, body, ping, created_at, t}
 raids = []  # {id, team_id, host, territory, legend, seed, config, status, result, created_at}
 raid_members = []  # {raid_id, user_id, name, pack, ready, t}
 raid_actions = {}  # (raid_id, seq) -> {user_id, action}
-TRANSFER_FNS = ("my_transfers", "offer_critter", "answer_transfer", "cancel_transfer", "end_loan", "update_loan")
+TRANSFER_FNS = ("my_transfers", "offer_critter", "answer_transfer", "cancel_transfer", "end_loan", "update_loan", "set_loan_gear")
 transfers = []  # critter_transfers rows: {id, team_id, from_user, to_user, from_name, to_name, kind, critter, data, status, updated_at}
 HISTORY_FNS = ("save_versions", "restore_save", "team_versions", "restore_team_state")
 RAID_FNS = ("team_raid", "open_raid", "join_raid", "leave_raid", "start_raid", "post_raid_action",
@@ -163,7 +163,7 @@ class H(BaseHTTPRequestHandler):
                 return self._send(400, {"message": "That critter is already offered or on loan."})
             row = {"id": len(transfers) + 1, "team_id": tid, "from_user": uid, "to_user": body["p_to"], "from_name": me["name"],
                    "to_name": them["name"], "kind": body["p_kind"], "critter": body["p_critter"], "data": body["p_data"],
-                   "status": "offered", "updated_at": stamp()}
+                   "gear": "", "status": "offered", "updated_at": stamp()}
             transfers.append(row)
             return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
         row = next((t for t in transfers if t["id"] == body.get("p_id")), None)
@@ -184,6 +184,12 @@ class H(BaseHTTPRequestHandler):
             if not row or uid not in (row["from_user"], row["to_user"]) or row["status"] != "active":
                 return self._send(400, {"message": "That loan is already over."})
             return done("recalled")
+        if name == "set_loan_gear":
+            if not row or row["from_user"] != uid or row["status"] != "active":
+                return self._send(400, {"message": "That loan is already over."})
+            row["gear"] = body["p_gear"]
+            row["updated_at"] = stamp()
+            return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
         if name == "update_loan":
             if not row or row["to_user"] != uid or row["status"] != "active":
                 return self._send(200, False)

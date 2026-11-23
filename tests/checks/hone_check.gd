@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Honing: once an animal's tech tree and Training are full (Lv 82), its points still buy something:
+## Honing: once an animal's whole tech tree is full (Training, Know-how and Ground included), its points still buy something:
 ## +1% Max HP, Attack and Defense each, with no cap.
 
 var _fails := 0
@@ -22,7 +22,8 @@ func _init() -> void:
 	p.pet_name = "Shyamalan"
 	p.team.assign(["black_bear", "horned_owl"])
 	p.unlocked.assign(p.team)
-	p.xp["cat"] = GameData.xp_to_reach(90)
+	var nodes := GameData.tech_tree("cat").size()  # one point each; Lv L has L - 1 points
+	p.xp["cat"] = GameData.xp_to_reach(nodes + 1 + 8)
 
 	# Fill the whole tree and all Training.
 	var bought := true
@@ -32,8 +33,8 @@ func _init() -> void:
 			if p.buy_node("cat", node.id):
 				bought = true
 	var full := GameData.tech_tree("cat").all(func(n: Dictionary) -> bool: return p.owns("cat", n.id))
-	_check(full and p.tree.cat.size() == 81, "the tree and Training take 81 points, all of Lv 82 (%d bought)" % p.tree.cat.size())
-	_check(p.points_left("cat") == 8 and p.can_buy_any("cat"), "a Lv 90 pet still has 8 points, and something to spend them on")
+	_check(full and p.tree.cat.size() == nodes, "the whole tree takes %d points, all of Lv %d (%d bought)" % [nodes, nodes + 1, p.tree.cat.size()])
+	_check(p.points_left("cat") == 8 and p.can_buy_any("cat"), "a Lv %d pet still has 8 points, and something to spend them on" % (nodes + 9))
 
 	var before := p.build_unit("cat")
 	for k in 8:
@@ -48,7 +49,7 @@ func _init() -> void:
 	var back := Profile.load_saved()
 	_check(back.honed("cat") == 8 and back.build_unit("cat").max_hp == after.max_hp, "it's saved")
 	back.reset_tree("cat")
-	_check(back.honed("cat") == 0 and back.points_left("cat") == 89, "a reset gives the points back")
+	_check(back.honed("cat") == 0 and back.points_left("cat") == nodes + 8, "a reset gives the points back")
 
 	# On screen: the Hone card sits with Training.
 	root.theme = Retro.make_theme()

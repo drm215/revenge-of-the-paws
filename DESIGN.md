@@ -138,7 +138,12 @@ The apocalypse starts **where you actually live**.
   Lv 20, so builds differ. **Training** buys stats directly any time (Max HP +8%, Attack +5%,
   Defense +6%, Speed +1, Crit +4%; up to 15/15/15/6/8), from the same points; past Lv 20 that's where points go. **Honing** (`HONE_ID`, beside
   Training) has no cap: +1% Max HP, Attack and Defense per point, so levels past Lv 82 (where tree
-  and Training are full) still count. Reset is free. Opens
+  and Training are full) still count. **Know-how** (`GameData.KNOWHOW`, bought the same way, capped):
+  taunts last longer (+1 turn, up to 2) and Guard gives more DEF (+10%, up to 4) for critters whose
+  skills taunt or guard; stun and weaken chances +5% (up to 4) where a skill leaves them to chance;
+  and for everyone, shaking off stuns (10% a point, up to 40%) and infection (15%, up to 45%).
+  **Ground** (`GROUND_*`): +5% ATK and DEF on one kind of terrain per point, up to +15% on each of
+  the six, on top of a suited animal's own +15%. Reset is free. Opens
   after a level-up and from each Pack card.
 - **Survivors & swapping:** ~8 territories per map hide a survivor, an animal native to *that
   territory's* region (so maps that cross into another region offer its animals). Liberate it and
@@ -220,7 +225,10 @@ The apocalypse starts **where you actually live**.
   everything about it (`Profile.critter_data`: XP, tech tree, worn trinket, row, injuries,
   fatigue, bonuses). A borrower fields it like any other, but can't spend its points or change or
   reuse its trinket; its XP goes to the server after each fight (`update_loan`) and it comes home
-  with the levels it earned, never fewer than it left with, with the owner's own tree and trinket.
+  with the levels it earned, never fewer than it left with. The owner still picks its tech tree and
+  trinket while it's away (Trades > Tech tree / Trinket on a copy, `Transfers.set_gear`; a new
+  trinket is a spare of the owner's, the old one goes back to them): kept apart from the
+  borrower's updates (`gear`), and the borrower's game takes it on its next check-in.
   The server only records who agreed to what (`critter_transfers`); each game applies the outcome
   to its own save (`Transfers.reconcile`, run by the map and the Trades screen on each check-in).
   A given or lent home animal doesn't come back on load (`Profile.away`). Leaving a team ends all

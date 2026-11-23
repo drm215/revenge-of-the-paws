@@ -183,6 +183,13 @@ func _apply_lineup(profile: Profile, region: String, units: Array[Combatant]) ->
 			def *= 1.0 + GameData.CONDITION_BONUS
 			suited.append(c.display_name)
 			c.notes.append(GameData.CONDITIONS[condition].name)
+		var trained := int(c.ground.get(condition, 0)) if condition != "" else 0
+		if trained > 0:
+			atk *= 1.0 + GameData.GROUND_STEP * trained
+			def *= 1.0 + GameData.GROUND_STEP * trained
+			c.notes.append("%s trained +%d%%" % [GameData.CONDITIONS[condition].name, roundi(GameData.GROUND_STEP * trained * 100)])
+			_perk_log.append("[color=#2ce8f5]%s is trained for %s: +%d%% ATK/DEF[/color]" % [c.display_name,
+				GameData.CONDITIONS[condition].name, roundi(GameData.GROUND_STEP * trained * 100)])
 		if region != "" and region in GameData.native_regions(c.id):
 			atk *= 1.0 + GameData.HOME_TURF_BONUS
 			def *= 1.0 + GameData.HOME_TURF_BONUS
@@ -507,8 +514,18 @@ func use_skill(actor: Combatant, skill_id: String, target: Combatant) -> void:
 					continue
 				if effect.status == "infected" and _weak_point(t, actor) == "immune":
 					continue  # scavengers shrug off a Plague Carrier's rot
-				if rng.randf() < effect.get("chance", 1.0):
-					t.add_status(effect.status, effect.turns)
+				var chance: float = effect.get("chance", 1.0)
+				var turns: int = effect.turns
+				if GameData.KNOWHOW_CHANCE.has(effect.status):
+					chance += actor.know_step(GameData.KNOWHOW_CHANCE[effect.status])
+				if effect.status == "taunt":
+					turns += int(actor.knowhow.get("taunt", 0))
+				if rng.randf() < chance:
+					var resist := t.know_step(GameData.KNOWHOW_RESIST[effect.status]) if GameData.KNOWHOW_RESIST.has(effect.status) else 0.0
+					if resist > 0.0 and rng.randf() < resist:
+						log_message.emit("[color=#2ce8f5]%s shakes off being %s![/color]" % [t.display_name, GameData.STATUSES[effect.status].name.to_lower()])
+						continue
+					t.add_status(effect.status, turns)
 					if t != actor:
 						log_message.emit("%s is %s." % [t.display_name, GameData.STATUSES[effect.status].name.to_lower()])
 					status_changed.emit(t)

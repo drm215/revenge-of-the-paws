@@ -118,12 +118,19 @@ func _build() -> void:
 	if not lent.is_empty():
 		_heading("On loan to teammates")
 		for t: Dictionary in lent:
-			var row := _row("Your %s is with %s: Lv %d now. It comes home with every level it earns." % [_animal(t), t.to_name, transfers.level_in(t)])
+			var worn: String = transfers.loan_trinket(profile, t)
+			var row := _row("Your %s is with %s: Lv %d now. It comes home with every level it earns. You still pick its tech tree and trinket.\nTrinket: %s" % [
+				_animal(t), t.to_name, transfers.level_in(t), GameData.trinket(worn).name if worn != "" else "none"])
+			var points: int = transfers.loan_points(profile, t)
+			var tree := _button(row, "Tech tree (%d)" % points if points > 0 else "Tech tree", _loan_tree.bind(t))
+			if points > 0:
+				tree.add_theme_color_override("font_color", Retro.YELLOW)
+			_button(row, "Trinket", _loan_trinket.bind(t))
 			_action(row, "Call home", func() -> String: return await transfers.end_loan(profile, t))
 	if not borrowed.is_empty():
 		_heading("Borrowed")
 		for t: Dictionary in borrowed:
-			var row := _row("%s's %s (Lv %d). Its owner keeps its tech tree and trinket." % [t.from_name, _animal(t), profile.level_of(String(t.critter))])
+			var row := _row("%s's %s (Lv %d). Its owner picks its tech tree and trinket." % [t.from_name, _animal(t), profile.level_of(String(t.critter))])
 			_action(row, "Send back", func() -> String: return await transfers.end_loan(profile, t))
 	any = any or not (incoming.is_empty() and waiting.is_empty() and lent.is_empty() and borrowed.is_empty())
 	if not any:
@@ -163,6 +170,103 @@ func _offer_section() -> void:
 					_say("%s offered to %s%s. It's out of your pack until they answer." % [animal, who, " on loan" if kind == "loan" else " to keep"])
 				return error
 			_action(row, "Lend" if kind == "loan" else "Give", send, kind == "gift")
+
+
+## A plain button in a row (one that opens something rather than acting at once).
+func _button(row: HBoxContainer, text: String, on_press: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 64)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.pressed.connect(on_press)
+	row.add_child(b)
+	return b
+
+
+## The owner spends the points of a critter out on loan: its tech tree as usual, on a copy, sent to
+## the borrower's game when Done.
+func _loan_tree(t: Dictionary) -> void:
+	var transfers := _transfers()
+	var id := String(t.critter)
+	var view: Profile = transfers.loan_view(profile, t)
+	var before: Array = view.tree.get(id, []).duplicate()
+	var screen := TechTreeScreen.new()
+	screen.profile = view
+	screen.units.assign([id])
+	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	screen.done.connect(func() -> void:
+		var nodes: Array = view.tree.get(id, [])
+		screen.queue_free()
+		if nodes == before:
+			return
+		var error: String = await transfers.set_gear(profile, t, nodes, transfers.loan_trinket(profile, t))
+		if is_inside_tree():
+			_say(error if error != "" else "%s's tech tree is set. %s's game picks it up in a moment." % [_animal(t), t.to_name])
+			_build())
+	add_child(screen)
+
+
+## The owner picks the trinket of a critter out on loan: a spare one of theirs, or none.
+func _loan_trinket(t: Dictionary) -> void:
+	var transfers := _transfers()
+	var worn: String = transfers.loan_trinket(profile, t)
+	var overlay := ColorRect.new()
+	overlay.color = Retro.INK
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(overlay)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 24)
+	margin.add_theme_constant_override("margin_top", 48)
+	overlay.add_child(margin)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 10)
+	margin.add_child(outer)
+	var title := Retro.title(Label.new(), 14, Retro.GOLD)
+	title.text = "Trinket for your %s (with %s)" % [_animal(t), t.to_name]
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	outer.add_child(title)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	Retro.touch_scroll(scroll)
+	outer.add_child(scroll)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 8)
+	scroll.add_child(col)
+	var choices: Array[String] = [""]
+	if worn != "":
+		choices.append(worn)
+	for id in profile.trinkets:
+		if id not in choices and profile.trinkets_free(id) > 0:
+			choices.append(id)
+	for id in choices:
+		var b := Button.new()
+		b.text = ("None" if id == "" else "%s: %s" % [GameData.trinket(id).name, GameData.trinket_effects(id)]) + ("  (wearing)" if id == worn else "")
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		b.custom_minimum_size = Vector2(0, 72)
+		b.disabled = id == worn
+		b.pressed.connect(func() -> void:
+			overlay.queue_free()
+			var nodes: Array = transfers.loan_view(profile, t).tree.get(String(t.critter), [])
+			var error: String = await transfers.set_gear(profile, t, nodes, id)
+			if is_inside_tree():
+				_say(error if error != "" else "%s now wears %s. %s's game picks it up in a moment." % [
+					_animal(t), GameData.trinket(id).name if id != "" else "no trinket", t.to_name])
+				_build())
+		col.add_child(b)
+	if choices.size() == 1 and worn == "":
+		var none := Retro.text(Label.new(), 18, Retro.FOG)
+		none.text = "You have no spare trinkets: every one you own is worn."
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(none)
+	var close := Button.new()
+	close.text = "Back"
+	close.custom_minimum_size = Vector2(0, 80)
+	close.pressed.connect(overlay.queue_free)
+	outer.add_child(close)
 
 
 func _heading(text: String) -> void:
