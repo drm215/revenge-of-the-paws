@@ -171,6 +171,7 @@ func _show_map(profile: Profile, allow_auto := true) -> void:
 	screen.rematch_requested.connect(_show_rematch)
 	screen.bonus_requested.connect(_show_bonus)
 	screen.raid_requested.connect(_show_raid.bind(-1))
+	screen.trades_requested.connect(_show_trades.bind(_show_map.bind(_profile, false)))
 	screen.saves_requested.connect(func() -> void:
 		_profile.save()  # everything else is already saved after each move
 		_show_saves())
@@ -363,10 +364,24 @@ func _show_pack(stable_view := false) -> void:
 		_profile.save()
 		_show_map(_profile))
 	screen.open_stable.connect(_show_pack.bind(true))
+	screen.trades_requested.connect(func(offer: String) -> void:
+		_profile.save()
+		_show_trades(_show_pack, offer))
 	screen.bring_back.connect(func(id: String) -> void:
 		_campaign.bring_from_stable(id)
 		_profile.save()
 		_show_pack(true))
+	_swap(screen)
+
+
+## Trades with teammates (lend or give critters); `back` is where Back goes.
+func _show_trades(back: Callable, offer := "") -> void:
+	var screen := TransferScreen.new()
+	screen.profile = _profile
+	screen.offer_id = offer
+	screen.closed.connect(func() -> void:
+		_profile.save()
+		back.call())
 	_swap(screen)
 
 

@@ -92,6 +92,9 @@ func bring_back(team: Dictionary, profile: Profile) -> String:
 
 ## Leaves the team of the game being played; that game goes back to its solo map.
 func leave(profile: Profile) -> String:
+	var transfers := get_node_or_null("/root/Transfers")
+	if transfers:
+		await transfers.settle_before_leaving(profile)  # no critter stays behind on a team you've left
 	var r: Dictionary = await _cloud().api(HTTPClient.METHOD_POST, "/rest/v1/rpc/leave_team", {"p_team": team_id})
 	if not r.ok:
 		return _cloud().error_text(r)

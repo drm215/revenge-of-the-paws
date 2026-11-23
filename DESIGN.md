@@ -211,6 +211,21 @@ The apocalypse starts **where you actually live**.
   a raid whose lair has fallen is called off by itself, and unfinished raids lapse after 2 hours.
   With no connection at the end of a fight the player can still leave: the result is kept on the
   device and sent once back online, and the map and their rewards catch up (`Raid.finish_later`).
+- **Trades** (teams; `scripts/net/transfers.gd`, `scripts/ui/transfer_screen.gd`, `server/transfers.sql`):
+  a critter's Details in Pack has "Lend or give to a teammate" (wild animals only, never the pet,
+  never one on loan, and never one the lineup can't do without). A **gift** is for good; a
+  **loan** can be ended any time, by the owner (Call home) or the borrower (Send back). Either way
+  the teammate accepts or declines first, and can't accept a kind their pack already has (one of
+  each species per save). The critter leaves the owner's pack as soon as it's offered, with
+  everything about it (`Profile.critter_data`: XP, tech tree, worn trinket, row, injuries,
+  fatigue, bonuses). A borrower fields it like any other, but can't spend its points or change or
+  reuse its trinket; its XP goes to the server after each fight (`update_loan`) and it comes home
+  with the levels it earned, never fewer than it left with, with the owner's own tree and trinket.
+  The server only records who agreed to what (`critter_transfers`); each game applies the outcome
+  to its own save (`Transfers.reconcile`, run by the map and the Trades screen on each check-in).
+  A given or lent home animal doesn't come back on load (`Profile.away`). Leaving a team ends all
+  loans and withdraws open offers first. Pack > Trades lists offers, loans and borrowed critters;
+  the map shows a button while an offer waits.
 - **Team chat** (`scripts/net/chat.gd`, `server/chat.sql`; Chat button in the footer on team
   maps, with the unread count): six one-tap quick phrases, typed messages (200 characters, 5 per
   10 s), and map pings (Ping beside the territory action) that outline the territory in cyan on

@@ -14,6 +14,8 @@ signal raid_requested
 signal fight
 signal bring_back(id: String)  # bring this animal back from the Stable (costs a map turn)
 signal open_stable  # switch to the Stable view
+## Trades with teammates; `offer_id`: a critter to lend or give ("" just opens the list).
+signal trades_requested(offer_id: String)
 
 var profile: Profile
 ## Campaign.battle_config() / patrol_config() for the fight about to start; empty outside battle prep.
@@ -120,9 +122,26 @@ func _ready() -> void:
 		back.pressed.connect(_back)
 		row.add_child(back)
 		row.add_child(_done)
+	elif not stable_view and _on_team():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		col.add_child(row)
+		var trades := Button.new()
+		trades.text = "Trades"
+		trades.custom_minimum_size = Vector2(220, 84)
+		trades.add_theme_color_override("font_color", Retro.CYAN)
+		trades.pressed.connect(func() -> void: trades_requested.emit(""))
+		row.add_child(trades)
+		row.add_child(_done)
 	else:
 		col.add_child(_done)
 	_refresh()
+
+
+## A team game, signed in: critters can be lent and given to teammates.
+func _on_team() -> bool:
+	var team := get_node_or_null("/root/Team")
+	return team != null and profile.team_id != "" and team.on_team()
 
 
 ## This fight's perks for an animal: terrain, home turf, and a lair legend's weak spot ({good}),
@@ -447,6 +466,8 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	if not best.is_empty():
 		tag += " · " + ", ".join(best)
 	col.add_child(_tile_text(tag, 16, Retro.FOG))
+	if profile.borrowed.has(id):
+		col.add_child(_tile_text("ON LOAN from " + String(profile.borrowed[id].get("from", "a teammate")), 16, Retro.CYAN))
 	if not perks.good.is_empty():
 		col.add_child(_tile_text("PERK: " + ", ".join(perks.good), 16, Retro.CYAN))
 	if not perks.bad.is_empty():
@@ -493,6 +514,9 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 	var upgrade := _tile_button(("Tech tree (%d)" % points) if points > 0 else "Tech tree", _show_upgrades.bind(id))
 	if points > 0:
 		upgrade.add_theme_color_override("font_color", Retro.YELLOW)
+	if profile.borrowed.has(id):
+		upgrade.text = "Tech tree: owner's"
+		upgrade.disabled = true
 	col.add_child(upgrade)
 	if not is_pet and not selected and not stabled:
 		var duty := profile.duty_of(id)
@@ -509,7 +533,7 @@ func _card(id: String, data: Dictionary, selected: bool, is_pet: bool, on_press:
 				_refresh()))
 	var slot := _tile_button(GameData.trinket(worn).name if worn != "" else ("+ Trinket" if not profile.trinkets.is_empty() else "No trinkets"),
 		_show_picker.bind(id, unit.display_name))
-	slot.disabled = profile.trinkets.is_empty()
+	slot.disabled = profile.trinkets.is_empty() or profile.borrowed.has(id)
 	col.add_child(slot)
 	if worn != "":
 		col.add_child(_tile_text(GameData.trinket_effects(worn), 15, Retro.YELLOW))
@@ -655,6 +679,18 @@ func _show_details(unit_id: String) -> void:
 				bonds.append("%s (%s)" % [bond.name, bond.desc])
 		if not bonds.is_empty():
 			col.add_child(_tile_text("Bonds: %s · +%d%% ATK/DEF" % [", ".join(bonds), GameData.bond_total(bonds.size())], 19, Retro.GOLD))
+
+	if profile.borrowed.has(unit_id):
+		col.add_child(_tile_text("On loan from %s: it fights for you, and its tech tree and trinket stay as they set them. Send it back from Trades any time." % String(profile.borrowed[unit_id].get("from", "a teammate")), 19, Retro.CYAN))
+	elif not is_pet and battle_config.is_empty() and _on_team():
+		var send := Button.new()
+		send.text = "Lend or give to a teammate"
+		send.custom_minimum_size = Vector2(0, 72)
+		send.add_theme_color_override("font_color", Retro.CYAN)
+		send.pressed.connect(func() -> void:
+			overlay.queue_free()
+			trades_requested.emit(unit_id))
+		col.add_child(send)
 
 	var close := Button.new()
 	close.text = "Close"

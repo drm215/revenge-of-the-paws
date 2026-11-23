@@ -16,6 +16,8 @@ signal siege_requested
 signal chat_requested
 ## Join (or go back to) the team's legend raid.
 signal raid_requested
+## Trades with teammates (an offer is waiting).
+signal trades_requested
 ## Back to the save picker.
 signal saves_requested
 ## Enter the dungeon of `region` (its entrance is held).
@@ -60,6 +62,7 @@ var _action := Button.new()
 var _ping := Button.new()  # team: point teammates at the selected territory
 var _chat_button: Button
 var _raid_button := Button.new()  # team: an open raid to join, or one this player is fighting in
+var _trade_button := Button.new()  # team: a teammate offers a critter
 var _briefing: Control
 
 
@@ -74,6 +77,10 @@ func _ready() -> void:
 	if raid and campaign.is_team():
 		raid.changed.connect(_on_raid)
 		_on_raid()
+	var transfers := get_node_or_null("/root/Transfers")
+	if transfers and campaign.is_team():
+		transfers.changed.connect(_on_transfers)
+		_on_transfers()
 	_map.territory_selected.connect(_select)
 	_refresh_status()
 	var cloud := get_node_or_null("/root/Cloud")
@@ -430,6 +437,23 @@ func _on_raid() -> void:
 	_fit_news()
 
 
+## Trades with teammates: applies them to this pack (critters come and go), says what happened, and
+## shows a button while a teammate's offer waits for an answer.
+func _on_transfers() -> void:
+	var transfers := get_node("/root/Transfers")
+	transfers.reconcile(profile)
+	var news: PackedStringArray = transfers.take_news()
+	if not news.is_empty():
+		announce("\n".join(news))
+	var offers: Array = transfers.incoming()
+	_trade_button.visible = not offers.is_empty()
+	if not offers.is_empty():
+		var t: Dictionary = offers[0]
+		_trade_button.text = "%s offers you their %s%s" % [t.from_name, GameData.ANIMALS.get(String(t.critter), {}).get("name", t.critter),
+			": answer" if offers.size() == 1 else " (+%d more): answer" % (offers.size() - 1)]
+	_fit_news()
+
+
 func _lair_is_free(territory: String) -> bool:
 	for t in campaign.territories:
 		if t.id == territory:
@@ -699,6 +723,12 @@ func _build_ui() -> void:
 	_raid_button.add_theme_color_override("font_color", Retro.CYAN)
 	_raid_button.pressed.connect(raid_requested.emit)
 	col.add_child(_raid_button)
+	_trade_button.visible = false
+	_trade_button.custom_minimum_size = Vector2(0, 64)
+	_trade_button.add_theme_color_override("font_color", Retro.CYAN)
+	_trade_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trade_button.pressed.connect(trades_requested.emit)
+	col.add_child(_trade_button)
 	var waiting := profile.bonuses_waiting(campaign.cleared)
 	_bonus_button.visible = not waiting.is_empty()
 	if not waiting.is_empty():

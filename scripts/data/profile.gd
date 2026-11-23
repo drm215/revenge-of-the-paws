@@ -56,6 +56,11 @@ var dungeon_paid := {}  # region -> the deepest wave whose reward has been paid 
 var team_xp := {}  # team map key -> XP from teammates' battles already collected
 var raids_claimed: Array[String] = []  # legend raids whose rewards this player has collected
 var team_id := ""  # the team this game is played with ("" = solo); see Team
+## Critter transfers between teammates (Transfers, server/transfers.sql):
+var lent := {}  # critter id -> {id, to, kind, data}: offered to or on loan with a teammate (data: as it left)
+var borrowed := {}  # critter id -> {id, from}: on loan from a teammate
+var given: Array[String] = []  # critters given away for good (home animals don't come back on load)
+var transfers_done: Array[String] = []  # transfer ids this save has finished with
 
 
 ## Identifies the home map; the saved campaign is thrown away if this changes.
@@ -98,6 +103,8 @@ func honed(unit_id: String) -> int:
 
 ## Why a node can't be bought right now ("" if it can).
 func tree_block(unit_id: String, node_id: String) -> String:
+	if borrowed.has(unit_id):
+		return "On loan: its owner spends its points"
 	if node_id == GameData.HONE_ID:
 		return "" if points_left(unit_id) > 0 else "No points"  # no cap: one more each point
 	var node := GameData.tree_node(unit_id, node_id)
@@ -122,7 +129,8 @@ func buy_node(unit_id: String, node_id: String) -> bool:
 
 
 func reset_tree(unit_id: String) -> void:
-	tree.erase(unit_id)
+	if not borrowed.has(unit_id):
+		tree.erase(unit_id)
 
 
 ## Animals that leveled since the last tree visit and have something to spend points on, pack first.
@@ -386,7 +394,7 @@ func unlock(ids: Array) -> Array[String]:
 	var fresh: Array[String] = []
 	var start_level := maxi(1, roundi(strongest_pack_level() * GameData.RECRUIT_LEVEL_SHARE))
 	for id: String in ids:
-		if id in unlocked:
+		if id in unlocked or away(id):
 			continue
 		unlocked.append(id)
 		fresh.append(id)
@@ -500,7 +508,7 @@ func fuse(a: String, b: String) -> String:
 	for id in [a, b]:
 		if trinkets_free(id) <= 0:
 			for wearer in equipped.keys():
-				if equipped[wearer] == id:
+				if _wears(wearer, id):
 					equipped.erase(wearer)
 					break
 		trinkets.erase(id)
@@ -526,13 +534,13 @@ func upgrade_trinket(id: String) -> String:
 		return ""
 	var wearer := ""
 	for unit_id in equipped:
-		if equipped[unit_id] == id:
+		if _wears(unit_id, id):
 			wearer = unit_id
 			break
 	for k in 2:
 		trinkets.erase(id)
 	for unit_id in equipped.keys():
-		if equipped[unit_id] == id and trinkets_free(id) < 0:
+		if _wears(unit_id, id) and trinkets_free(id) < 0:
 			equipped.erase(unit_id)
 	var better := GameData.upgraded_id(id)
 	trinkets.append(better)
@@ -545,13 +553,22 @@ func upgrade_trinket(id: String) -> String:
 func trinkets_free(trinket_id: String) -> int:
 	var worn := 0
 	for unit_id in equipped:
-		if equipped[unit_id] == trinket_id:
+		if _wears(unit_id, trinket_id):
 			worn += 1
 	return trinkets.count(trinket_id) - worn
 
 
+## Whether `unit_id` wears one of this player's copies of a trinket. A borrowed critter's trinket
+## belongs to its owner: it isn't in `trinkets`, and nothing here can fuse, upgrade or move it.
+func _wears(unit_id: String, trinket_id: String) -> bool:
+	return equipped.get(unit_id, "") == trinket_id and not borrowed.has(unit_id)
+
+
 ## Puts a trinket on a unit ("" takes it off). If every copy is worn, it moves from another wearer.
+## A borrowed critter keeps the trinket it came with.
 func equip(unit_id: String, trinket_id: String) -> void:
+	if borrowed.has(unit_id):
+		return
 	if trinket_id == "":
 		equipped.erase(unit_id)
 		return
@@ -559,7 +576,7 @@ func equip(unit_id: String, trinket_id: String) -> void:
 		return
 	if trinkets_free(trinket_id) <= 0:
 		for other in equipped.keys():
-			if equipped[other] == trinket_id:
+			if _wears(other, trinket_id):
 				equipped.erase(other)
 				break
 	equipped[unit_id] = trinket_id
@@ -581,11 +598,11 @@ func full_lineup() -> Array[String]:
 		return team.duplicate()
 	var kept: Array[String] = []
 	for id in team:
-		if id not in kept and id != pet_species and GameData.ANIMALS.has(id) and id not in stable 				and (id in unlocked or id in GameData.REGIONS[region].animals):
+		if id not in kept and id != pet_species and GameData.ANIMALS.has(id) and id not in stable and not away(id) 				and (id in unlocked or id in GameData.REGIONS[region].animals):
 			kept.append(id)
 	var spare: Array[String] = []
 	for id in unlocked + GameData.REGIONS[region].animals:
-		if id not in kept and id not in spare and id != pet_species and GameData.ANIMALS.has(id) and id not in stable:
+		if id not in kept and id not in spare and id != pet_species and GameData.ANIMALS.has(id) and id not in stable and not away(id):
 			spare.append(id)
 	spare.sort_custom(func(a: String, b: String) -> bool: return level_of(a) > level_of(b))
 	while kept.size() < locals_needed() and not spare.is_empty():
@@ -634,6 +651,10 @@ func save() -> void:
 	cfg.set_value("profile", "team_xp", team_xp)
 	cfg.set_value("profile", "raids_claimed", Array(raids_claimed))
 	cfg.set_value("profile", "team_id", team_id)
+	cfg.set_value("profile", "lent", lent)
+	cfg.set_value("profile", "borrowed", borrowed)
+	cfg.set_value("profile", "given", Array(given))
+	cfg.set_value("profile", "transfers_done", Array(transfers_done))
 	cfg.set_value("profile", "slot", Saves.slot_of(save_path))  # so a cloud copy comes back to this game
 	cfg.save(save_path)
 	if Saves.is_slot(save_path):
@@ -680,6 +701,10 @@ static func load_saved() -> Profile:
 	p.team_xp = cfg.get_value("profile", "team_xp", {})
 	p.raids_claimed.assign(cfg.get_value("profile", "raids_claimed", []))
 	p.team_id = cfg.get_value("profile", "team_id", "")
+	p.lent = cfg.get_value("profile", "lent", {})
+	p.borrowed = cfg.get_value("profile", "borrowed", {})
+	p.given.assign(cfg.get_value("profile", "given", []))
+	p.transfers_done.assign(cfg.get_value("profile", "transfers_done", []))
 	for duty in p.duties.keys():
 		if p.duties[duty] in p.team:
 			p.duties.erase(duty)
@@ -692,6 +717,105 @@ static func load_saved() -> Profile:
 	p.unlock(p.team)
 	p.normalize_roster()
 	return p
+
+
+## --- Transfers between teammates ---
+
+## The critter is with a teammate (offered, lent or given), so it isn't in this pack.
+func away(id: String) -> bool:
+	return lent.has(id) or id in given
+
+
+## Why critter `id` can't be offered to a teammate ("" if it can): not the pet, not one on loan
+## here, and never the last of the animals the lineup needs.
+func transfer_block(id: String) -> String:
+	if has_pet() and id == pet_species:
+		return "The pet leads your pack: it stays."
+	if id not in unlocked:
+		return "Not in your pack."
+	if borrowed.has(id):
+		return "It's on loan from %s." % String(borrowed[id].get("from", "a teammate"))
+	var own := 0
+	for other in unlocked:
+		if not borrowed.has(other):
+			own += 1
+	if own - 1 < locals_needed():
+		return "Your lineup needs %d animals of your own." % locals_needed()
+	return ""
+
+
+## Why critter `id` can't join this pack from a teammate ("" if it can): one of each kind.
+func receive_block(id: String) -> String:
+	if not GameData.ANIMALS.has(id):
+		return "This game doesn't know that critter."
+	if (has_pet() and id == pet_species) or id in unlocked:
+		return "You already have a %s." % GameData.ANIMALS[id].name
+	if lent.has(id):
+		return "Your own %s is with %s: it has to come home first." % [GameData.ANIMALS[id].name, String(lent[id].get("to", "a teammate"))]
+	return ""
+
+
+## Everything about critter `id` that travels with it: XP, tech tree, trinket (worn), row,
+## injuries, fatigue, rest and bonuses. JSON with sorted keys.
+func critter_data(id: String) -> String:
+	var d := {"id": id, "xp": int(xp.get(id, 0)), "tree": tree.get(id, []), "trinket": String(equipped.get(id, "")),
+		"row": String(rows.get(id, "")), "injuries": int(injuries.get(id, 0)), "fatigue": int(fatigue.get(id, 0)),
+		"rested": int(rested.get(id, 0)), "bonus": bonuses.get(id, {})}
+	return JSON.stringify(d, "", true)
+
+
+## Takes critter `id` out of the pack, with everything about it (its worn trinket too).
+func take_out(id: String) -> void:
+	var worn := String(equipped.get(id, ""))
+	if worn != "" and not borrowed.has(id):
+		trinkets.erase(worn)
+	for field in ["xp", "tree", "equipped", "rows", "injuries", "fatigue", "rested", "sat_out", "bonuses"]:
+		(get(field) as Dictionary).erase(id)
+	unlocked.erase(id)
+	team.erase(id)
+	stable.erase(id)
+	just_leveled.erase(id)
+	borrowed.erase(id)
+	clear_duty(id)
+	repair_lineup()
+	auto_fill_duties()
+
+
+## Puts a critter from critter_data() into the pack (the Stable if the pack is full). `loan_from`:
+## the teammate it's on loan from ("" if it's this player's to keep); its trinket stays theirs.
+## False if it can't be read.
+func put_in(text: String, transfer_id := "", loan_from := "") -> bool:
+	var d: Variant = JSON.parse_string(text)
+	if not d is Dictionary or not GameData.ANIMALS.has(String(d.get("id", ""))):
+		return false
+	var id := String(d.id)
+	given.erase(id)
+	if loan_from != "":
+		borrowed[id] = {"id": transfer_id, "from": loan_from}
+	if id not in unlocked:
+		unlocked.append(id)
+		if active().size() > active_slots():
+			stable.append(id)
+	xp[id] = maxi(int(xp.get(id, 0)), int(d.get("xp", 0)))
+	var nodes: Array = d.get("tree", [])
+	if nodes.is_empty():
+		tree.erase(id)
+	else:
+		tree[id] = nodes.map(func(n: Variant) -> String: return String(n))
+	var worn := String(d.get("trinket", ""))
+	if worn != "":
+		if loan_from == "":
+			trinkets.append(worn)
+		equipped[id] = worn
+	if String(d.get("row", "")) != "":
+		rows[id] = String(d.row)
+	for field in ["injuries", "fatigue", "rested"]:
+		if int(d.get(field, 0)) > 0:
+			(get(field) as Dictionary)[id] = int(d[field])
+	if d.get("bonus", {}) is Dictionary and not (d.bonus as Dictionary).is_empty():
+		bonuses[id] = d.bonus
+	auto_fill_duties()
+	return true
 
 
 ## How many of `week`'s siege stages this pack has claimed.

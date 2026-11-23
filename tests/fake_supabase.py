@@ -17,6 +17,8 @@ chat = []  # {id, team_id, user_id, name, body, ping, created_at, t}
 raids = []  # {id, team_id, host, territory, legend, seed, config, status, result, created_at}
 raid_members = []  # {raid_id, user_id, name, pack, ready, t}
 raid_actions = {}  # (raid_id, seq) -> {user_id, action}
+TRANSFER_FNS = ("my_transfers", "offer_critter", "answer_transfer", "cancel_transfer", "end_loan", "update_loan")
+transfers = []  # critter_transfers rows: {id, team_id, from_user, to_user, from_name, to_name, kind, critter, data, status, updated_at}
 HISTORY_FNS = ("save_versions", "restore_save", "team_versions", "restore_team_state")
 RAID_FNS = ("team_raid", "open_raid", "join_raid", "leave_raid", "start_raid", "post_raid_action",
             "raid_actions_after", "finish_raid", "cancel_raid")
@@ -131,8 +133,63 @@ class H(BaseHTTPRequestHandler):
         state["pulse_raid_rows"] = state.get("pulse_raid_rows", 0) + (1 if send_raid and raid else 0)
         messages = [{k: v for k, v in m.items() if k not in ("t", "team_id")} for m in chat
                     if m["team_id"] == tid and m["id"] > body.get("p_after", 0)]
-        return self._send(200, {"team_tag": team_tag, "team": team if send_team else None, "raid_tag": raid_tag,
-                                "raid_changed": send_raid, "raid": raid if send_raid else None, "messages": messages[-100:]})
+        out = {"team_tag": team_tag, "team": team if send_team else None, "raid_tag": raid_tag,
+               "raid_changed": send_raid, "raid": raid if send_raid else None, "messages": messages[-100:]}
+        if not slow.get("no_pulse_transfers"):  # (pulse.sql from before transfers)
+            out["transfers"] = self._my_transfers(uid, tid)
+        return self._send(200, out)
+
+    def _my_transfers(self, uid, tid):
+        return [{k: v for k, v in t.items() if k != "team_id"} for t in transfers
+                if t["team_id"] == tid and uid in (t["from_user"], t["to_user"])]
+
+    def _transfer_rpc(self, name, body):
+        """Mirrors server/transfers.sql."""
+        uid = self._user()
+        if uid is None:
+            return self._send(401, {"message": "JWT invalid"})
+        if name == "my_transfers":
+            return self._send(200, self._my_transfers(uid, body.get("p_team")))
+        if name == "offer_critter":
+            tid = body.get("p_team")
+            me = next((m for m in members if m["team_id"] == tid and m["user_id"] == uid), None)
+            them = next((m for m in members if m["team_id"] == tid and m["user_id"] == body.get("p_to")), None)
+            if me is None:
+                return self._send(400, {"message": "You are not on that team."})
+            if them is None or body.get("p_to") == uid:
+                return self._send(400, {"message": "That player is not on your team."})
+            if any(t["team_id"] == tid and t["from_user"] == uid and t["critter"] == body["p_critter"]
+                   and t["status"] in ("offered", "active") for t in transfers):
+                return self._send(400, {"message": "That critter is already offered or on loan."})
+            row = {"id": len(transfers) + 1, "team_id": tid, "from_user": uid, "to_user": body["p_to"], "from_name": me["name"],
+                   "to_name": them["name"], "kind": body["p_kind"], "critter": body["p_critter"], "data": body["p_data"],
+                   "status": "offered", "updated_at": stamp()}
+            transfers.append(row)
+            return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
+        row = next((t for t in transfers if t["id"] == body.get("p_id")), None)
+
+        def done(new_status):
+            row["status"] = new_status
+            row["updated_at"] = stamp()
+            return self._send(200, {k: v for k, v in row.items() if k != "team_id"})
+        if name == "answer_transfer":
+            if not row or row["to_user"] != uid or row["status"] != "offered":
+                return self._send(400, {"message": "That offer is no longer open."})
+            return done("declined" if not body.get("p_accept") else "done" if row["kind"] == "gift" else "active")
+        if name == "cancel_transfer":
+            if not row or row["from_user"] != uid or row["status"] != "offered":
+                return self._send(400, {"message": "That offer is no longer open."})
+            return done("cancelled")
+        if name == "end_loan":
+            if not row or uid not in (row["from_user"], row["to_user"]) or row["status"] != "active":
+                return self._send(400, {"message": "That loan is already over."})
+            return done("recalled")
+        if name == "update_loan":
+            if not row or row["to_user"] != uid or row["status"] != "active":
+                return self._send(200, False)
+            row["data"] = body["p_data"]
+            row["updated_at"] = stamp()
+            return self._send(200, True)
 
     def _raid_rpc(self, name, body):
         if name in ("team_raid",):
@@ -343,6 +400,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, self._save_rows())
         if self.path == "/_state":
             return self._send(200, state)
+        if self.path == "/_transfers":
+            return self._send(200, transfers)
         if self.path == "/_history":
             return self._send(200, {"saves": save_history, "teams": team_history, "chat": [{k: v for k, v in m.items() if k != "t"} for m in chat]})
         self._send(404, {})
@@ -422,6 +481,8 @@ class H(BaseHTTPRequestHandler):
             return self._team_rpc(self.path.split("/")[-1], body or {})
         if self.path.startswith("/rest/v1/rpc/") and self.path.split("/")[-1] in RAID_FNS:
             return self._raid_rpc(self.path.split("/")[-1], body or {})
+        if self.path.startswith("/rest/v1/rpc/") and self.path.split("/")[-1] in TRANSFER_FNS:
+            return self._transfer_rpc(self.path.split("/")[-1], body or {})
         if self.path.startswith("/rest/v1/rpc/") and self.path.split("/")[-1] in HISTORY_FNS:
             return self._history_rpc(self.path.split("/")[-1], body or {})
         if self.path == "/_fail_next_save":

@@ -94,3 +94,9 @@ func check() -> void:
 	_team_tag = String(d.team_tag) if d.team == null or team.take_pulse(d.team) else ""
 	_raid_tag = String(d.raid_tag) if not d.raid_changed or raid.take_pulse(d.raid) else ""
 	chat.take_pulse(d.messages)
+	var transfers := get_node_or_null("/root/Transfers")
+	if transfers:
+		if d.has("transfers"):
+			transfers.take_pulse(d.transfers)
+		else:
+			transfers.refresh()  # (pulse.sql from before transfers: ask on its own)
